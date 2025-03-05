@@ -1294,6 +1294,7 @@ p {
   font-size: 16px;
   font-weight: 300;
   line-height: 1.4;
+  
 }
 @media (min-width: 768px) {
   .lead {

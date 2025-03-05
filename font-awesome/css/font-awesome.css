@@ -653,7 +653,7 @@
 .fa-bell:before {
   content: "\f0f3";
 }
-.fa-certificate:before {
+.:before {
   content: "\f0a3";
 }
 .fa-hand-o-right:before {
