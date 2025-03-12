@@ -85,15 +85,21 @@
             0 22px 30px rgba(0, 0, 0, 0.9);">Reston EUC</h1>
             <h1><img height="300" width="300" src="img/logo.png"/></h1>
             
-            <p class="lead">Reston EUC is a Northern Virginia Electric Unicycle group.</p>
+            <p class="lead">Reston EUC is a Northern Virginia Electric Unicycle group.</p>               
             <h3>Join us on Telegram, introduce yourself, and get notified about the next group ride.</h3>
-            <p>_</p>
+            <p>_</p>   
+            
             <p><h1><a class="btn btn-lg btn-trans btn-success" href="https://t.me/RestonEUC" style="font-size: 60%"><i class="fa fa-telegram" aria-hidden="true"></i> Telegram Group</a></h1> </p>
+            
+            
             <p><a class="btn btn-info btn-lg bigger-btn btn-trans" href="https://ridewithgps.com/users/2677488"><i class="fa fa-map" aria-hidden="true"></i> Past Routes (mobile)</a></p>
-            <p><a class="btn btn-info btn-lg bigger-btn btn-trans" href="https://ridewithgps.com/users/2677488/routes"><i class="fa fa-map" aria-hidden="true"></i> Past Routes (desktop)</a></p>          
+            <p><a class="btn btn-info btn-lg bigger-btn btn-trans" href="https://ridewithgps.com/users/2677488/routes"><i class="fa fa-map" aria-hidden="true"></i> Past Routes (desktop)</a></p>
+            <p><a class="btn btn-info btn-lg bigger-btn btn-trans" href="https://www.youtube.com/@RestonEUC"><i class="fa fa-youtube-play" aria-hidden="true"></i> Youtube videos</a></p>          
             <p><a class="btn btn-info btn-lg bigger-btn btn-trans" href="https://dceuc.com"><i class="fa fa-external-link-square" aria-hidden="true"></i> DC EUC Collective</a></p>
             <p><a class="btn btn-info btn-lg bigger-btn btn-trans" href="https://8v245.csb.app"><i class="fa fa-gamepad" aria-hidden="true"></i> Marty Simulator</a></p>
             <p><a class="btn btn-info btn-lg bigger-btn btn-trans" href="https://gcdhh2.csb.app"><i class="fa fa-gamepad" aria-hidden="true"></i> Quality Samulator</a></p>
+            <h3>Next Ride:</h3>
+            <iframe id="youtube_video" width="600" height="750" frameborder="0" autoplay=1" allow="autoplay" allowfullscreen></iframe>
             <!-- END SECTION 1 CONTENT -->
           </div>
           <div class="col-md-1"> </div>
@@ -124,6 +130,16 @@
         });
 
         $('body').scrollspy({ target: '#topnav' })
+
+
+        var channelID = "UCA3oZ1tFVdiA-Nl0tz2j74w";
+        var reqURL = "https://www.youtube.com/feeds/videos.xml?channel_id=";       
+        $.getJSON("https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(reqURL)+channelID, function(data) {
+          var link = data.items[0].link;
+          console.log(">>>> " + link);
+          var id = link.substr(link.indexOf("=")+1);
+          $("#youtube_video").attr("src","https://youtube.com/embed/"+id + "?controls=0&showinfo=0&rel=0&autoplay=1&mute=1");
+        });
 
       </script>
   </body>
