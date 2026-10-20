@@ -24,6 +24,14 @@ Browsers only install PWAs from `https://` addresses (or `localhost` while testi
 
 If you use your own web server, make sure `.webmanifest` is served as `application/manifest+json`. Most servers already do this.
 
+## Link previews (Open Graph)
+
+When someone shares the game link, sites like iMessage, WhatsApp, Discord, Facebook and X show a preview card using `screenshots/og-image.png` (1200×630).
+
+The tags are set for **https://restoneuc.com/whatdo/index.html**, and the preview image is **https://restoneuc.com/whatdo/screenshots/og-image.png**. Make sure `screenshots/og-image.png` is uploaded. If the game ever moves, update `og:url`, `og:image`, `og:image:secure_url`, `twitter:image` and the `canonical` link near the top of `index.html`.
+
+Most sites ignore relative image paths. To check the result, paste your link into opengraph.xyz or the Facebook Sharing Debugger.
+
 ## How players install it
 
 - **Android (Chrome / Edge / Samsung):** an **⬇ INSTALL APP** button appears on the start screen. They can also use the browser menu ⋮ → **Install app**.
