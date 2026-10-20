@@ -998,7 +998,7 @@ function updTourists(e, dt) {
     t.ft -= dt; t.fl.visible = t.ft > 0;
     if (near && d < 26 && t.ft < -0.2 && Math.random() < dt * 0.9) {
       t.ft = 0.08;
-      if (shutterCd <= 0) { Sound.shutter(clamp(-dx / 10, -1, 1), clamp(1 - d / 40, 0.15, 0.7)); shutterCd = 0.12; }
+      snapPhoto(clamp(-dx / 10, -1, 1), clamp(1 - d / 40, 0.15, 0.7));
     }
   }
 }
@@ -1158,6 +1158,15 @@ const Sound = (() => {
     os.connect(g); g.connect(o); os.start(t); os.stop(t + len + 0.02);
   }
   function jingle() { [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => blip(mtof(m), i === 6 ? 0.6 : 0.16, 'square', 0.13, i * 0.11)); }
+  // high five: a sharp slap
+  function slap(pan) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan);
+    const n = noise(t, 0.12), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    f.type = 'bandpass'; f.frequency.value = 2300; f.Q.value = 0.7;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.9, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    n.connect(f); f.connect(g); g.connect(o);
+    blip(1320, 0.09, 'square', 0.06, 0.06); blip(1760, 0.12, 'square', 0.06, 0.14);
+  }
   // car alarm: the classic three-part cycle (fast warble, slow whoop, beeps), about 3 s
   function carAlarm(pan) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan);
@@ -1374,7 +1383,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -1702,10 +1711,43 @@ function decorPopulate(run, ch, isEnd, isFirst, plazaSide) {
     const bg = vox(bp); addMesh(ch.g, bg, MAT.vox, 0, 0, 0, false, true); ch.glow.push(bg);   // disposed with the chunk
     spawnBand(run, ch, sx);
   }
+  if (!isEnd && ch.idx > 0 && Math.random() < 0.3) spawnHiFive(run, ch);
   if (isEnd || isFirst || ch.idx < 1 || Math.random() > 0.22) return;
   const sx = plazaSide || (Math.random() < 0.5 ? -1 : 1);
   let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4;
   spawnBusker(run, ch, pick(['drums', 'drums', 'sax', 'sax', 'dance']), sx * 15.6, z, sx);
+}
+// ---------- high fives: someone at the curb holds a hand out over the road; slap it as you pass ----------
+const HIFIVE_PTS = 1500, HIFIVE_REACH = 0.6;   // points, and how far (m) from your edge to their hand still counts
+const HIFIVE_ARM = vox([[0, -0.075, -0.31, 0.15, 0.15, 0.62, 0xc68642], [0, -0.11, -0.66, 0.2, 0.22, 0.08, 0xc68642]]);   // pivots at the shoulder
+function spawnHiFive(run, ch) {
+  let z = rand(-70, -14); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3)) z -= 4;
+  const x = 11.75, e = spawnPed(run, pick(['ped', 'ped', 'tourist']), x, ch.z0 + z, 'hifive', { nm: true });   // nm: no "EXCUSE ME!" on top
+  if (e.flash) e.flash.visible = false;
+  const arm = new THREE.Mesh(HIFIVE_ARM, MAT.vox); arm.position.set(0.385, 1.44, 0); arm.rotation.x = 0.35; e.mesh.add(arm);
+  e.arm = arm; e.five = 0;   // 0 waiting, 1 slapped, -1 missed
+  e.mesh.rotation.y = Math.PI / 2;   // face the road
+  return e;
+}
+function updHiFive(e, dt) {
+  const side = PL.z > e.z ? 1 : -1, was = e.pSide; e.pSide = side;
+  if (e.five === 0) {
+    e.arm.rotation.x = 0.35 + Math.sin(e.t * 6) * 0.08;
+    if (was !== undefined && was !== side && Game.state === 'play') {
+      const gap = (e.x - 0.7) - (PL.x + P_HW);   // from the rider's right edge to their hand
+      const hits = PL.x + P_HW > e.x - e.hw;   // riding into them is a crash, not a high five
+      if (gap < HIFIVE_REACH && PL.x > 0 && !hits) {
+        e.five = 1; e.t = 0;
+        award('HIGH FIVE!', HIFIVE_PTS * (player.speed / player.base) * (1 + clamp(1 - Math.max(0, gap) / HIFIVE_REACH, 0, 1)), 'good');
+        Sound.slap(0.6); buzz(30);
+      } else if (gap < 6) { e.five = -1; e.t = 0; }   // you went past: they give up
+    }
+  } else if (e.five === 1) {   // celebrate: arm up, a couple of hops
+    e.arm.rotation.x = damp(e.arm.rotation.x, 1.5, 8, dt);
+    e.mesh.position.y = groundY(e.run, e.x, e.z) + (e.t < 1.2 ? Math.abs(Math.sin(e.t * 8)) * 0.35 : 0);
+    return;
+  } else e.arm.rotation.x = damp(e.arm.rotation.x, -1.3, 4, dt);   // arm drops
+  e.mesh.position.y = groundY(e.run, e.x, e.z);
 }
 // ---------- marching band ----------
 const BAND = (() => {
@@ -2449,6 +2491,7 @@ function spawnPed(run, kind, x, z, mode, opts) {
 }
 function updPed(run, e, dt) {
   e.t += dt;
+  if (e.mode === 'hifive') { updHiFive(e, dt); return; }
   if (e.mode === 'fallen') {
     e.fall = Math.min(1, e.fall + dt * 3); e.mesh.rotation.x = -e.fall * Math.PI / 2; e.mesh.position.y = groundY(run, e.x, e.z) + 0.15 * e.fall; return;
   }
@@ -2463,7 +2506,14 @@ function updPed(run, e, dt) {
     if (Math.abs(e.x) > e.xLim) { e.x = Math.sign(e.x) * e.xLim; e.vx = -e.vx; }
     rot = e.vx > 0 ? -Math.PI / 2 : Math.PI / 2;
   } else if (e.flash) {
-    e.flashT -= dt; if (e.flashT < 0) { e.flash.visible = true; if (e.flashT < -0.08) { e.flash.visible = false; e.flashT = rand(1.5, 5); } }
+    const dx = PL.x - e.x, dz = PL.z - e.z, d = Math.hypot(dx, dz), aim = Game.state === 'play' && d < 30 && dz < 6;
+    if (aim) rot += normAng(Math.atan2(-dx, -dz) - rot) * Math.min(1, dt * 5);   // turn to photograph the rider
+    e.flashT -= dt;
+    if (e.flashT < 0) {
+      if (!e.flash.visible && aim) snapPhoto(clamp(-dx / 10, -1, 1), clamp(1 - d / 40, 0.15, 0.7));
+      e.flash.visible = true;
+      if (e.flashT < -0.08) { e.flash.visible = false; e.flashT = aim ? rand(0.6, 1.6) : rand(1.5, 5); }
+    }
   }
   if (moving) {
     e.ft += dt; const step = 0.36 / Math.max(0.8, Math.abs(e.vx) + Math.abs(e.vz));
@@ -3076,6 +3126,19 @@ function updateWarnings() {
   }
   if (txt !== warnTxt) { warnTxt = txt; if (txt) $('warnT').textContent = txt; }
   $('warnT').classList.toggle('hidden', !txt);
+}
+// SNAP!: a photo taken of the rider. Shutter sound now, points a moment later (snaps within 0.6 s add up into one popup).
+// Counts as a trick: keeps the chain alive but doesn't add to it, so a busload of tourists can't farm a x5 chain.
+const SNAP_PTS = 40, SNAP = { n: 0, t: 0 };
+function snapPhoto(pan, vol) {
+  if (shutterCd <= 0) { Sound.shutter(pan, vol); shutterCd = 0.12; }
+  if (Game.state === 'play') { SNAP.n++; SNAP.t = 0.6; }
+}
+function updateSnaps(dt) {
+  if (!SNAP.n) return;
+  if (Game.state !== 'play') { SNAP.n = 0; return; }
+  SNAP.t -= dt;
+  if (SNAP.t <= 0) { award('SNAP!' + (SNAP.n > 1 ? ' x' + SNAP.n : ''), SNAP_PTS * SNAP.n * (player.speed / player.base), 'trick', false); SNAP.n = 0; }
 }
 // car alarm: hazard lights and headlights blink for ~3 s while the alarm whoops
 const ALARMS = [];
@@ -3818,7 +3881,7 @@ function frame(now) {
   if (st === 'play' || st === 'countdown') updateHud(false);
   Sound.setEngine(player.speed, st === 'play', player.boost);
   if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
-  updateDecor(dt); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); Sky.update(dt);
+  updateDecor(dt); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
   renderer.render(scene, camera);
   if (Game.state === 'replay' && VID.cap) VID.capture();
 }
