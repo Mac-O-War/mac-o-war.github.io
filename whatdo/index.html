@@ -162,16 +162,15 @@ body:not(.touch) .card.tch{display:none}
 #updToast{position:fixed;left:50%;top:calc(12px + var(--st));transform:translateX(-50%);z-index:60;background:#3ddc84;color:#111;border:3px solid #000;padding:10px 14px;font-size:10px;box-shadow:4px 4px 0 rgba(0,0,0,.5);pointer-events:auto;cursor:pointer;white-space:nowrap}
 .sub2{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center}
 /* ---------- leaderboard ---------- */
-#lbBox{display:flex;flex-direction:column;align-items:center;gap:8px;margin:0 0 16px}
-.lbHead{font-size:9px;color:var(--y);line-height:1.8}
-.lbRow{display:flex;align-items:center;gap:14px;margin-top:8px}
-.lbSlots{display:flex;gap:8px}
-.slot{display:flex;flex-direction:column;align-items:center;gap:5px}
-.slot b{display:flex;align-items:center;justify-content:center;width:40px;height:42px;background:#000;border:3px solid #555;color:#fff;font-size:22px;font-weight:normal;cursor:pointer}
-.slot.cur b{border-color:var(--y);color:var(--y)}
-.arr{font-family:var(--hud);font-size:9px;width:40px;height:24px;padding:0;background:#e9edf5;color:#111;border:2px solid #000;box-shadow:0 3px 0 #555;cursor:pointer;touch-action:none}
-.arr.press{transform:translateY(2px);box-shadow:0 1px 0 #555}
-#lbMsg{font-size:9px;color:#3ddc84;line-height:1.8}
+#nmScore{font-size:clamp(20px,6vw,34px);color:#fff;margin:0 0 18px;text-shadow:3px 3px 0 #000}
+.lbHead{font-size:10px;color:var(--y);line-height:1.8}
+.lbRow{display:flex;align-items:center;gap:14px;margin-top:10px}
+#nmErr{font-size:9px;color:#ff8a7a;line-height:1.8;margin-top:12px}
+#nmErr:empty{display:none}
+#lbSkip{margin-top:18px}
+#lbName{width:6.2em;box-sizing:border-box;padding:10px 0 10px .6em;font-family:var(--hud);font-size:22px;letter-spacing:.6em;text-align:center;text-transform:uppercase;background:#000;color:var(--y);caret-color:var(--y);border:3px solid var(--y);border-radius:0;outline:none;-webkit-user-select:text;user-select:text;touch-action:manipulation}
+#lbName::placeholder{color:#555}
+#lbMsg{font-size:9px;color:#3ddc84;line-height:1.8;margin:0 0 14px;max-width:420px}
 #lbMsg.err{color:#ff8a7a}
 #lbMsg:empty{display:none}
 .lbTabs .btn:not(.on){background:#7d8aa8}
@@ -199,7 +198,7 @@ body:not(.touch) .card.tch{display:none}
   .split #newBest{margin:0}
   .split .btn{padding:18px 30px}
 }
-@media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#lbBox{margin-bottom:8px}.lbRow{margin-top:2px}.slot b{height:34px;font-size:18px}.arr{height:20px}}
+@media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:18px;padding:7px 0 7px .6em}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
 @media (max-height:520px){.title{font-size:clamp(40px,14vh,90px)}.goal{font-size:8px;line-height:1.7}.btn{padding:12px 28px}.sub{margin:8px 0 10px}.tut{margin-bottom:8px}.card{padding:8px 10px}.row{margin:5px 0}.goal{margin-bottom:10px}}
 </style>
 </head>
@@ -286,24 +285,25 @@ body:not(.touch) .card.tch{display:none}
   <div id="newBest" class="hidden">NEW HIGH SCORE!</div>
   </div>
   <div class="act">
-  <div id="lbBox" class="hidden">
-    <div id="lbEntry">
-      <div class="lbHead">YOU MADE THE BOARD! ENTER YOUR INITIALS</div>
-      <div class="lbRow">
-        <div class="lbSlots">
-          <div class="slot"><button class="arr up">&#9650;</button><b>A</b><button class="arr dn">&#9660;</button></div>
-          <div class="slot"><button class="arr up">&#9650;</button><b>A</b><button class="arr dn">&#9660;</button></div>
-          <div class="slot"><button class="arr up">&#9650;</button><b>A</b><button class="arr dn">&#9660;</button></div>
-        </div>
-        <button class="btn sm alt" id="lbOk">POST</button>
-      </div>
-    </div>
-    <div id="lbMsg"></div>
-  </div>
+  <div id="lbMsg"></div>
   <button class="btn" id="restartBtn">RESTART</button>
   <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm alt dis" id="gifBtn">GIF...</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
-  <div class="small" id="overHint">PRESS ENTER / SPACE OR TAP</div>
+  <div class="small">PRESS ENTER / SPACE OR TAP</div>
   </div>
+</section>
+
+<section id="nameScreen" class="screen hidden">
+  <h2 class="big g">HIGH SCORE!</h2>
+  <p class="cause" id="nmWhy">YOU MADE TODAY'S TOP 10</p>
+  <div id="nmScore">0</div>
+  <div class="lbHead">ENTER YOUR INITIALS</div>
+  <div class="lbRow">
+    <input id="lbName" type="text" maxlength="3" placeholder="???" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="send" aria-label="Your initials">
+    <button class="btn sm alt" id="lbOk">POST</button>
+  </div>
+  <div id="nmErr"></div>
+  <button class="btn sm" id="lbSkip">SKIP</button>
+  <div class="small" id="nmHint">TYPE YOUR INITIALS &middot; ENTER TO POST &middot; ESC TO SKIP</div>
 </section>
 
 <section id="boardScreen" class="screen hidden">
@@ -2069,7 +2069,7 @@ function resetWorld() {
   $('bloodFx').innerHTML = ''; $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
 function showScreen(id) {
-  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen']) $(s).classList.toggle('hidden', s !== id);
+  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen']) $(s).classList.toggle('hidden', s !== id);
 }
 function setHudVisible(on) {
   $('hud').classList.toggle('on', on);
@@ -2094,7 +2094,6 @@ function beginLevel() {
   updateHud(true);
 }
 function restart() {
-  LB.autoSubmit();   // leaving with initials on screen still posts the score
   track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 function pauseGame() { if (Game.state !== 'play') return; Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend(); }
@@ -2569,8 +2568,7 @@ function showGameOver() {
   $('oTurns').textContent = Game.turns;
   $('oBest').textContent = Game.best.toLocaleString();
   $('newBest').classList.toggle('hidden', !Game.newBest);
-  showScreen('overScreen');
-  LB.onGameOver();
+  LB.onGameOver();   // shows the initials screen first when the score makes the board, else Game Over
   setTimeout(() => { Game.overReady = true; }, 250);
 }
 /* ---------- level complete ---------- */
@@ -3051,12 +3049,12 @@ function frame(now) {
    GET /top?board=day|all → [{ name, score, level }] (top 10) · POST /submit { name, score, level, secs } → { ok, rank }
    The Worker only answers pages on https://restoneuc.com, so from localhost or file:// the board stays hidden. */
 const LB_URL = 'https://whatdo-leaderboard.whatdo-leaderboard.workers.dev';
-const LB_CH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-const lbSaved = store.get('whatdo_name', '');
+const lbClean = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+const lbSaved = lbClean(store.get('whatdo_name', ''));
 const LB = {
   boards: { day: null, all: null }, failed: false, tab: 'day', open: false, back: 'startScreen',
   run: null,     // this crash: { score, level, secs, state: 'none'|'entry'|'sending'|'posted'|'queued'|'rejected', msg, err }
-  letters: (/^[A-Z0-9]{3}$/.test(lbSaved) ? lbSaved : 'AAA').split(''), named: /^[A-Z0-9]{3}$/.test(lbSaved), edited: false, cur: 0,
+  name: lbSaved, // initials typed so far (remembered as whatdo_name once posted)
   mine: null     // last score posted from this device, highlighted on the board
 };
 function lbFetch(path, opts) {
@@ -3090,51 +3088,62 @@ function lbFlush() {
   return Promise.resolve(next()).finally(() => { lbFlushing = false; });
 }
 const lbMakes = (b, sc) => !!b && (b.length < 10 || sc > b[b.length - 1].score);
-LB.onGameOver = () => {   // runs again after every re-watched replay, so only set up once per crash
+// after a crash: a score that makes a board goes to the initials screen first, then Game Over.
+// runs again after every re-watched replay, so the crash is only set up once.
+LB.onGameOver = () => {
   if (!LB.run) {
     const score = Math.floor(Game.score), secs = Math.round(Game.runT);
+    const day = lbMakes(LB.boards.day, score), all = lbMakes(LB.boards.all, score);
     // with no board loaded (offline), offer it for a personal best and queue it
-    const makes = score > 0 && secs > 0 && (LB.boards.all ? lbMakes(LB.boards.day, score) || lbMakes(LB.boards.all, score) : Game.newBest);
+    const makes = score > 0 && secs > 0 && (LB.boards.all ? day || all : Game.newBest);
     LB.run = { score, level: Game.level, secs, state: makes ? 'entry' : 'none', msg: '', err: false };
-    LB.cur = 0; LB.edited = false;
+    $('nmScore').textContent = score.toLocaleString();
+    $('nmWhy').textContent = !LB.boards.all ? 'NEW PERSONAL BEST' : all ? 'YOU MADE THE ALL-TIME TOP 10' : "YOU MADE TODAY'S TOP 10";
+    $('lbName').value = LB.name;
   }
-  lbRender();
+  lbShow();
 };
+function lbShow() {   // pick the screen for the current crash
+  const r = LB.run, entry = !!r && r.state === 'entry';
+  if (Game.state === 'over' && !LB.open) showScreen(entry ? 'nameScreen' : 'overScreen');
+  lbRender();
+  // on a computer the box takes the keyboard straight away; on a phone, tapping it opens the on-screen keyboard
+  if (entry && !isTouch) setTimeout(() => { if (LB.run === r && r.state === 'entry') $('lbName').focus({ preventScroll: true }); }, 60);
+  else if (!entry && document.activeElement === $('lbName')) $('lbName').blur();   // closes the phone keyboard
+}
 function lbRender() {
   const r = LB.run, entry = !!r && r.state === 'entry';
-  $('lbBox').classList.toggle('hidden', !r || r.state === 'none');
-  $('lbEntry').classList.toggle('hidden', !entry);
-  $('overHint').textContent = entry ? (isTouch ? 'SET YOUR INITIALS, THEN TAP POST' : 'TYPE YOUR INITIALS \u00B7 ENTER TO POST \u00B7 ESC TO SKIP') : 'PRESS ENTER / SPACE OR TAP';
-  document.querySelectorAll('#lbEntry .slot').forEach((s, i) => { s.querySelector('b').textContent = LB.letters[i]; s.classList.toggle('cur', i === LB.cur); });
-  const m = $('lbMsg'); m.textContent = (r && r.msg) || ''; m.classList.toggle('err', !!(r && r.err));
+  $('nmErr').textContent = entry && r.err ? r.msg : '';
+  $('nmHint').textContent = isTouch ? 'TAP THE BOX TO TYPE YOUR INITIALS' : 'TYPE YOUR INITIALS · ENTER TO POST · ESC TO SKIP';
+  const m = $('lbMsg'); m.textContent = r && !entry ? r.msg || '' : ''; m.classList.toggle('err', !!(r && r.err));
 }
-function lbSet(i, ch) { LB.letters[i] = ch; LB.edited = true; if (LB.run) { LB.run.msg = ''; LB.run.err = false; } }
-function lbBump(i, d) { if (!LB.run || LB.run.state !== 'entry') return; lbSet(i, LB_CH[(LB_CH.indexOf(LB.letters[i]) + d + LB_CH.length) % LB_CH.length]); LB.cur = i; lbRender(); }
 LB.submit = () => {
   const r = LB.run; if (!r || r.state !== 'entry') return;
-  const name = LB.letters.join(''), entry = { name, score: r.score, level: r.level, secs: r.secs };
-  store.set('whatdo_name', name); LB.named = true;
-  r.state = 'sending'; r.msg = 'POSTING...'; r.err = false; lbRender();
+  const name = LB.name;
+  if (name.length !== 3) { r.err = true; r.msg = 'ENTER 3 LETTERS OR NUMBERS'; lbRender(); return; }
+  const entry = { name, score: r.score, level: r.level, secs: r.secs };
+  store.set('whatdo_name', name);
+  r.state = 'sending'; r.msg = 'POSTING ' + name + '...'; r.err = false; lbShow();   // on to Game Over while it posts
   lbFlush().then(() => lbSend(entry)).then((res) => {
     if (res.ok) {
-      r.state = 'posted'; r.msg = 'POSTED AS ' + name + ' \u00B7 #' + res.rank + ' ALL-TIME'; LB.mine = { name, score: r.score };
+      r.state = 'posted'; r.msg = 'POSTED AS ' + name + ' · #' + res.rank + ' ALL-TIME'; LB.mine = { name, score: r.score };
       track('lb-posted', 'Posted a leaderboard score');
       LB.fetchBoards(true).then(() => {
         const i = (LB.boards.day || []).findIndex((e) => e.name === name && e.score === r.score);
-        if (i >= 0) r.msg = 'POSTED AS ' + name + ' \u00B7 #' + (i + 1) + ' TODAY \u00B7 #' + res.rank + ' ALL-TIME';
+        if (i >= 0) r.msg = 'POSTED AS ' + name + ' · #' + (i + 1) + ' TODAY · #' + res.rank + ' ALL-TIME';
         if (LB.run === r) lbRender();
       });
     } else if (res.retry) {
-      lbQueueSet(lbQueueGet().concat([entry])); r.state = 'queued'; r.msg = 'OFFLINE \u00B7 YOUR SCORE WILL POST LATER';
+      lbQueueSet(lbQueueGet().concat([entry])); r.state = 'queued'; r.msg = 'OFFLINE · YOUR SCORE WILL POST LATER';
     } else if (res.error === 'pick other initials') {
-      r.state = 'entry'; r.err = true; r.msg = 'PICK OTHER INITIALS';
+      r.state = 'entry'; r.err = true; r.msg = 'PICK OTHER INITIALS';   // back to the initials screen
     } else {
       r.state = 'rejected'; r.err = true; r.msg = 'THE LEADERBOARD DIDN\'T ACCEPT THAT SCORE';
     }
-    if (LB.run === r) lbRender();
+    if (LB.run === r) lbShow();
   });
 };
-LB.autoSubmit = () => { if (LB.run && LB.run.state === 'entry' && (LB.named || LB.edited)) LB.submit(); };
+LB.skip = () => { const r = LB.run; if (!r || r.state !== 'entry') return; r.state = 'none'; r.err = false; r.msg = ''; lbShow(); };
 LB.openBoard = () => {
   LB.back = Game.state === 'menu' ? 'startScreen' : 'overScreen'; LB.open = true;
   showScreen('boardScreen'); lbRenderBoard(); LB.fetchBoards(false);
@@ -3168,26 +3177,22 @@ LB.key = (e) => {   // true = the key was for the leaderboard, so the game ignor
   }
   const r = LB.run;
   if (Game.state !== 'over' || !r || r.state !== 'entry') return false;
-  const c = e.code, ch = e.key && e.key.length === 1 ? e.key.toUpperCase() : '';
-  if (LB_CH.includes(ch) && ch) { lbSet(LB.cur, ch); LB.cur = Math.min(2, LB.cur + 1); }
-  else if (c === 'Backspace' || c === 'ArrowLeft') LB.cur = Math.max(0, LB.cur - 1);
-  else if (c === 'ArrowRight') LB.cur = Math.min(2, LB.cur + 1);
-  else if (c === 'ArrowUp') lbBump(LB.cur, 1);
-  else if (c === 'ArrowDown') lbBump(LB.cur, -1);
-  else if ((c === 'Enter' || c === 'NumpadEnter') && !e.repeat) LB.submit();
-  else if (c === 'Escape') { r.state = 'none'; }
-  else if (c !== 'Space') return true;   // other keys: just keep them away from the game
-  e.preventDefault(); lbRender();
-  return true;
+  const c = e.code;
+  if ((c === 'Enter' || c === 'NumpadEnter') && !e.repeat) { e.preventDefault(); LB.submit(); return true; }
+  if (c === 'Escape') { e.preventDefault(); LB.skip(); return true; }
+  if (e.target !== $('lbName') && e.key && e.key.length === 1) $('lbName').focus({ preventScroll: true });   // typing anywhere goes to the box
+  return true;   // keep every other key away from the game (Space mustn't restart, M mustn't mute)
 };
 document.querySelectorAll('.lbOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'over') LB.openBoard(); }));
 document.querySelectorAll('.lbTabs .btn').forEach((b) => bindButton(b, () => { LB.tab = b.dataset.b; lbRenderBoard(); }));
 bindButton($('lbBack'), LB.closeBoard);
 bindButton($('lbOk'), LB.submit);
-document.querySelectorAll('#lbEntry .slot').forEach((s, i) => {
-  bindButton(s.querySelector('.up'), () => lbBump(i, 1));
-  bindButton(s.querySelector('.dn'), () => lbBump(i, -1));
-  s.querySelector('b').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); LB.cur = i; lbRender(); });
+bindButton($('lbSkip'), LB.skip);
+$('lbName').addEventListener('input', () => {
+  const box = $('lbName'), v = lbClean(box.value);
+  if (box.value !== v) box.value = v;   // capitals, letters and numbers only
+  LB.name = v;
+  if (LB.run && LB.run.err) { LB.run.err = false; LB.run.msg = ''; lbRender(); }
 });
 window.addEventListener('online', () => { lbFlush().then(() => LB.fetchBoards(true)); });
 lbFlush().then(() => LB.fetchBoards(false));
