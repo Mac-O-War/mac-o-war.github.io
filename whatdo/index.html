@@ -164,18 +164,23 @@ body:not(.touch) .card.tch{display:none}
 /* ---------- leaderboard ---------- */
 #nmScore{font-size:clamp(20px,6vw,34px);color:#fff;margin:0 0 18px;text-shadow:3px 3px 0 #000}
 .lbHead{font-size:10px;color:var(--y);line-height:1.8}
-.lbRow{display:flex;align-items:center;gap:14px;margin-top:10px}
+.lbRow{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px 14px;margin-top:10px}
 #nmErr{font-size:9px;color:#ff8a7a;line-height:1.8;margin-top:12px}
 #nmErr:empty{display:none}
 #lbSkip{margin-top:18px}
-#lbName{width:6.2em;box-sizing:border-box;padding:10px 0 10px .6em;font-family:var(--hud);font-size:22px;letter-spacing:.6em;text-align:center;text-transform:uppercase;background:#000;color:var(--y);caret-color:var(--y);border:3px solid var(--y);border-radius:0;outline:none;-webkit-user-select:text;user-select:text;touch-action:manipulation}
+/* typing on a phone: the on-screen keyboard covers the lower half, so keep only the box and POST, pinned to the top */
+#nameScreen.typing{justify-content:flex-start;padding-top:calc(12px + var(--st))}
+#nameScreen.typing .big,#nameScreen.typing .cause,#nameScreen.typing #nmScore,#nameScreen.typing #lbSkip,#nameScreen.typing #nmHint{display:none}
+#nameScreen.typing .lbRow{margin-top:6px}
+#lbName{width:min(310px,72vw);box-sizing:border-box;padding:12px 10px;font-family:var(--hud);font-size:16px;letter-spacing:.05em;text-align:center;background:#000;color:var(--y);caret-color:var(--y);border:3px solid var(--y);border-radius:0;outline:none;-webkit-user-select:text;user-select:text;touch-action:manipulation}
 #lbName::placeholder{color:#555}
 #lbMsg{font-size:9px;color:#3ddc84;line-height:1.8;margin:0 0 14px;max-width:420px}
 #lbMsg.err{color:#ff8a7a}
 #lbMsg:empty{display:none}
 .lbTabs .btn:not(.on){background:#7d8aa8}
 #lbList{list-style:none;margin:16px 0 20px;padding:0;width:min(460px,100%);font-size:clamp(9px,2.4vw,12px)}
-#lbList li{display:grid;grid-template-columns:3.5em 4em 1fr 4em;gap:8px;padding:7px 10px;text-align:left}
+#lbList li{display:grid;grid-template-columns:3.2em minmax(0,1fr) auto 4em;gap:8px;padding:7px 10px;text-align:left}
+#lbList .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #lbList li:nth-child(odd){background:rgba(255,255,255,.06)}
 #lbList li.me{background:rgba(255,210,63,.22);color:var(--y)}
 #lbList .r,#lbList .l{color:#9fb4d8}
@@ -198,7 +203,7 @@ body:not(.touch) .card.tch{display:none}
   .split #newBest{margin:0}
   .split .btn{padding:18px 30px}
 }
-@media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:18px;padding:7px 0 7px .6em}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
+@media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:14px;padding:8px 10px}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
 @media (max-height:520px){.title{font-size:clamp(40px,14vh,90px)}.goal{font-size:8px;line-height:1.7}.btn{padding:12px 28px}.sub{margin:8px 0 10px}.tut{margin-bottom:8px}.card{padding:8px 10px}.row{margin:5px 0}.goal{margin-bottom:10px}}
 </style>
 </head>
@@ -296,14 +301,14 @@ body:not(.touch) .card.tch{display:none}
   <h2 class="big g">HIGH SCORE!</h2>
   <p class="cause" id="nmWhy">YOU MADE TODAY'S TOP 10</p>
   <div id="nmScore">0</div>
-  <div class="lbHead">ENTER YOUR INITIALS</div>
+  <div class="lbHead">ENTER YOUR NAME</div>
   <div class="lbRow">
-    <input id="lbName" type="text" maxlength="3" placeholder="???" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="send" aria-label="Your initials">
+    <input id="lbName" type="text" maxlength="16" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="send" aria-label="Your name">
     <button class="btn sm alt" id="lbOk">POST</button>
   </div>
   <div id="nmErr"></div>
   <button class="btn sm" id="lbSkip">SKIP</button>
-  <div class="small" id="nmHint">TYPE YOUR INITIALS &middot; ENTER TO POST &middot; ESC TO SKIP</div>
+  <div class="small" id="nmHint">TYPE YOUR NAME &middot; ENTER TO POST &middot; ESC TO SKIP</div>
 </section>
 
 <section id="boardScreen" class="screen hidden">
@@ -1984,7 +1989,7 @@ function doTurn() {
 const input = { left: false, right: false, up: false, mouseGas: false, mouseX: null, mouseSteer: false, lastMouseMove: 0, tL: false, tR: false, tGas: false, canvasTouchGas: false };
 const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', Space: 'up' };
 window.addEventListener('keydown', (e) => {
-  if (LB.key(e)) return;   // initials entry / leaderboard screen take the keyboard
+  if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
   const k = KEYMAP[e.code];
   if (k) { input[k] = true; if (k !== 'up') input.mouseSteer = false; e.preventDefault(); }
   // secret: '@' skips straight to the next level
@@ -2568,7 +2573,7 @@ function showGameOver() {
   $('oTurns').textContent = Game.turns;
   $('oBest').textContent = Game.best.toLocaleString();
   $('newBest').classList.toggle('hidden', !Game.newBest);
-  LB.onGameOver();   // shows the initials screen first when the score makes the board, else Game Over
+  LB.onGameOver();   // shows the name screen first when the score makes the board, else Game Over
   setTimeout(() => { Game.overReady = true; }, 250);
 }
 /* ---------- level complete ---------- */
@@ -3049,12 +3054,13 @@ function frame(now) {
    GET /top?board=day|all → [{ name, score, level }] (top 10) · POST /submit { name, score, level, secs } → { ok, rank }
    The Worker only answers pages on https://restoneuc.com, so from localhost or file:// the board stays hidden. */
 const LB_URL = 'https://whatdo-leaderboard.whatdo-leaderboard.workers.dev';
-const lbClean = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
-const lbSaved = lbClean(store.get('whatdo_name', ''));
+// names: up to 16 letters, digits, spaces and - _ . ! ' (the Worker applies the same rule)
+const lbClean = (v) => String(v || '').replace(/[^A-Za-z0-9 \-_.!']/g, '').replace(/\s+/g, ' ').replace(/^ /, '').slice(0, 16);
+const lbSaved = lbClean(store.get('whatdo_name', '')).trim();
 const LB = {
   boards: { day: null, all: null }, failed: false, tab: 'day', open: false, back: 'startScreen',
   run: null,     // this crash: { score, level, secs, state: 'none'|'entry'|'sending'|'posted'|'queued'|'rejected', msg, err }
-  name: lbSaved, // initials typed so far (remembered as whatdo_name once posted)
+  name: lbSaved, // name typed so far (remembered as whatdo_name once posted)
   mine: null     // last score posted from this device, highlighted on the board
 };
 function lbFetch(path, opts) {
@@ -3088,7 +3094,7 @@ function lbFlush() {
   return Promise.resolve(next()).finally(() => { lbFlushing = false; });
 }
 const lbMakes = (b, sc) => !!b && (b.length < 10 || sc > b[b.length - 1].score);
-// after a crash: a score that makes a board goes to the initials screen first, then Game Over.
+// after a crash: a score that makes a board goes to the name screen first, then Game Over.
 // runs again after every re-watched replay, so the crash is only set up once.
 LB.onGameOver = () => {
   if (!LB.run) {
@@ -3114,13 +3120,14 @@ function lbShow() {   // pick the screen for the current crash
 function lbRender() {
   const r = LB.run, entry = !!r && r.state === 'entry';
   $('nmErr').textContent = entry && r.err ? r.msg : '';
-  $('nmHint').textContent = isTouch ? 'TAP THE BOX TO TYPE YOUR INITIALS' : 'TYPE YOUR INITIALS · ENTER TO POST · ESC TO SKIP';
+  $('nmHint').textContent = isTouch ? 'TAP THE BOX TO TYPE YOUR NAME' : 'TYPE YOUR NAME · ENTER TO POST · ESC TO SKIP';
   const m = $('lbMsg'); m.textContent = r && !entry ? r.msg || '' : ''; m.classList.toggle('err', !!(r && r.err));
 }
 LB.submit = () => {
   const r = LB.run; if (!r || r.state !== 'entry') return;
-  const name = LB.name;
-  if (name.length !== 3) { r.err = true; r.msg = 'ENTER 3 LETTERS OR NUMBERS'; lbRender(); return; }
+  const name = LB.name.trim();
+  if (!name) { r.err = true; r.msg = 'ENTER A NAME'; lbRender(); return; }
+  LB.name = name; $('lbName').value = name;
   const entry = { name, score: r.score, level: r.level, secs: r.secs };
   store.set('whatdo_name', name);
   r.state = 'sending'; r.msg = 'POSTING ' + name + '...'; r.err = false; lbShow();   // on to Game Over while it posts
@@ -3135,8 +3142,8 @@ LB.submit = () => {
       });
     } else if (res.retry) {
       lbQueueSet(lbQueueGet().concat([entry])); r.state = 'queued'; r.msg = 'OFFLINE · YOUR SCORE WILL POST LATER';
-    } else if (res.error === 'pick other initials') {
-      r.state = 'entry'; r.err = true; r.msg = 'PICK OTHER INITIALS';   // back to the initials screen
+    } else if (res.error === 'pick another name' || res.error === 'pick other initials') {
+      r.state = 'entry'; r.err = true; r.msg = 'PICK ANOTHER NAME';   // back to the name screen
     } else {
       r.state = 'rejected'; r.err = true; r.msg = 'THE LEADERBOARD DIDN\'T ACCEPT THAT SCORE';
     }
@@ -3188,9 +3195,11 @@ document.querySelectorAll('.lbTabs .btn').forEach((b) => bindButton(b, () => { L
 bindButton($('lbBack'), LB.closeBoard);
 bindButton($('lbOk'), LB.submit);
 bindButton($('lbSkip'), LB.skip);
+$('lbName').addEventListener('focus', () => { if (isTouch) { $('nameScreen').classList.add('typing'); $('nameScreen').scrollTop = 0; } });
+$('lbName').addEventListener('blur', () => $('nameScreen').classList.remove('typing'));
 $('lbName').addEventListener('input', () => {
   const box = $('lbName'), v = lbClean(box.value);
-  if (box.value !== v) box.value = v;   // capitals, letters and numbers only
+  if (box.value !== v) box.value = v;   // drop characters the leaderboard won't take
   LB.name = v;
   if (LB.run && LB.run.err) { LB.run.err = false; LB.run.msg = ''; lbRender(); }
 });
