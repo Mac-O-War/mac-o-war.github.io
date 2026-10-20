@@ -13,7 +13,7 @@ Act as an expert full-stack web game developer, 3D graphics programmer and Web A
 - **Player:** a rider on an **electric unicycle (EUC)** racing through a New York / Washington DC style city.
 - **The player can never stop.** There is a base cruising speed; holding the accelerator boosts to a top speed; releasing returns to base (it still moves).
 - **Lose:** hitting any obstacle (car, bus, pedestrian, cyclist, street fixture, barricade, building) = instant comic gory crash.
-- **Win:** survive the level timer. Level N lasts **N × 60 seconds** (1:00, 2:00, 3:00…). When the timer hits 0 the level is cleared.
+- **Win:** survive the level timer. Every level lasts **60 seconds**; difficulty rises each level. When the timer hits 0 the level is cleared.
 
 ## 2. Tech & rendering
 
@@ -104,7 +104,7 @@ The biggest points come from **Squeeze Play** and **Oncoming Velocity**.
 ## 10. UI / UX
 
 - Crunchy pixel-font HUD: **SCORE** (top-left) and **BEST** (top-right, gold outline when beaten), with **LEVEL, a progress bar and an MM:SS countdown** top-centre (red and pulsing in the last 10 s). Below them: the chain counter (big "CHAIN x5", a draining timer bar and the current multiplier), live trick tickers, the speedometer at bottom-centre, and mute ♫ / pause II / full-screen ⛶ buttons.
-- **Start screen:** a big tilted comic "WHAT DO?" title, the tagline "ONE ELECTRIC UNICYCLE. ONE GIANT CITY. ZERO BRAKES.", a controls card showing **only the controls for the player's device** (a keyboard/mouse card on desktop, a touch card with ◀ ▶ and an animated GAS button on mobile), a short goal text ("You can't stop. Dodge cars, people, bikes & street junk. Survive 1:00 to clear Level 1 — each level adds a minute. Roads get closed — follow the detour and turn at the intersection!"), a big bobbing **PLAY** button ("TAP TO START" on touch), best score, and a "turn your phone sideways" tip in portrait. Do **not** describe the scoring system on the start screen. Behind the menu, the camera slowly orbits the rider in the living city.
+- **Start screen:** a big tilted comic "WHAT DO?" title, the tagline "ONE ELECTRIC UNICYCLE. ONE GIANT CITY. ZERO BRAKES.", a controls card showing **only the controls for the player's device** (a keyboard/mouse card on desktop, a touch card with ◀ ▶ and an animated GAS button on mobile), a short goal text ("You can't stop. Dodge cars, people, bikes & street junk. Survive 1:00 to clear each level — it gets harder every time. Roads get closed — follow the detour and turn at the intersection!"), a big bobbing **PLAY** button ("TAP TO START" on touch), best score, and a "turn your phone sideways" tip in portrait. Do **not** describe the scoring system on the start screen. Behind the menu, the camera slowly orbits the rider in the living city.
 - After PLAY: a **3-2-1-GO!** countdown with beeps while the camera swings in behind the rider. **No controls explainer and no turn banner during gameplay.**
 - **Game Over screen:** "GAME OVER", the cause of death, then score, level, time survived, near misses, best chain, turns made, best score, a flashing "NEW HIGH SCORE!", and a large instant **RESTART** button (pointerdown, also Enter/Space).
 - **Level Clear screen:** "LEVEL N CLEAR!", a joke line, score, level bonus, near misses, next level's duration, and a **NEXT LEVEL** button. Confetti bursts while the rider coasts to a stop and cheers.

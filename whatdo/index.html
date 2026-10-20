@@ -267,7 +267,7 @@ body:not(.touch) .card.tch{display:none}
       <div class="row"><span class="gasdemo">GAS</span>HOLD TO <b>BOOST</b></div>
     </div>
   </div>
-  <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR LEVEL 1 &mdash; EACH LEVEL ADDS A MINUTE.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p>
+  <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p>
   <button class="btn" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
   <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm alt lbOpen hidden">TOP 10</button></div>
@@ -2049,7 +2049,8 @@ const readGas = () => input.up || input.mouseGas || input.tGas || input.canvasTo
 /* =====================================================================
    GAME STATE
    ===================================================================== */
-const Game = { state: 'menu', level: 1, score: 0, runT: 0, best: parseInt(store.get('whatdo_best', '0'), 10) || 0, time: 0, elapsed: 0, levelTime: 60, near: 0, turns: 0, bestChain: 0, shake: 0, deathT: 0, overReady: false, cd: 0, swerveWarn: 0, lastNear: null, startScore: 0 };
+const LEVEL_TIME = 60;   // seconds to survive to clear a level (every level is the same length)
+const Game = { state: 'menu', level: 1, score: 0, runT: 0, best: parseInt(store.get('whatdo_best', '0'), 10) || 0, time: 0, elapsed: 0, levelTime: LEVEL_TIME, near: 0, turns: 0, bestChain: 0, shake: 0, deathT: 0, overReady: false, cd: 0, swerveWarn: 0, lastNear: null, startScore: 0 };
 window.WhatDo = Game;
 Game.debug = { player, runs, doTurn: () => doTurn(), spawnCar: (li, z, k) => spawnCar(player.run, li, z, k), get SC() { return SC; } };
 const deathPos = new THREE.Vector3();
@@ -2070,7 +2071,7 @@ function resetWorld() {
   manageRuns(true); manageRuns(true);
   setPL(player.run);
   for (let z = -70; z > -290; z -= rand(16, 30)) { const li = randi(0, 3); if (z > player.run.endZc + 30 && laneFree(player.run, li, z, 10)) spawnCar(player.run, li, z); }
-  Game.elapsed = 0; Game.levelTime = 60 * Game.level; Game.time = 0; resetScoring(); player.prevZ = 0; Game.shake = 0; Game.swerveWarn = 0;
+  Game.elapsed = 0; Game.levelTime = LEVEL_TIME; Game.time = 0; resetScoring(); player.prevZ = 0; Game.shake = 0; Game.swerveWarn = 0;
   camOff.set(0, 3.7, 7.4); skyAng = 0;
   $('bloodFx').innerHTML = ''; $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
@@ -2199,6 +2200,7 @@ function popup(text, cls) {
      when a chain of 3+ ends you get a Chain Bonus. Crash and the chain is lost.
    ===================================================================== */
 const P_HW = 0.3, P_HD = 0.5, NEAR = 1.25, SQ_GAP = 1.5, CHAIN_WIN = 3.0;
+const CROSS_NEAR = 5.5;   // passing within this many metres of a crossing car's bumper scores
 const SC = { chainN: 0, chainT: 0, chainPts: 0, tricks: {}, sq: { t: 0, tight: 0, spd: 0, off: 0 }, gL: Infinity, gR: Infinity };
 const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE' };
 let screamCd = 0;
@@ -2336,8 +2338,11 @@ function nearMiss(o, isStatic) {
     Game.shake = Math.max(Game.shake, 0.4);
     return;
   }
-  if (o.type === 'xcar') award('CROSS TRAFFIC!', 300 * sf * (1 + tight), 'nm');
-  else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
+  if (o.type === 'xcar') {
+    // scored by crossPass(): in front (the car was still coming at you) is worth more than behind
+    const front = o.crossFront, t = o.crossTight;
+    award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? 400 : 250) * sf * (1 + t * 2), 'nm');
+  } else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
   else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
   else if (o.type === 'ped') award(pick(['EXCUSE ME!', 'HEY!', 'WATCH IT!', 'SORRY!']), 150 * sf * (1 + tight), 'nm');
   else if (o.kind === 'closed' || o.kind === 'building') award('TIGHT TURN!', 150 * sf, 'nm');
@@ -2353,6 +2358,17 @@ function testHit(o) {
   if (!o.nm && Math.max(gx, gz) < NEAR && Math.min(gx, gz) < 0) return 1;
   return 0;
 }
+// cross traffic: when the rider crosses a crossing car's path, note how close its bumper was;
+// score it once the rider is clear of the car's lane, so a pass that ends in a crash doesn't count
+function crossPass(e) {
+  const side = PL.z > e.z ? 1 : -1, was = e.pSide; e.pSide = side;
+  if (e.nm || e.delay > 0) return;
+  if (was !== undefined && was !== side) {
+    const gap = Math.abs(PL.x - e.x) - (P_HW + e.hw);
+    if (gap >= 0 && gap <= CROSS_NEAR) { e.crossTight = clamp(1 - gap / CROSS_NEAR, 0, 1); e.crossFront = Math.sign(e.vx) === Math.sign(PL.x - e.x); }
+  }
+  if (e.crossTight !== undefined && Math.abs(PL.z - e.z) > P_HD + e.hd + 0.3) { e.nm = true; nearMiss(e, false); }
+}
 // nearest thing on each side of the rider (for Squeeze Play)
 function sideGap(o) {
   const gz = Math.abs(PL.z - o.z) - (P_HD + o.hd); if (gz > 0.2) return;
@@ -2367,10 +2383,11 @@ function checkCollisions(dt) {
     const mine = r === player.run && Math.abs(player.h) < 0.35;
     for (const e of r.ents) {
       if (!e.lethal || e.delay > 0) continue;
+      if (e.type === 'xcar') crossPass(e);   // every frame, so it always knows which side of the car's path the rider is on
       if (Math.abs(e.z - PL.z) > 14 || Math.abs(e.x - PL.x) > 14) continue;
       const res = testHit(e);
       if (res === 2) { die(e.kind, e); return; }
-      if (res === 1) { e.nm = true; nearMiss(e, false); }
+      if (res === 1 && e.type !== 'xcar') { e.nm = true; nearMiss(e, false); }
       if (mine) sideGap(e);
     }
     for (const ch of r.chunks) {
@@ -2598,7 +2615,7 @@ function showWin() {
   $('wScore').textContent = Math.floor(Game.score).toLocaleString();
   $('wBonus').textContent = '+' + Game.bonus.toLocaleString();
   $('wNear').textContent = Game.near;
-  $('wNext').textContent = fmtTime((Game.level + 1) * 60);
+  $('wNext').textContent = fmtTime(LEVEL_TIME);
   showScreen('winScreen');
   setTimeout(() => { Game.overReady = true; }, 250);
 }
@@ -2686,7 +2703,12 @@ function updatePlay(dt) {
   if (Game.elapsed >= Game.levelTime) { Game.elapsed = Game.levelTime; winLevel(); }
 }
 const CAM_ZOOM = 0.80;   // gameplay camera distance: 1 = original, smaller = closer to the rider
-let camYaw = 0;   // gameplay camera heading in world space, damped so the halfway hand-off swings smoothly
+let camYaw = 0, lookYaw = 0;   // gameplay camera position heading and look direction (world space), each damped
+// how far the camera turns with the rider's heading (CAM) and how far it looks (LOOK): 1 = exactly the heading.
+// In a turn the view leads: before halfway it looks 1.5x further round than you face, after halfway it looks
+// toward the new street (0.5x the remaining angle). 1.5 + 0.5 = 2, so the look direction is continuous at the
+// halfway hand-off while the camera position still swings there.
+const CAM_TURN = { in: { cam: 0.4, look: 1.5 }, out: { cam: 0.6, look: 0.5 }, none: { cam: 0.85, look: 1 } };
 function updateCamera(dt) {
   updatePW();
   const R = player.run;
@@ -2704,13 +2726,15 @@ function updateCamera(dt) {
     let lx = -player.x * 0.18, lz = back, ly = up, lookZ = -14;
     if (Game.state === 'countdown') { const k = clamp(Game.cd / 3.2, 0, 1), a = k * 2.2; lx = Math.sin(a) * 8 * k + lx * (1 - k); lz = Math.cos(a) * 8 * k + back * (1 - k); ly = up + k * 1.5; lookZ = -14 * (1 - k); }
     // first half of a turn the camera only leans slightly with you; after the hand-off it swings to the new street
-    const lean = player.turnPhase === 'in' ? 0.2 : 0.85, yawT = R.theta + player.h * lean;
-    camYaw = Game.state === 'countdown' ? yawT : camYaw + normAng(yawT - camYaw) * (1 - Math.exp(-7 * dt));
+    const ct = CAM_TURN[player.turnPhase || 'none'], yawT = R.theta + player.h * ct.cam, lookT = R.theta + player.h * ct.look;
+    const snap = Game.state === 'countdown', k = 1 - Math.exp(-7 * dt);
+    camYaw = snap ? yawT : camYaw + normAng(yawT - camYaw) * k;
+    lookYaw = snap ? lookT : lookYaw + normAng(lookT - lookYaw) * k;
     rotXZ(lx, lz, camYaw, _o);
     const kk = Game.state === 'countdown' ? 8 : 7;
     camOff.x = damp(camOff.x, _o.x, kk, dt); camOff.z = damp(camOff.z, _o.z, kk, dt); camOff.y = damp(camOff.y, ly, 8, dt);
     camera.position.set(PW.x + camOff.x, camOff.y, PW.z + camOff.z);
-    rotXZ(-player.x * 0.12 + player.vx * 0.06, lookZ, camYaw + player.h * (player.turnPhase === 'in' ? 0.05 : 0.15), _o2);
+    rotXZ(-player.x * 0.12 + player.vx * 0.06, lookZ, lookYaw, _o2);
     _look.set(PW.x + _o2.x, 1.5, PW.z + _o2.z);
     fov = (portrait ? 80 : 66) + sf * 18 + (player.speed / player.max) * 4;
   } else if (Game.state === 'menu') {
