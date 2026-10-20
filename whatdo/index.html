@@ -82,6 +82,15 @@ body{position:fixed;inset:0}
 #metalBox{position:absolute;left:50%;bottom:calc(84px + var(--sb));transform:translateX(-50%);text-align:center;min-width:220px}
 #metalTxt{font-size:10px;color:#ff8a3b;text-shadow:2px 2px 0 #000;letter-spacing:1px}
 #metalBar{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff8a00,#ff3b1f)}
+#focusBox{position:absolute;left:calc(14px + var(--sl));bottom:calc(30px + var(--sb));width:150px}
+#focusTxt{font-size:9px;color:#7fd6ff;text-shadow:2px 2px 0 #000;letter-spacing:1px}
+#focusBar{display:block;height:100%;width:0;background:linear-gradient(90deg,#3dafff,#b36bff)}
+#focusBox.ready #focusTxt{color:#fff}
+#focusBox.on #focusTxt{color:#b36bff;animation:blink .2s infinite alternate}
+body.touch #focusBox{bottom:calc(min(26vmin,120px) + 40px + var(--sb))}
+#focusFx{background:radial-gradient(ellipse at center,rgba(40,70,150,0) 45%,rgba(40,70,150,.55) 100%);opacity:0;pointer-events:none}
+#tFocus{right:calc(30px + var(--sr));bottom:calc(36px + min(30vmin,140px) + var(--sb));width:min(18vmin,84px);height:min(18vmin,84px);font-size:clamp(9px,2.6vmin,12px);background:rgba(120,90,255,.3);border-color:rgba(20,10,60,.7)}
+#tFocus.down{background:rgba(150,110,255,.65)}
 #metalBox.maxed #metalTxt{color:#ffd23f;animation:blink .25s infinite alternate}
 .pop.ov{color:#ff8a00;font-size:clamp(30px,7vw,54px)}.pop.sq{color:#ff4fd8;font-size:clamp(36px,8.5vw,66px);animation-duration:1.3s}
 @keyframes popUp{0%{opacity:0;transform:translate(-50%,20px) scale(.6)}15%{opacity:1;transform:translate(-50%,0) scale(1.15)}30%{transform:translate(-50%,-6px) scale(1)}100%{opacity:0;transform:translate(-50%,-60px) scale(1)}}
@@ -187,6 +196,17 @@ body:not(.touch) .card.tch{display:none}
 #lbList .r,#lbList .l{color:#9fb4d8}
 #lbList .s,#lbList .l{text-align:right}
 #lbList li.empty{display:block;text-align:center;color:#9fb4d8;line-height:1.8}
+/* ---------- scoring screen ---------- */
+#scoreList{background:rgba(13,15,26,.78);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08);width:min(620px,100%);max-height:calc(100vh - 210px - var(--st) - var(--sb));overflow-y:auto;margin:14px 0 18px;padding:0 4px;text-align:left;touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#scoreList h4{font-size:10px;color:var(--y);margin:16px 0 6px;letter-spacing:1px}
+#scoreList h4 small{color:#9fb4d8;font-size:8px;letter-spacing:0}
+.srow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 8px}
+.srow:nth-of-type(odd){background:rgba(255,255,255,.06)}
+.srow .sn{font-size:10px;color:#fff;line-height:1.5}
+.srow .sn small{display:block;font-size:8px;color:#9fb4d8;margin-top:3px;line-height:1.6}
+.srow .sp{font-size:10px;color:#3ddc84;white-space:nowrap;text-align:right}
+#scoreList .note{font-size:8px;color:#ffd23f;line-height:1.8;margin:14px 8px 4px}
+@media (max-height:520px){#scoreScreen .big{font-size:clamp(28px,10vh,44px)}#scoreList{max-height:calc(100vh - 130px);margin:6px 0 8px}#scoreScreen>.btn{padding:8px 22px}}
 .btn.sm{font-size:clamp(9px,2.4vw,12px);padding:10px 12px;animation:none;box-shadow:0 4px 0 #000;letter-spacing:1px}
 .btn.dis{opacity:.45;pointer-events:none}
 #replayUI .lb{position:absolute;left:0;right:0;height:10vh;background:#000}
@@ -211,6 +231,7 @@ body:not(.touch) .card.tch{display:none}
 <body>
 <canvas id="game" tabindex="0"></canvas>
 
+<div id="focusFx" class="layer"></div>
 <div id="bloodFx" class="layer"></div>
 <div id="flash" class="layer"></div>
 
@@ -230,6 +251,7 @@ body:not(.touch) .card.tch{display:none}
   <div id="warnL" class="warn hidden">&#9664; !</div>
   <div id="warnR" class="warn hidden">! &#9654;</div>
   <div id="warnT" class="hidden">! ONCOMING SWERVE !</div>
+  <div id="focusBox"><div id="focusTxt">FOCUS</div><div class="cbar"><i id="focusBar"></i></div></div>
   <div id="metalBox" class="hidden"><div id="metalTxt">PEDAL TO THE METAL</div><div class="cbar"><i id="metalBar"></i></div></div>
   <div id="speedo"><div id="mph">0<small>MPH</small></div><div id="segs"></div></div>
 </div>
@@ -244,6 +266,7 @@ body:not(.touch) .card.tch{display:none}
   <div class="tb" id="tLeft">&#9664;</div>
   <div class="tb" id="tRight">&#9654;</div>
   <div class="tb" id="tGas">GAS</div>
+  <div class="tb" id="tFocus">FOCUS</div>
 </div>
 
 <div id="countdown"></div>
@@ -260,17 +283,19 @@ body:not(.touch) .card.tch{display:none}
       <div class="row"><span class="key">&#9664;</span><span class="key">&#9654;</span>or<span class="key">A</span><span class="key">D</span><b>STEER</b></div>
       <div class="row"><span class="key">&#9650;</span><span class="key">W</span><span class="key wide">SPACE</span><b>BOOST</b></div>
       <div class="row"><span class="mouse"></span>MOVE = <b>STEER</b> &middot; HOLD = <b>BOOST</b></div>
+      <div class="row"><span class="key wide">SHIFT</span><span class="key">&#9660;</span>or RIGHT CLICK <b>FOCUS</b> (SLOW-MO)</div>
     </div>
     <div class="card tch">
       <h3>PHONE / TABLET</h3>
       <div class="row"><span class="key">&#9664;</span><span class="key">&#9654;</span> LEFT THUMB TO <b>STEER</b></div>
       <div class="row"><span class="gasdemo">GAS</span>HOLD TO <b>BOOST</b></div>
+      <div class="row">NEAR MISSES FILL <b>FOCUS</b> &middot; HOLD IT FOR SLOW-MO</div>
     </div>
   </div>
   <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p>
   <button class="btn" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
-  <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm alt lbOpen hidden">TOP 10</button></div>
+  <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm scoreOpen">SCORING</button><button class="btn sm alt lbOpen hidden">TOP 10</button></div>
   <div id="pwaBox"><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
   <div id="rotateTip">TIP: TURN YOUR PHONE SIDEWAYS FOR THE BEST VIEW</div>
 </section>
@@ -312,6 +337,12 @@ body:not(.touch) .card.tch{display:none}
   <div class="small" id="nmHint">TYPE YOUR NAME &middot; ENTER TO POST &middot; ESC TO SKIP</div>
 </section>
 
+<section id="scoreScreen" class="screen hidden">
+  <h2 class="big g">SCORING</h2>
+  <div id="scoreList" class="scroll"></div>
+  <button class="btn" id="scoreBack">BACK</button>
+</section>
+
 <section id="boardScreen" class="screen hidden">
   <h2 class="big g">TOP 10</h2>
   <div class="sub2 lbTabs"><button class="btn sm" data-b="day">TODAY</button><button class="btn sm" data-b="all">ALL-TIME</button></div>
@@ -341,7 +372,7 @@ body:not(.touch) .card.tch{display:none}
   <h2 class="big g">PAUSED</h2>
   <p class="cause">TAKE A BREATH. THE CITY WILL WAIT.</p>
   <button class="btn" id="resumeBtn">RESUME</button>
-  <button class="btn sm resBtn" style="margin-top:18px">RESOLUTION: PIXEL</button>
+  <div class="sub2" style="margin-top:18px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm scoreOpen">SCORING</button></div>
   <div class="small">PRESS P / ESC OR TAP</div>
 </section>
 
@@ -1047,7 +1078,7 @@ function applyTOD(f) {
    AUDIO (all procedural, Web Audio API)
    ===================================================================== */
 const Sound = (() => {
-  let ctx = null, master, sfx, mus, comp, noiseBuf, engOsc, engOsc2, engGain, engFilt, windGain, windFilt;
+  let ctx = null, focusLp = null, master, sfx, mus, comp, noiseBuf, engOsc, engOsc2, engGain, engFilt, windGain, windFilt;
   let muted = store.get('whatdo_mute', '0') === '1';
   let musicOn = false, nextT = 0, step = 0, tempo = 148, baseTempo = 148, schedTimer = null;
   // live game state the soundtrack reacts to
@@ -1058,7 +1089,8 @@ const Sound = (() => {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { ctx = new AC(); } catch (e) { ctx = null; return; }
     master = ctx.createGain(); master.gain.value = muted ? 0 : 0.85; master.connect(ctx.destination);
-    comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; comp.connect(master);
+    comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+    focusLp = ctx.createBiquadFilter(); focusLp.type = 'lowpass'; focusLp.frequency.value = 20000; comp.connect(focusLp); focusLp.connect(master);   // muffles in slow-mo
     sfx = ctx.createGain(); sfx.gain.value = 0.9; sfx.connect(comp);
     mus = ctx.createGain(); mus.gain.value = 0.3; mus.connect(comp);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -1158,6 +1190,7 @@ const Sound = (() => {
     os.connect(g); g.connect(o); os.start(t); os.stop(t + len + 0.02);
   }
   function jingle() { [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => blip(mtof(m), i === 6 ? 0.6 : 0.16, 'square', 0.13, i * 0.11)); }
+  function setFocus(on) { if (ctx && focusLp) focusLp.frequency.setTargetAtTime(on ? 750 : 20000, ctx.currentTime, on ? 0.08 : 0.15); }
   // high five: a sharp slap
   function slap(pan) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan);
@@ -1383,7 +1416,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -1739,7 +1772,7 @@ function updHiFive(e, dt) {
       if (gap < HIFIVE_REACH && PL.x > 0 && !hits) {
         e.five = 1; e.t = 0;
         award('HIGH FIVE!', HIFIVE_PTS * (player.speed / player.base) * (1 + clamp(1 - Math.max(0, gap) / HIFIVE_REACH, 0, 1)), 'good');
-        Sound.slap(0.6); buzz(30);
+        Sound.slap(0.6); buzz(30); focusGain(0.3);
       } else if (gap < 6) { e.five = -1; e.t = 0; }   // you went past: they give up
     }
   } else if (e.five === 1) {   // celebrate: arm up, a couple of hops
@@ -2734,11 +2767,12 @@ function doTurn() {
    INPUT
    ===================================================================== */
 const input = { left: false, right: false, up: false, mouseGas: false, mouseX: null, mouseSteer: false, lastMouseMove: 0, tL: false, tR: false, tGas: false, canvasTouchGas: false };
-const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', Space: 'up' };
+const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', Space: 'up', ArrowDown: 'focus', KeyS: 'focus', ShiftLeft: 'focus', ShiftRight: 'focus' };
 window.addEventListener('keydown', (e) => {
+  if (scoringKey(e)) return;   // the scoring screen takes the keyboard while open
   if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
   const k = KEYMAP[e.code];
-  if (k) { input[k] = true; if (k !== 'up') input.mouseSteer = false; e.preventDefault(); }
+  if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') input.mouseSteer = false; e.preventDefault(); }
   // secret: '@' skips straight to the next level
   if (e.key === '@' && !e.repeat && ['play', 'countdown', 'winning', 'win', 'paused'].includes(Game.state)) { e.preventDefault(); showScreen(null); Sound.resume(); nextLevel(); return; }
   if (Game.state === 'replay' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) { e.preventDefault(); endReplay(); return; }
@@ -2754,11 +2788,11 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) { input[k] = false; e.preventDefault(); } });
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  if (e.pointerType === 'mouse') { if (e.button === 0) input.mouseGas = true; }
+  if (e.pointerType === 'mouse') { if (e.button === 0) input.mouseGas = true; else if (e.button === 2) input.mouseFocus = true; }
   else input.canvasTouchGas = true;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
 });
-const endCanvasPointer = (e) => { if (e.pointerType === 'mouse') input.mouseGas = false; else input.canvasTouchGas = false; };
+const endCanvasPointer = (e) => { if (e.pointerType === 'mouse') { if (e.button === 2) input.mouseFocus = false; else input.mouseGas = false; } else input.canvasTouchGas = false; };
 canvas.addEventListener('pointerup', endCanvasPointer);
 canvas.addEventListener('pointercancel', endCanvasPointer);
 window.addEventListener('pointermove', (e) => {
@@ -2767,10 +2801,11 @@ window.addEventListener('pointermove', (e) => {
   if (input.mouseX === null || Math.abs(nx - input.mouseX) > 0.004) { input.mouseSteer = true; input.lastMouseMove = performance.now(); }
   input.mouseX = nx;
 });
-window.addEventListener('mouseup', () => { input.mouseGas = false; });
+window.addEventListener('mouseup', () => { input.mouseGas = false; input.mouseFocus = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 ['touchstart', 'touchmove', 'touchend', 'gesturestart', 'gesturechange', 'dblclick'].forEach((ev) => document.addEventListener(ev, (e) => {
   if (e.target && e.target.closest && e.target.closest('.screen') && ev !== 'touchmove' && ev !== 'gesturestart' && ev !== 'gesturechange') return;
+  if (ev === 'touchmove' && e.target && e.target.closest && e.target.closest('.scroll')) return;   // scrollable lists scroll
   if (e.cancelable) e.preventDefault();
 }, { passive: false }));
 function holdButton(el, key) {
@@ -2779,7 +2814,7 @@ function holdButton(el, key) {
   const off = (e) => { ids.delete(e.pointerId); if (!ids.size) { input[key] = false; el.classList.remove('down'); } };
   el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('lostpointercapture', off);
 }
-holdButton($('tGas'), 'tGas'); holdButton($('tLeft'), 'tL'); holdButton($('tRight'), 'tR');
+holdButton($('tGas'), 'tGas'); holdButton($('tFocus'), 'tFocus'); holdButton($('tLeft'), 'tL'); holdButton($('tRight'), 'tR');
 function readSteer() {
   let s = (input.right ? 1 : 0) - (input.left ? 1 : 0) + (input.tR ? 1 : 0) - (input.tL ? 1 : 0);
   if (s === 0 && input.mouseSteer && input.mouseX !== null) {
@@ -2791,6 +2826,7 @@ function readSteer() {
   return clamp(s, -1, 1);
 }
 const readGas = () => input.up || input.mouseGas || input.tGas || input.canvasTouchGas;
+const readFocus = () => !!(input.focus || input.mouseFocus || input.tFocus);
 
 /* =====================================================================
    GAME STATE
@@ -2822,7 +2858,7 @@ function resetWorld() {
   $('bloodFx').innerHTML = ''; $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
 function showScreen(id) {
-  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen']) $(s).classList.toggle('hidden', s !== id);
+  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen', 'scoreScreen']) $(s).classList.toggle('hidden', s !== id);
 }
 function setHudVisible(on) {
   $('hud').classList.toggle('on', on);
@@ -2834,7 +2870,7 @@ function startFromMenu() {
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* ignore */ }
   Sound.init(); if (isTouch) { Game.wantFs = true; goFullscreen(); }
   Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0;
-  beginLevel();
+  resetFocus(); beginLevel();
 }
 function beginLevel() {
   keepAwake();
@@ -2847,9 +2883,10 @@ function beginLevel() {
   updateHud(true);
 }
 function restart() {
+  resetFocus();
   track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
-function pauseGame() { if (Game.state !== 'play') return; Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend(); }
+function pauseGame() { if (Game.state !== 'play') return; if (FOCUS.on) { FOCUS.on = false; Sound.setFocus(false); } Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend(); }
 function resumeGame() { if (Game.state !== 'paused') return; Game.state = 'play'; showScreen(null); Sound.resume(); lastT = performance.now(); }
 function toggleMute() { Sound.setMuted(!Sound.muted); $('muteBtn').classList.toggle('off', Sound.muted); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); else if (Game.state !== 'menu') keepAwake(); });
@@ -3048,7 +3085,7 @@ function updateScoring(dt) {
 function finishSqueeze() {
   const q = SC.sq;
   const mult = (1 + 3 * q.tight) * (1 + Math.min(2, q.t * 2.5)) * Math.pow(q.spd / player.base, 2);
-  award('SQUEEZE PLAY! x' + mult.toFixed(1), 600 * mult, 'sq');
+  award('SQUEEZE PLAY! x' + mult.toFixed(1), 600 * mult, 'sq'); focusGain(0.25);
   Game.shake = Math.max(Game.shake, 0.45);
   Sound.whoosh(0, 1.3);
   q.t = 0; q.tight = 0; q.spd = 0; q.off = 0;
@@ -3067,9 +3104,89 @@ function updateSqueeze(dt) {
   }
 }
 
+/* ---------- SCORING screen: every award, built from the live point values so it never goes stale ---------- */
+const SCORING_UI = { open: false, back: 'startScreen' };
+function fmtPts(a, b) { const f = (n) => Math.round(n).toLocaleString(); return b === undefined || Math.round(a) === Math.round(b) ? f(a) : f(a) + '–' + f(b); }
+function buildScoring() {
+  const ov = 31 * 31 * 1.1;   // a cruising rider (19 m/s) passing a 12 m/s oncoming car
+  const sections = [
+    ['BIG MOVES', '', [
+      ['ONCOMING VELOCITY', 'Pass an oncoming car. Faster and later = more ("CHICKEN!")', fmtPts(ov, ov * 2 * 3.25)],
+      ['SQUEEZE PLAY', 'Thread between two things. Tighter and longer = more', fmtPts(600, 600 * 4 * 3)],
+      ['HIGH FIVE!', 'Slap the hand of someone at the curb (don’t hit them)', fmtPts(HIFIVE_PTS, HIFIVE_PTS * 2)],
+      ['CUT IN FRONT!', 'Cross just in front of crossing traffic', fmtPts(800, 2400)],
+      ['BEHIND THE BUMPER!', 'Cross just behind crossing traffic', fmtPts(500, 1500)],
+      ['RAN THE RED!', 'Ride through a red light (more with traffic)', fmtPts(600, 1080)]]],
+    ['MOVES', '', [
+      ['CAR ALARM!', 'Pass close enough to a parked car to set it off', fmtPts(CAR_ALARM_PTS, CAR_ALARM_PTS * 2)],
+      ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
+      ['TIGHT TURN!', 'Clip a barricade or corner', fmtPts(150)],
+      ['BIKE DODGE!', 'Slip past a cyclist', fmtPts(120, 240)],
+      ['NEAR MISS!', 'Pass close to a car going your way', fmtPts(100, 200)],
+      ['CLOSE SHAVE!', 'Pass close to lamps, trees, hydrants…', fmtPts(60, 120)],
+      ['DETOUR!', 'Make the turn at a road closure', '150 × LEVEL']]],
+    ['TRICKS', '<small> keep your chain alive</small>', [
+      ['WRONG WAY', 'Ride in the oncoming lanes (more with cars coming)', '40–600 / SEC'],
+      ['SIDEWALK SURFING', 'Ride on the sidewalk', '60–240 / SEC'],
+      ['FULL THROTTLE', 'Stay at top speed', '45 / SEC'],
+      ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH']]],
+    ['BONUSES', '', [
+      ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
+      ['RIDING', 'Just keep moving', '~5 / SEC']]],
+    ['MULTIPLIERS', '', [
+      ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
+      ['PEDAL TO THE METAL', 'Every 100 m without letting off the gas', 'UP TO ×2.5']]]
+  ];
+  const box = $('scoreList'); box.textContent = '';
+  for (const [title, sub, rows] of sections) {
+    const h = document.createElement('h4'); h.innerHTML = title + sub; box.appendChild(h);
+    for (const [name, how, pts] of rows) {
+      const r = document.createElement('div'); r.className = 'srow';
+      const n = document.createElement('div'); n.className = 'sn'; n.textContent = name;
+      const sm = document.createElement('small'); sm.textContent = how; n.appendChild(sm);
+      const v = document.createElement('div'); v.className = 'sp'; v.textContent = pts;
+      r.append(n, v); box.appendChild(r);
+    }
+  }
+  const note = document.createElement('div'); note.className = 'note';
+  note.textContent = 'POINTS ARE AT CRUISING SPEED. GO FASTER AND CUT IT CLOSER FOR MORE, THEN MULTIPLY BY CHAIN × PEDAL TO THE METAL (UP TO ×12.5). NEAR MISSES ALSO FILL FOCUS: HOLD IT FOR SLOW-MO.';
+  box.appendChild(note);
+}
+function openScoring() {
+  SCORING_UI.back = Game.state === 'paused' ? 'pauseScreen' : 'startScreen'; SCORING_UI.open = true;
+  buildScoring(); showScreen('scoreScreen'); $('scoreList').scrollTop = 0;
+  track('scoring-view', 'Viewed the scoring screen');
+}
+function closeScoring() { SCORING_UI.open = false; showScreen(SCORING_UI.back); }
+function scoringKey(e) {
+  if (!SCORING_UI.open) return false;
+  if (['Escape', 'Enter', 'NumpadEnter', 'Space', 'Backspace'].includes(e.code)) { e.preventDefault(); if (!e.repeat) closeScoring(); }
+  else if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); $('scoreList').scrollBy(0, 60); }
+  else if (e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); $('scoreList').scrollBy(0, -60); }
+  return true;
+}
+document.querySelectorAll('.scoreOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'paused') openScoring(); }));
+bindButton($('scoreBack'), closeScoring);
+/* ---------- FOCUS (bullet time): near misses fill it; hold the button to slow the world ---------- */
+const FOCUS = { meter: 0, on: false, k: 0, shown: -1 };
+const FOCUS_SCALE = 0.40, FOCUS_DRAIN = 0.30, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
+function focusGain(a) { FOCUS.meter = Math.min(1, FOCUS.meter + a * (FOCUS.on ? 0.35 : 1)); }   // less while already in slow-mo
+function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time scale for the world
+  const held = Game.state === 'play' && readFocus();
+  if (held && !FOCUS.on && FOCUS.meter >= FOCUS_MIN) { FOCUS.on = true; Sound.whoosh(0, 1.4); Sound.setFocus(true); }
+  if (FOCUS.on) { FOCUS.meter = Math.max(0, FOCUS.meter - FOCUS_DRAIN * dt); if (!held || FOCUS.meter <= 0) { FOCUS.on = false; Sound.whoosh(0, 0.9); Sound.setFocus(false); } }
+  FOCUS.k = damp(FOCUS.k, FOCUS.on ? 1 : 0, 9, dt);
+  if (FOCUS.k < 0.002) FOCUS.k = 0;
+  $('focusFx').style.opacity = FOCUS.k.toFixed(3);
+  const m = Math.round(FOCUS.meter * 100);
+  if (m !== FOCUS.shown) { FOCUS.shown = m; $('focusBar').style.width = m + '%'; }
+  const box = $('focusBox'); box.classList.toggle('on', FOCUS.on); box.classList.toggle('ready', !FOCUS.on && FOCUS.meter >= FOCUS_MIN);
+  return 1 + (FOCUS_SCALE - 1) * FOCUS.k;
+}
+function resetFocus() { FOCUS.meter = 0; FOCUS.k = 0; if (FOCUS.on) Sound.setFocus(false); FOCUS.on = false; }
 /* ---------- near miss / collisions ---------- */
 function nearMiss(o, isStatic) {
-  Game.near++;
+  Game.near++; focusGain(0.12);
   const alarmed = isStatic && o.kind === 'parked' && carAlarm(o);   // passing a parked car this close sets its alarm off
   const pan = clamp((o.x - PL.x) / 3, -1, 1);
   const gap = Math.max(0, Math.abs(PL.x - o.x) - (P_HW + o.hw), Math.abs(PL.z - o.z) - (P_HD + o.hd));
@@ -3436,8 +3553,9 @@ function movePlayer(dt, steer, yawCtl) {
     const h0 = player.h, s = Math.sign(player.h);
     player.h = s * Math.max(0, Math.abs(player.h) - TURN_STRAIGHTEN * dt); player.yawRate = (player.h - h0) / dt;
   }
-  const maxLat = 11 + player.speed * 0.12;
-  player.vx += clamp(steer * maxLat - player.vx, -70 * dt, 70 * dt);
+  const agile = 1 + 0.7 * FOCUS.k;   // in slow-mo the rider stays nimble relative to the world
+  const maxLat = (11 + player.speed * 0.12) * (1 + 0.3 * FOCUS.k);
+  player.vx += clamp(steer * maxLat - player.vx, -70 * agile * dt, 70 * agile * dt);
   player.x += (-Math.sin(player.h) * player.speed + player.vx * Math.cos(player.h)) * dt;
   player.z += (-Math.cos(player.h) * player.speed) * dt;
   // riding into the side of the street at a steep angle (turned in too early, or swung too wide) is a building
@@ -3538,7 +3656,7 @@ function updateCamera(dt) {
     camera.position.set(PW.x + camOff.x, camOff.y, PW.z + camOff.z);
     rotXZ(-player.x * 0.12 + player.vx * 0.06, lookZ, lookYaw, _o2);
     _look.set(PW.x + _o2.x, 1.5, PW.z + _o2.z);
-    fov = (portrait ? 80 : 66) + sf * 18 + (player.speed / player.max) * 4;
+    fov = (portrait ? 80 : 66) + sf * 18 + (player.speed / player.max) * 4 - FOCUS.k * 7;
   } else if (Game.state === 'menu') {
     orbitA += dt * 0.18;
     camera.position.set(PW.x + Math.sin(orbitA) * 9, 3.2, PW.z + Math.cos(orbitA) * 9);
@@ -3835,6 +3953,7 @@ function frame(now) {
   if (!(dt > 0)) dt = 0.016; dt = Math.min(dt, 0.05);
   animT += dt;
   const st = Game.state;
+  if (st !== 'play' && (FOCUS.on || FOCUS.k)) updateFocus(dt);   // any other state drops out of slow-mo
   if (st === 'paused') { renderer.render(scene, camera); return; }
   if (st === 'menu') {
     updatePW(); manageRuns(false); spawnTraffic(player.run, dt, false); updateEntities(dt); updateRig(dt, animT);
@@ -3854,7 +3973,7 @@ function frame(now) {
       Game.state = 'play'; $('countdown').style.display = 'none'; player.speed = player.base * 0.6;
     }
   } else if (st === 'play') {
-    updatePlay(dt);
+    updatePlay(dt * updateFocus(dt));
     if (Game.state === 'play') { updateRig(dt, animT); recordFrame(); }
   } else if (st === 'dying' || st === 'over') {
     Game.deathT += dt;
