@@ -3069,9 +3069,10 @@ function popup(text, cls) {
 const P_HW = 0.3, P_HD = 0.5, NEAR = 1.25, SQ_GAP = 1.5, CHAIN_WIN = 3.0;
 const CROSS_NEAR = 5.5;   // passing within this many metres of a crossing car's bumper scores
 const SC = { chainN: 0, chainT: 0, chainPts: 0, tricks: {}, sq: { t: 0, tight: 0, spd: 0, off: 0 }, gL: Infinity, gR: Infinity };
-const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE' };
+const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE', rope: 'TIGHTROPE' };
+const BIKELANE_PTS = 400;   // a block (80 m) in the bike lane; each further block in a row pays 1.5x more
 let screamCd = 0;
-function resetScoring() { SC.chainN = 0; SC.chainT = 0; SC.chainPts = 0; SC.tricks = {}; SC.sq = { t: 0, tight: 0, spd: 0, off: 0 }; SC.metal = { dist: 0, lvl: 0, grace: 0 }; }
+function resetScoring() { SC.bike = { d: 0, n: 0 }; SC.chainN = 0; SC.chainT = 0; SC.chainPts = 0; SC.tricks = {}; SC.sq = { t: 0, tight: 0, spd: 0, off: 0 }; SC.metal = { dist: 0, lvl: 0, grace: 0 }; }
 // PEDAL TO THE METAL: every block (100 m) held on the gas without letting off adds +0.25x to all points, up to x2.5
 function metalMult() { return 1 + 0.25 * (SC.metal ? SC.metal.lvl : 0); }
 function totalMult() { return chainMult() * metalMult(); }
@@ -3156,6 +3157,17 @@ function updateScoring(dt) {
   trick('wrong', wrong, (40 + 160 * sr * sr) * danger, dt);
   trick('side', side, 60 + 180 * sr * sr, dt);
   trick('speed', fast, 45, dt);
+  // TIGHTROPE: ride the double yellow line (within 0.4 m of it; wrong way starts beyond that), x2 with oncoming cars close
+  const rope = straight && Math.abs(player.x) <= 0.4 && player.speed > player.base * 0.7;
+  let ropeK = 1;
+  if (rope) for (const e of R.ents) if (e.type === 'car' && e.dir > 0 && e.z < player.z && player.z - e.z < 30 && e.x > -4.6) { ropeK = 2; break; }
+  trick('rope', rope, (60 + 140 * sr * sr) * ropeK, dt);
+  // BIKE LANE HERO: a whole block (80 m) without leaving the green bike lane; consecutive blocks pay more
+  const BL = SC.bike || (SC.bike = { d: 0, n: 0 });
+  if (straight && player.x > 9.05 && player.x < 10.95) {
+    BL.d += player.speed * dt;
+    if (BL.d >= 80) { BL.d -= 80; award('BIKE LANE HERO!' + (BL.n ? ' x' + (BL.n + 1) : ''), BIKELANE_PTS * Math.pow(1.5, BL.n) * (player.speed / player.base), 'good'); BL.n++; }
+  } else { BL.d = 0; BL.n = 0; }
   // running red lights
   for (const I of R.inters) {
     if (I.isEnd) continue;
@@ -3227,7 +3239,7 @@ const Voice = (() => {
 const ANNOUNCE = [
   [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
   [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
-  [/^CAR ALARM/, 'Car alarm!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1]
+  [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1]
 ];
 function announce(label) {
   if (Game.state !== 'play') return;
@@ -3258,11 +3270,13 @@ function buildScoring() {
       ['BIKE DODGE!', 'Slip past a cyclist', fmtPts(120, 240)],
       ['NEAR MISS!', 'Pass close to a car going your way', fmtPts(100, 200)],
       ['CLOSE SHAVE!', 'Pass close to lamps, trees, hydrants…', fmtPts(60, 120)],
+      ['BIKE LANE HERO!', 'Ride a whole block (80 m) in the bike lane; more for each block in a row', fmtPts(BIKELANE_PTS) + '+'],
       ['DETOUR!', 'Make the turn at a road closure', '150 × LEVEL']]],
     ['TRICKS', '<small> keep your chain alive</small>', [
       ['WRONG WAY', 'Ride in the oncoming lanes (more with cars coming)', '40–600 / SEC'],
       ['SIDEWALK SURFING', 'Ride on the sidewalk', '60–240 / SEC'],
       ['FULL THROTTLE', 'Stay at top speed', '45 / SEC'],
+      ['TIGHTROPE', 'Ride the double yellow line (double with oncoming cars close)', '60–400 / SEC'],
       ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
       ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
       ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)]]],
