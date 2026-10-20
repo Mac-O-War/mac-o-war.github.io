@@ -1191,6 +1191,48 @@ const Sound = (() => {
   }
   function jingle() { [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => blip(mtof(m), i === 6 ? 0.6 : 0.16, 'square', 0.13, i * 0.11)); }
   function setFocus(on) { if (ctx && focusLp) focusLp.frequency.setTargetAtTime(on ? 750 : 20000, ctx.currentTime, on ? 0.08 : 0.15); }
+  // ---- steam hiss: a looping noise bed, its level set every frame from the nearest vent ----
+  let amb = null;
+  function loopNoise(t) { const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true; n.start(t, Math.random() * 1.5); return n; }
+  function ambNodes() {
+    if (amb || !ctx) return amb;
+    const t = ctx.currentTime, a = {};
+    // steam: a high hiss, panned toward the vent
+    const st = loopNoise(t), hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2600;
+    a.sg = ctx.createGain(); a.sg.gain.value = 0; st.connect(hp); hp.connect(a.sg);
+    if (ctx.createStereoPanner) { a.sp = ctx.createStereoPanner(); a.sg.connect(a.sp); a.sp.connect(sfx); } else a.sg.connect(sfx);
+    amb = a; return a;
+  }
+  function setSteam(level, pan) {
+    if (!ctx) return; const a = ambNodes(), t = ctx.currentTime;
+    a.sg.gain.setTargetAtTime(clamp(level, 0, 1) * 0.09, t, 0.15); if (a.sp) a.sp.pan.setTargetAtTime(clamp(pan || 0, -1, 1), t, 0.1);
+  }
+  // riding through a steam vent: a big hiss burst
+  function steamBurst(pan) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan), n = noise(t, 0.9), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    f.type = 'highpass'; f.frequency.setValueAtTime(1200, t); f.frequency.linearRampToValueAtTime(3200, t + 0.7);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.04); g.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
+    n.connect(f); f.connect(g); g.connect(o);
+  }
+  // bicycle bell: ding-ding
+  function bell(pan, vol) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
+    for (const dt of [0, 0.17]) for (const [f, v] of [[2380, 0.12], [3610, 0.05], [5900, 0.02]]) {
+      const os = ctx.createOscillator(), g = ctx.createGain(); os.type = 'sine'; os.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + dt); g.gain.linearRampToValueAtTime(v * vol, t + dt + 0.004); g.gain.exponentialRampToValueAtTime(0.0008, t + dt + 0.55);
+      os.connect(g); g.connect(o); os.start(t + dt); os.stop(t + dt + 0.6);
+    }
+  }
+  // pigeon coo: hoo-hoo-roo, soft and throaty
+  function coo(pan, vol) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
+    const os = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain(), trem = ctx.createOscillator(), td = ctx.createGain();
+    os.type = 'triangle'; lp.type = 'lowpass'; lp.frequency.value = 800;
+    os.frequency.setValueAtTime(470, t); os.frequency.linearRampToValueAtTime(420, t + 0.18); os.frequency.setValueAtTime(480, t + 0.26); os.frequency.linearRampToValueAtTime(400, t + 0.62);
+    trem.frequency.value = 24; td.gain.value = 0.35; trem.connect(td); td.connect(g.gain);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05 * vol, t + 0.03); g.gain.setValueAtTime(0.0001, t + 0.2); g.gain.linearRampToValueAtTime(0.06 * vol, t + 0.28); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.66);
+    os.connect(lp); lp.connect(g); g.connect(o); os.start(t); trem.start(t); os.stop(t + 0.7); trem.stop(t + 0.7);
+  }
   // high five: a sharp slap
   function slap(pan) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan);
@@ -1416,7 +1458,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -1943,7 +1985,19 @@ function updateLeaves(dt) {
   }
   leafMesh.instanceMatrix.needsUpdate = true; lfAny = any;
 }
+const STEAM_PTS = 150;   // riding through a steaming manhole
 const _sv = { x: 0, z: 0 };
+// the hiss of the nearest steaming manhole (within 30 m), panned to its side
+function updateCitySound() {
+  if (!player.run) return;
+  let steam = 0, steamPan = 0;
+  setPL(player.run);
+  for (const ch of player.run.chunks) for (const v of ch.steam) {
+    const d = Math.hypot(v.x - PL.x, v.z - PL.z), lv = Math.pow(clamp(1 - d / 30, 0, 1), 2);
+    if (lv > steam) { steam = lv; steamPan = clamp((v.x - PL.x) / 8, -1, 1); }
+  }
+  Sound.setSteam(Game.state !== 'menu' ? steam : 0, steamPan);
+}
 function updateDecor(dt) {
   const playing = Game.state === 'play';
   for (const r of runs) {
@@ -1971,7 +2025,8 @@ function updateDecor(dt) {
         while (s.acc >= 1) { s.acc -= 1; steamPuff(_t.x + rand(-0.3, 0.3), 0.1, _t.z + rand(-0.3, 0.3), rand(-0.25, 0.25), rand(1, 1.8), rand(-0.25, 0.25), pick([0xe4e7ea, 0xd5d9de, 0xc8cdd3]), rand(0.25, 0.45), 0.35, rand(1.8, 2.8)); }
         s.cd -= dt;
         if (playing && s.cd <= 0 && Math.abs(ax) < 2.2 && Math.abs(az) < 2.5) {   // riding through: a big swirling burst
-          s.cd = 1.5;
+          s.cd = 1.5; Sound.steamBurst(clamp(ax / 6, -1, 1));
+          award('STEAM BATH!', STEAM_PTS * (player.speed / player.base), 'trick', false);   // a trick: keeps the chain, doesn't add to it
           for (let k = 0; k < 18; k++) {
             const lvx = rand(-2.5, 2.5) + player.vx * 0.4, lvz = -player.speed * rand(0.1, 0.35);
             steamPuff(_t.x + rand(-0.4, 0.4), rand(0.2, 1.2), _t.z + rand(-0.4, 0.4), lvx * r.cos + lvz * r.sin, rand(1.5, 3.5), -lvx * r.sin + lvz * r.cos, 0xe8ebee, rand(0.35, 0.6), 0.5, rand(1.4, 2.2));
@@ -2565,6 +2620,11 @@ function spawnBike(run, x, z, dir, kind) {
 }
 function updBike(run, e, dt) {
   e.t += dt; e.swT -= dt;
+  if (Game.state === 'play') {
+    const d = Math.hypot(e.x - PL.x, e.z - PL.z);
+    if (!e.rang && d < 10) { e.rang = true; Sound.bell(clamp((e.x - PL.x) / 6, -1, 1), clamp(1.2 - d / 12, 0.3, 1)); }
+    else if (e.rang && d > 30) e.rang = false;
+  }
   if (e.swT <= 0) { e.swT = rand(3, 9); e.tx = Math.random() < 0.3 + 0.05 * (Game.level - 1) ? 6.75 : e.homeX + rand(-0.6, 0.6); }
   for (const c of run.closures) if (c.lane === 4 && Math.abs(e.x - 10) < 1.5) {
     const ahead = e.dir < 0 ? e.z - c.zBot : c.zTop - e.z;
@@ -2582,7 +2642,8 @@ function spawnPigeon(run, x, z, perchY) {   // perchY: sitting on an awning or r
   const m = new THREE.Mesh(PIGEON_GEO[0], MAT.vox); m.rotation.y = rand(0, 6.28); m.position.set(x, y, z);
   return addEnt(run, { type: 'pigeon', mesh: m, x, z, y, perch: perchY !== undefined, hw: 0.2, hd: 0.2, fly: false, vx: 0, vy: 0, vz: 0, t: rand(0, 3), life: 4, nm: true, lethal: false });
 }
-let flapCd = 0;
+let flapCd = 0, cooCd = 0;
+const PIGEON_PTS = 50;   // riding through a flock (a trick: keeps the chain, doesn't add to it)
 function updPigeon(run, e, dt) {
   e.t += dt;
   if (!e.fly) {
@@ -2593,6 +2654,10 @@ function updPigeon(run, e, dt) {
       else { e.vx = (e.x > PL.x ? 1 : -1) * rand(2, 6); e.vy = rand(3.5, 6); e.vz = rand(-8, -2); }
       e.mesh.rotation.y = Math.atan2(-e.vx, -e.vz);
       if (flapCd <= 0) { Sound.flap((e.x - PL.x) / 8); flapCd = 0.4; }
+      if (!e.perch && cooCd <= 0) {   // ridden through a flock on the ground: a startled coo and a few points (once per flock)
+        Sound.coo(clamp((e.x - PL.x) / 8, -1, 1), 1); cooCd = 0.8;
+        award('PIGEON SCATTER!', PIGEON_PTS * (player.speed / player.base), 'trick', false);
+      }
       if (Math.random() < 0.5) { toWorld(run, e.x, e.z, _t); for (let k = 0; k < 3; k++) emit(_t.x, e.y + 0.2, _t.z, rand(-1, 1), rand(0.5, 2), rand(-1, 1), 0xb0b4bc, 0.06, 3, 3); }
     } else {
       e.mesh.position.y = e.y + (Math.sin(e.t * 6) > 0.85 ? 0.06 : 0);
@@ -2715,7 +2780,7 @@ function updateRunEntities(run, dt) {
   for (const f of run.flashers) f.material = on ? amberOn : amberOff;
 }
 function updateEntities(dt) {
-  flapCd -= dt; shutterCd -= dt;
+  flapCd -= dt; shutterCd -= dt; cooCd -= dt;
   for (const r of runs.slice()) updateRunEntities(r, dt);
 }
 
@@ -3181,7 +3246,9 @@ function buildScoring() {
       ['WRONG WAY', 'Ride in the oncoming lanes (more with cars coming)', '40–600 / SEC'],
       ['SIDEWALK SURFING', 'Ride on the sidewalk', '60–240 / SEC'],
       ['FULL THROTTLE', 'Stay at top speed', '45 / SEC'],
-      ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH']]],
+      ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
+      ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
+      ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)]]],
     ['BONUSES', '', [
       ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
       ['RIDING', 'Just keep moving', '~5 / SEC']]],
@@ -4061,7 +4128,7 @@ function frame(now) {
   if (st === 'play' || st === 'countdown') updateHud(false);
   Sound.setEngine(player.speed, st === 'play', player.boost);
   if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
-  updateDecor(dt); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
+  updateDecor(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
   renderer.render(scene, camera);
   if (Game.state === 'replay' && VID.cap) VID.capture();
 }
