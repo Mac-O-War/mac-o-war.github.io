@@ -295,7 +295,7 @@ body:not(.touch) .card.tch{display:none}
   <!-- <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p> -->
   <button class="btn" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
-  <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm scoreOpen">SCORING</button><button class="btn sm alt lbOpen hidden">TOP 10</button></div>
+  <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm voiceBtn">ANNOUNCER: OFF</button><button class="btn sm scoreOpen">SCORING</button><button class="btn sm alt lbOpen hidden">TOP 10</button></div>
   <div id="pwaBox"><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
   <div id="rotateTip">TIP: TURN YOUR PHONE SIDEWAYS FOR THE BEST VIEW</div>
 </section>
@@ -372,7 +372,7 @@ body:not(.touch) .card.tch{display:none}
   <h2 class="big g">PAUSED</h2>
   <p class="cause">TAKE A BREATH. THE CITY WILL WAIT.</p>
   <button class="btn" id="resumeBtn">RESUME</button>
-  <div class="sub2" style="margin-top:18px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm scoreOpen">SCORING</button></div>
+  <div class="sub2" style="margin-top:18px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm voiceBtn">ANNOUNCER: OFF</button><button class="btn sm scoreOpen">SCORING</button></div>
   <div class="small">PRESS P / ESC OR TAP</div>
 </section>
 
@@ -2872,7 +2872,7 @@ function startFromMenu() {
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* ignore */ }
   Sound.init(); if (isTouch) { Game.wantFs = true; goFullscreen(); }
   Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0;
-  resetFocus(); beginLevel();
+  resetFocus(); Voice.unlock(); Game.bestCalled = false; beginLevel();
 }
 function beginLevel() {
   keepAwake();
@@ -2885,7 +2885,7 @@ function beginLevel() {
   updateHud(true);
 }
 function restart() {
-  resetFocus();
+  resetFocus(); Voice.unlock(); Game.bestCalled = false;
   track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 function pauseGame() { if (Game.state !== 'play') return; if (FOCUS.on) { FOCUS.on = false; Sound.setFocus(false); } Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend(); }
@@ -2997,10 +2997,12 @@ function chainMult() { return Math.min(5, 1 + 0.5 * Math.max(0, SC.chainN - 1));
 function chainHit() {
   SC.chainN = SC.chainT > 0 ? SC.chainN + 1 : 1; SC.chainT = CHAIN_WIN;
   if (SC.chainN > Game.bestChain) Game.bestChain = SC.chainN;
+  if (SC.chainN === 5) Voice.say('Chain, times three!', 2); else if (SC.chainN === 9) Voice.say('Maximum chain!', 4);
   if (SC.chainN > 1) Sound.blip(440 + Math.min(12, SC.chainN) * 60, 0.07, 'square', 0.07);
 }
 function bumpScore() { const el = $('score'); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function award(label, base, cls, hit) {
+  announce(label);
   if (hit !== false) chainHit(); else SC.chainT = Math.max(SC.chainT, 1.0);
   const m = totalMult(), pts = Math.max(1, Math.round(base * m));
   Game.score += pts; SC.chainPts += pts;
@@ -3040,6 +3042,7 @@ function updateMetal(dt) {
     const nl = Math.min(6, Math.floor(M.dist / 100));
     if (nl > M.lvl) {
       M.lvl = nl;
+      if (nl === 6) Voice.say('Pedal to the metal!', 3);
       popup('PEDAL TO THE METAL x' + metalMult().toFixed(2), 'metal');
       Sound.blip(330 + nl * 110, 0.14, 'sawtooth', 0.1); buzz(20);
     }
@@ -3106,6 +3109,53 @@ function updateSqueeze(dt) {
   }
 }
 
+/* ---------- ANNOUNCER: the browser's speech synthesis calls out big moves and moments ----------
+   One phrase at a time; a more important call can cut off a minor one, never the other way round.
+   Silent when the game is muted or the announcer is switched off (remembered as whatdo_voice). */
+const Voice = (() => {
+  const ok = 'speechSynthesis' in window && !!window.SpeechSynthesisUtterance;
+  let on = store.get('whatdo_voice', '0') === '1',   // off unless the player turns it on
+      voice = null, busyUntil = 0, curPri = 0;
+  function pickVoice() {
+    const vs = ok ? speechSynthesis.getVoices() : [];
+    voice = vs.find((v) => /^en[-_]US/i.test(v.lang) && /male|david|alex|daniel|fred|guy|mark/i.test(v.name) && !/female/i.test(v.name))
+      || vs.find((v) => /^en[-_](US|GB)/i.test(v.lang)) || vs.find((v) => /^en/i.test(v.lang)) || null;
+  }
+  if (ok) { pickVoice(); try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { /* older browsers */ } }
+  function say(text, pri) {
+    pri = pri || 1;
+    if (!ok || !on || Sound.muted) return;
+    const now = performance.now();
+    if (now < busyUntil && pri <= curPri) return;   // something as important (or more) is still being said
+    try {
+      if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      if (voice) u.voice = voice;
+      u.rate = 1.15; u.pitch = 0.7; u.volume = 1;
+      speechSynthesis.speak(u);
+      curPri = pri; busyUntil = now + 700 + text.length * 60;
+    } catch (e) { /* speech not available right now */ }
+  }
+  // iPhones only allow speech that starts from a tap: speak a silent space when Play is pressed
+  function unlock() { if (!ok || !on) return; try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { /* ignore */ } }
+  function set(v) { on = v; store.set('whatdo_voice', v ? '1' : '0'); if (!v && ok) speechSynthesis.cancel(); }
+  return { say, unlock, set, get on() { return on; }, ok };
+})();
+// award popup -> what the announcer says, and how important it is (higher interrupts lower)
+const ANNOUNCE = [
+  [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
+  [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
+  [/^CAR ALARM/, 'Car alarm!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1]
+];
+function announce(label) {
+  if (Game.state !== 'play') return;
+  const ov = /^ONCOMING VELOCITY (\d+)/.exec(label);
+  if (ov && +ov[1] < 75) return;   // oncoming passes are common: only call the really fast ones
+  for (const [re, text, pri] of ANNOUNCE) if (re.test(label)) { Voice.say(text, pri); return; }
+}
+function updateVoiceButtons() { document.querySelectorAll('.voiceBtn').forEach((b) => { b.textContent = 'ANNOUNCER: ' + (Voice.on ? 'ON' : 'OFF'); b.classList.toggle('hidden', !Voice.ok); }); }
+document.querySelectorAll('.voiceBtn').forEach((b) => bindButton(b, () => { Voice.set(!Voice.on); updateVoiceButtons(); if (Voice.on) { Voice.unlock(); Voice.say('Announcer on!', 5); } }));
+updateVoiceButtons();
 /* ---------- SCORING screen: every award, built from the live point values so it never goes stale ---------- */
 const SCORING_UI = { open: false, back: 'startScreen' };
 function fmtPts(a, b) { const f = (n) => Math.round(n).toLocaleString(); return b === undefined || Math.round(a) === Math.round(b) ? f(a) : f(a) + '–' + f(b); }
@@ -3355,6 +3405,7 @@ const COMIC = ['SPLAT!', 'SPLORCH!', 'KA-SPLAT!', 'SQUELCH!', 'BLAMMO!', 'WHAT D
 const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
+  Voice.say(pick(['Ouch!', 'What do?', 'Wipeout!', 'Oof!']), 6);
   recordFrame();                       // final pose for the instant replay
   VID.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
@@ -3521,6 +3572,7 @@ function winLevel() {
   cashInAll();
   const bonus = 1000 * Game.level; Game.bonus = bonus; Game.score += bonus;
   const sc = Math.floor(Game.score); if (sc > Game.best) { Game.best = sc; store.set('whatdo_best', sc); }
+  Voice.say('Level clear!', 5);
   Sound.jingle(); Sound.stopMusic(); buzz([40, 60, 40, 60, 120]);
   if (TOD.night > 0.5) Sky.fireworks();
   popup('LEVEL CLEAR!', 'good');
@@ -3602,7 +3654,10 @@ function updatePlay(dt) {
   if (player.hitWall) { die('building', null); return; }
   Game.score += player.speed * dt * 0.25 * (1 + (Game.level - 1) * 0.25) * metalMult();
   updateScoring(dt);
-  if (Game.best > 0 && Math.floor(Game.score) > Game.best) $('bestBox').style.outline = '2px solid #ffd23f';
+  if (Game.best > 0 && Math.floor(Game.score) > Game.best) {
+    $('bestBox').style.outline = '2px solid #ffd23f';
+    if (!Game.bestCalled) { Game.bestCalled = true; Voice.say('New high score!', 4); }
+  }
   updatePW();
   manageRuns(false);
   spawnTraffic(player.run, dt, true);
@@ -3970,7 +4025,7 @@ function frame(now) {
       Game.lastCd = n; const el = $('countdown');
       el.style.display = 'block'; el.classList.remove('tick', 'go'); void el.offsetWidth;
       if (n > 0) { el.textContent = n; Sound.blip(440, 0.18, 'square', 0.14); buzz(12); }
-      else { el.textContent = 'GO!'; el.classList.add('go'); Sound.blip(880, 0.4, 'square', 0.16); buzz(45); }
+      else { el.textContent = 'GO!'; el.classList.add('go'); Voice.say('Go!', 2); Sound.blip(880, 0.4, 'square', 0.16); buzz(45); }
       el.classList.add('tick');
     }
     player.speed = 0;
