@@ -3304,12 +3304,12 @@ function scoringKey(e) {
 document.querySelectorAll('.scoreOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'paused') openScoring(); }));
 bindButton($('scoreBack'), closeScoring);
 /* ---------- FOCUS (bullet time): near misses fill it; hold the button to slow the world ---------- */
-const FOCUS = { meter: 0, on: false, k: 0, shown: -1, held: false };
+const FOCUS = { meter: 0, on: false, k: 0, shown: -1, held: false, speed: 0, boost: false };
 const FOCUS_SCALE = 0.50, FOCUS_DRAIN = 0.50, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
 function focusGain(a) { FOCUS.meter = Math.min(1, FOCUS.meter + a * (FOCUS.on ? 0.35 : 1)); }   // less while already in slow-mo
 function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time scale for the world
   const held = Game.state === 'play' && readFocus(), pressed = held && !FOCUS.held; FOCUS.held = held;
-  if (held && !FOCUS.on && FOCUS.meter >= FOCUS_MIN) { FOCUS.on = true; Sound.whoosh(0, 1.4); Sound.setFocus(true); }
+  if (held && !FOCUS.on && FOCUS.meter >= FOCUS_MIN) { FOCUS.on = true; FOCUS.speed = player.speed; FOCUS.boost = player.boost; Sound.whoosh(0, 1.4); Sound.setFocus(true); }
   else if (pressed && !FOCUS.on) {   // not enough saved: a buzz and a red flash on the meter (once per press)
     Sound.deny(); const b = $('focusBox'); b.classList.remove('empty'); void b.offsetWidth; b.classList.add('empty');
   }
@@ -3709,9 +3709,10 @@ function updatePlay(dt) {
   Game.time += dt; Game.elapsed += dt; Game.runT += dt;
   screamCd -= dt;
   const steer = readSteer(), gas = readGas();
-  player.boost = gas;
-  const target = gas ? player.max : player.base;
-  player.speed += clamp(target - player.speed, -12 * dt, 16 * dt);
+  // in FOCUS your speed and gas are held as they were when it started (your thumb may have left GAS to press FOCUS)
+  player.boost = FOCUS.on ? FOCUS.boost : gas;
+  if (FOCUS.on) player.speed = FOCUS.speed;
+  else player.speed += clamp((gas ? player.max : player.base) - player.speed, -12 * dt, 16 * dt);
   // turning at the road closure: near the intersection, steering yaws the rider along a real arc (no autopilot).
   // Halfway round (45°) the rider switches onto the new street and the camera swings to it; from there you
   // steer to finish the turn, or the rider straightens out by themselves when you let go.
