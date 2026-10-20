@@ -2827,7 +2827,9 @@ GIF.start = () => {
   gifBtnState('wait');
 };
 GIF.capture = (dt) => {
-  GIF.acc += dt; if (GIF.acc < 0.08 || GIF.frames.length >= 80) return; GIF.acc = 0;
+  // keep the leftover time so frames land every 0.08 s on average (matches the 80 ms GIF delay);
+  // 120 frames = 9.6 s, enough for the whole ~8.1 s replay
+  GIF.acc += dt; if (GIF.acc < 0.08 || GIF.frames.length >= 120) return; GIF.acc = Math.min(GIF.acc - 0.08, 0.08);
   const c = GIF.ctx, w = GIF.w, h = GIF.h, k = Math.max(w, h) / 320;   // overlay scale
   c.imageSmoothingEnabled = false;
   c.drawImage(canvas, 0, 0, w, h);
