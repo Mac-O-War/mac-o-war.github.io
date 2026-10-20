@@ -18,8 +18,8 @@
 <meta property="og:title" content="What Do? — one electric unicycle, zero brakes">
 <meta property="og:description" content="Dodge taxis, tourists and pigeons on an electric unicycle in a voxel New York / DC. Survive the clock, buzz oncoming traffic, chain combos.">
 <meta property="og:url" content="https://restoneuc.com/whatdo/index.html">
-<meta property="og:image" content="https://restoneuc.com/whatdo/screenshots/og-image.png">
-<meta property="og:image:secure_url" content="https://restoneuc.com/whatdo/screenshots/og-image.png">
+<meta property="og:image" content="https://restoneuc.com/whatdo/whatdo.png">
+<meta property="og:image:secure_url" content="https://restoneuc.com/whatdo/whatdo.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -27,7 +27,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="What Do? — one electric unicycle, zero brakes">
 <meta name="twitter:description" content="Dodge taxis, tourists and pigeons on an electric unicycle in a voxel New York / DC.">
-<meta name="twitter:image" content="https://restoneuc.com/whatdo/screenshots/og-image.png">
+<meta name="twitter:image" content="https://restoneuc.com/whatdo/whatdo.png">
 <meta name="twitter:image:alt" content="Rider on an electric unicycle weaving through city traffic at sunset">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -89,7 +89,7 @@ body{position:fixed;inset:0}
 #focusBox.on #focusTxt{color:#b36bff;animation:blink .2s infinite alternate}
 body.touch #focusBox{bottom:calc(min(26vmin,120px) + 40px + var(--sb))}
 #focusFx{background:radial-gradient(ellipse at center,rgba(40,70,150,0) 45%,rgba(40,70,150,.55) 100%);opacity:0;pointer-events:none}
-#tFocus{right:calc(30px + var(--sr));bottom:calc(36px + min(30vmin,140px) + var(--sb));width:min(18vmin,84px);height:min(18vmin,84px);font-size:clamp(9px,2.6vmin,12px);background:rgba(120,90,255,.3);border-color:rgba(20,10,60,.7)}
+#tFocus{right:calc(30px + var(--sr));bottom:calc(36px + min(30vmin,140px) + var(--sb));width:min(30vmin,140px);height:min(30vmin,140px);font-size:clamp(14px,4vmin,20px);background:rgba(120,90,255,.3);border-color:rgba(20,10,60,.7)}
 #tFocus.down{background:rgba(150,110,255,.65)}
 #metalBox.maxed #metalTxt{color:#ffd23f;animation:blink .25s infinite alternate}
 .pop.ov{color:#ff8a00;font-size:clamp(30px,7vw,54px)}.pop.sq{color:#ff4fd8;font-size:clamp(36px,8.5vw,66px);animation-duration:1.3s}
@@ -2839,7 +2839,7 @@ window.addEventListener('keydown', (e) => {
   if (scoringKey(e)) return;   // the scoring screen takes the keyboard while open
   if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
   const k = KEYMAP[e.code];
-  if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') input.mouseSteer = false; e.preventDefault(); }
+  if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') { input.mouseSteer = false; input.mouseTravel = 0; } e.preventDefault(); }
   // secret: '@' skips straight to the next level
   if (e.key === '@' && !e.repeat && ['play', 'countdown', 'winning', 'win', 'paused'].includes(Game.state)) { e.preventDefault(); showScreen(null); Sound.resume(); nextLevel(); return; }
   if (Game.state === 'replay' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) { e.preventDefault(); endReplay(); return; }
@@ -2865,7 +2865,11 @@ canvas.addEventListener('pointercancel', endCanvasPointer);
 window.addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse') return;
   const nx = e.clientX / viewW;
-  if (input.mouseX === null || Math.abs(nx - input.mouseX) > 0.004) { input.mouseSteer = true; input.lastMouseMove = performance.now(); }
+  // hand steering to the mouse only after a deliberate move (~40 px since the last steering key), so a bump of the
+  // desk or a jittery sensor doesn't suddenly swing the rider toward wherever the pointer happens to be
+  if (input.mouseX !== null) input.mouseTravel = (input.mouseTravel || 0) + Math.abs(nx - input.mouseX) * viewW;
+  if (!input.mouseSteer && (input.mouseTravel || 0) > 40) input.mouseSteer = true;
+  if (input.mouseSteer) input.lastMouseMove = performance.now();
   input.mouseX = nx;
 });
 window.addEventListener('mouseup', () => { input.mouseGas = false; input.mouseFocus = false; });
