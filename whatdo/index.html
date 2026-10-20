@@ -160,7 +160,28 @@ body:not(.touch) .card.tch{display:none}
 #iosHint{font-size:8px;color:#9fe8ff;line-height:1.8}
 #iosHint b{color:#fff;font-weight:normal}
 #updToast{position:fixed;left:50%;top:calc(12px + var(--st));transform:translateX(-50%);z-index:60;background:#3ddc84;color:#111;border:3px solid #000;padding:10px 14px;font-size:10px;box-shadow:4px 4px 0 rgba(0,0,0,.5);pointer-events:auto;cursor:pointer;white-space:nowrap}
-.sub2{display:flex;gap:10px;margin-top:16px}
+.sub2{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center}
+/* ---------- leaderboard ---------- */
+#lbBox{display:flex;flex-direction:column;align-items:center;gap:8px;margin:0 0 16px}
+.lbHead{font-size:9px;color:var(--y);line-height:1.8}
+.lbRow{display:flex;align-items:center;gap:14px;margin-top:8px}
+.lbSlots{display:flex;gap:8px}
+.slot{display:flex;flex-direction:column;align-items:center;gap:5px}
+.slot b{display:flex;align-items:center;justify-content:center;width:40px;height:42px;background:#000;border:3px solid #555;color:#fff;font-size:22px;font-weight:normal;cursor:pointer}
+.slot.cur b{border-color:var(--y);color:var(--y)}
+.arr{font-family:var(--hud);font-size:9px;width:40px;height:24px;padding:0;background:#e9edf5;color:#111;border:2px solid #000;box-shadow:0 3px 0 #555;cursor:pointer;touch-action:none}
+.arr.press{transform:translateY(2px);box-shadow:0 1px 0 #555}
+#lbMsg{font-size:9px;color:#3ddc84;line-height:1.8}
+#lbMsg.err{color:#ff8a7a}
+#lbMsg:empty{display:none}
+.lbTabs .btn:not(.on){background:#7d8aa8}
+#lbList{list-style:none;margin:16px 0 20px;padding:0;width:min(460px,100%);font-size:clamp(9px,2.4vw,12px)}
+#lbList li{display:grid;grid-template-columns:3.5em 4em 1fr 4em;gap:8px;padding:7px 10px;text-align:left}
+#lbList li:nth-child(odd){background:rgba(255,255,255,.06)}
+#lbList li.me{background:rgba(255,210,63,.22);color:var(--y)}
+#lbList .r,#lbList .l{color:#9fb4d8}
+#lbList .s,#lbList .l{text-align:right}
+#lbList li.empty{display:block;text-align:center;color:#9fb4d8;line-height:1.8}
 .btn.sm{font-size:clamp(9px,2.4vw,12px);padding:10px 12px;animation:none;box-shadow:0 4px 0 #000;letter-spacing:1px}
 .btn.dis{opacity:.45;pointer-events:none}
 #replayUI .lb{position:absolute;left:0;right:0;height:10vh;background:#000}
@@ -178,6 +199,7 @@ body:not(.touch) .card.tch{display:none}
   .split #newBest{margin:0}
   .split .btn{padding:18px 30px}
 }
+@media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#lbBox{margin-bottom:8px}.lbRow{margin-top:2px}.slot b{height:34px;font-size:18px}.arr{height:20px}}
 @media (max-height:520px){.title{font-size:clamp(40px,14vh,90px)}.goal{font-size:8px;line-height:1.7}.btn{padding:12px 28px}.sub{margin:8px 0 10px}.tut{margin-bottom:8px}.card{padding:8px 10px}.row{margin:5px 0}.goal{margin-bottom:10px}}
 </style>
 </head>
@@ -243,7 +265,7 @@ body:not(.touch) .card.tch{display:none}
   <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR LEVEL 1 &mdash; EACH LEVEL ADDS A MINUTE.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p>
   <button class="btn" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
-  <button class="btn sm resBtn" style="margin-top:12px">RESOLUTION: PIXEL</button>
+  <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm alt lbOpen hidden">TOP 10</button></div>
   <div id="pwaBox"><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
   <div id="rotateTip">TIP: TURN YOUR PHONE SIDEWAYS FOR THE BEST VIEW</div>
 </section>
@@ -264,10 +286,32 @@ body:not(.touch) .card.tch{display:none}
   <div id="newBest" class="hidden">NEW HIGH SCORE!</div>
   </div>
   <div class="act">
-  <button class="btn" id="restartBtn">RESTART</button>
-  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm alt dis" id="gifBtn">GIF...</button></div>
-  <div class="small">PRESS ENTER / SPACE OR TAP</div>
+  <div id="lbBox" class="hidden">
+    <div id="lbEntry">
+      <div class="lbHead">YOU MADE THE BOARD! ENTER YOUR INITIALS</div>
+      <div class="lbRow">
+        <div class="lbSlots">
+          <div class="slot"><button class="arr up">&#9650;</button><b>A</b><button class="arr dn">&#9660;</button></div>
+          <div class="slot"><button class="arr up">&#9650;</button><b>A</b><button class="arr dn">&#9660;</button></div>
+          <div class="slot"><button class="arr up">&#9650;</button><b>A</b><button class="arr dn">&#9660;</button></div>
+        </div>
+        <button class="btn sm alt" id="lbOk">POST</button>
+      </div>
+    </div>
+    <div id="lbMsg"></div>
   </div>
+  <button class="btn" id="restartBtn">RESTART</button>
+  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm alt dis" id="gifBtn">GIF...</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
+  <div class="small" id="overHint">PRESS ENTER / SPACE OR TAP</div>
+  </div>
+</section>
+
+<section id="boardScreen" class="screen hidden">
+  <h2 class="big g">TOP 10</h2>
+  <div class="sub2 lbTabs"><button class="btn sm" data-b="day">TODAY</button><button class="btn sm" data-b="all">ALL-TIME</button></div>
+  <ol id="lbList"></ol>
+  <button class="btn" id="lbBack">BACK</button>
+  <div class="small">THE DAILY BOARD RESETS AT MIDNIGHT UTC</div>
 </section>
 
 <section id="winScreen" class="screen split hidden">
@@ -1940,6 +1984,7 @@ function doTurn() {
 const input = { left: false, right: false, up: false, mouseGas: false, mouseX: null, mouseSteer: false, lastMouseMove: 0, tL: false, tR: false, tGas: false, canvasTouchGas: false };
 const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', Space: 'up' };
 window.addEventListener('keydown', (e) => {
+  if (LB.key(e)) return;   // initials entry / leaderboard screen take the keyboard
   const k = KEYMAP[e.code];
   if (k) { input[k] = true; if (k !== 'up') { input.mouseSteer = false; input.pulse = k === 'left' ? -1 : 1; } e.preventDefault(); }
   // secret: '@' skips straight to the next level
@@ -1998,7 +2043,7 @@ const readGas = () => input.up || input.mouseGas || input.tGas || input.canvasTo
 /* =====================================================================
    GAME STATE
    ===================================================================== */
-const Game = { state: 'menu', level: 1, score: 0, best: parseInt(store.get('whatdo_best', '0'), 10) || 0, time: 0, elapsed: 0, levelTime: 60, near: 0, turns: 0, bestChain: 0, shake: 0, deathT: 0, overReady: false, cd: 0, swerveWarn: 0, lastNear: null, startScore: 0 };
+const Game = { state: 'menu', level: 1, score: 0, runT: 0, best: parseInt(store.get('whatdo_best', '0'), 10) || 0, time: 0, elapsed: 0, levelTime: 60, near: 0, turns: 0, bestChain: 0, shake: 0, deathT: 0, overReady: false, cd: 0, swerveWarn: 0, lastNear: null, startScore: 0 };
 window.WhatDo = Game;
 Game.debug = { player, runs, doTurn: () => doTurn(), spawnCar: (li, z, k) => spawnCar(player.run, li, z, k), get SC() { return SC; } };
 const deathPos = new THREE.Vector3();
@@ -2024,7 +2069,7 @@ function resetWorld() {
   $('bloodFx').innerHTML = ''; $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
 function showScreen(id) {
-  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen']) $(s).classList.toggle('hidden', s !== id);
+  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen']) $(s).classList.toggle('hidden', s !== id);
 }
 function setHudVisible(on) {
   $('hud').classList.toggle('on', on);
@@ -2035,7 +2080,7 @@ function startFromMenu() {
   track('play-start', 'Started a game' + (isTouch ? ' (touch)' : ' (desktop)'));
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* ignore */ }
   Sound.init(); if (isTouch) { Game.wantFs = true; goFullscreen(); }
-  Game.level = 1; Game.score = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0;
+  Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0;
   beginLevel();
 }
 function beginLevel() {
@@ -2048,7 +2093,9 @@ function beginLevel() {
   Sound.startMusic(Game.level);
   updateHud(true);
 }
-function restart() { track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.level = 1; Game.score = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
+function restart() {
+  LB.autoSubmit();   // leaving with initials on screen still posts the score
+  track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 function pauseGame() { if (Game.state !== 'play') return; Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend(); }
 function resumeGame() { if (Game.state !== 'paused') return; Game.state = 'play'; showScreen(null); Sound.resume(); lastT = performance.now(); }
@@ -2367,6 +2414,7 @@ const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
   recordFrame();                       // final pose for the instant replay
+  GIF.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
   if (SC.chainN > 1) popup('CHAIN LOST!', 'red');
   resetScoring(); $('chainBox').classList.add('hidden'); $('tricks').innerHTML = '';
@@ -2522,6 +2570,7 @@ function showGameOver() {
   $('oBest').textContent = Game.best.toLocaleString();
   $('newBest').classList.toggle('hidden', !Game.newBest);
   showScreen('overScreen');
+  LB.onGameOver();
   setTimeout(() => { Game.overReady = true; }, 250);
 }
 /* ---------- level complete ---------- */
@@ -2569,7 +2618,7 @@ function movePlayer(dt, steer) {
   player.y = damp(player.y, groundY(player.run, player.x, player.z) - 0.02, 18, dt);
 }
 function updatePlay(dt) {
-  Game.time += dt; Game.elapsed += dt;
+  Game.time += dt; Game.elapsed += dt; Game.runT += dt;
   screamCd -= dt;
   const steer = readSteer(), gas = readGas();
   player.boost = gas;
@@ -2728,7 +2777,7 @@ function applyAt(t) {
 }
 function startReplay(auto) {
   const info = Game.replayInfo;
-  if (REC.length < 8 || !info) { showGameOver(); return; }
+  if (REC.length < 8 || !info) { gifBtnState('none'); showGameOver(); return; }
   Game.state = 'replay'; Game.overReady = false;
   RP.frames = REC.slice(); RP.i = 0; RP.t = RP.frames[0].t; RP.tEnd = RP.frames[RP.frames.length - 1].t; RP.phase = 'pre'; RP.post = 0;
   showScreen(null); setHudVisible(false);
@@ -2799,31 +2848,38 @@ function replayCamera(dt) {
 }
 function endReplay() {
   if (Game.state !== 'replay') return;
+  const complete = RP.phase === 'post' && RP.post > 3.2;   // false when the player skipped
   if (RP.phase === 'pre') { applyAt(RP.tEnd); replayImpact(true); }
   $('replayUI').classList.add('hidden');
-  GIF.stop();
+  GIF.stop(complete);
   orbitA = RP.orbit;
   showGameOver();
 }
 
 /* ---------- GIF capture + encoder (no libraries) ---------- */
-const GIF = { frames: [], w: 0, h: 0, cap: false, acc: 0, blob: null, token: 0, cv: document.createElement('canvas'), ctx: null };
+const GIF = { frames: [], w: 0, h: 0, cap: false, acc: 0, blob: null, enc: false, ui: 'wait', token: 0, cv: document.createElement('canvas'), ctx: null };
 GIF.ctx = GIF.cv.getContext('2d', { willReadFrequently: true });
 const GIF_PAL = new Uint8Array(768);
 for (let i = 0; i < 256; i++) { GIF_PAL[i * 3] = Math.round(((i >> 5) & 7) * 255 / 7); GIF_PAL[i * 3 + 1] = Math.round(((i >> 2) & 7) * 255 / 7); GIF_PAL[i * 3 + 2] = Math.round((i & 3) * 255 / 3); }
 let canShareFiles = false;
 try { canShareFiles = !!(navigator.canShare && window.File && navigator.canShare({ files: [new File([new Uint8Array(1)], 'a.gif', { type: 'image/gif' })] })); } catch (e) { canShareFiles = false; }
 function gifBtnState(s, p) {
-  const b = $('gifBtn');
-  b.classList.toggle('dis', s !== 'ready');
-  b.textContent = s === 'ready' ? (canShareFiles ? 'SHARE GIF' : 'SAVE GIF') : s === 'enc' ? 'MAKING GIF ' + Math.round((p || 0) * 100) + '%' : 'GIF...';
+  // wait: replay running · make: replay was skipped, tap to re-run it · enc: encoding · ready: tap to share · none: no replay
+  const b = $('gifBtn'); GIF.ui = s;
+  b.classList.toggle('dis', s !== 'ready' && s !== 'make');
+  b.textContent = s === 'ready' ? (canShareFiles ? 'SHARE GIF' : 'SAVE GIF') : s === 'make' ? 'MAKE GIF' : s === 'enc' ? 'MAKING GIF ' + Math.round((p || 0) * 100) + '%' : s === 'none' ? 'NO GIF' : 'GIF...';
 }
 const GIF_SIZE = 640;   // longest side of the saved GIF, in pixels
+GIF.reset = () => {     // new crash: drop the old GIF and cancel any encode in progress
+  GIF.token++; GIF.frames = []; GIF.blob = null; GIF.cap = false; GIF.enc = false;
+  gifBtnState('wait');
+};
 GIF.start = () => {
+  if (GIF.blob || GIF.enc) return;   // already have (or are making) this crash's GIF
   const s = GIF_SIZE / Math.max(viewW, viewH);
   GIF.w = Math.max(16, Math.round(viewW * s)); GIF.h = Math.max(16, Math.round(viewH * s));
   GIF.cv.width = GIF.w; GIF.cv.height = GIF.h;
-  GIF.frames = []; GIF.blob = null; GIF.cap = true; GIF.acc = 1; GIF.token++;
+  GIF.frames = []; GIF.cap = true; GIF.acc = 1;
   gifBtnState('wait');
 };
 GIF.capture = (dt) => {
@@ -2845,12 +2901,14 @@ GIF.capture = (dt) => {
   for (let i = 0, j = 0; j < idx.length; i += 4, j++) idx[j] = (px[i] & 0xE0) | ((px[i + 1] & 0xE0) >> 3) | (px[i + 2] >> 6);
   GIF.frames.push(idx);
 };
-GIF.stop = () => {
-  GIF.cap = false;
-  if (!GIF.frames.length) return;
-  const tok = GIF.token;
-  gifEncode(GIF.frames, GIF.w, GIF.h, 8, (p) => { if (tok === GIF.token) gifBtnState('enc', p); }, () => tok !== GIF.token)
-    .then((blob) => { if (blob && tok === GIF.token) { GIF.blob = blob; gifBtnState('ready'); } });
+GIF.stop = (complete) => {
+  const was = GIF.cap; GIF.cap = false;
+  if (!was) return;
+  const frames = GIF.frames; GIF.frames = [];
+  if (!complete || !frames.length) { gifBtnState('make'); return; }   // skipped: only build from a full replay
+  const tok = GIF.token; GIF.enc = true;
+  gifEncode(frames, GIF.w, GIF.h, 8, (p) => { if (tok === GIF.token) gifBtnState('enc', p); }, () => tok !== GIF.token)
+    .then((blob) => { if (blob && tok === GIF.token) { GIF.enc = false; GIF.blob = blob; gifBtnState('ready'); } });
 };
 function lzw(indices, minCode) {
   const clear = 1 << minCode, eoi = clear + 1, out = [];
@@ -2915,7 +2973,12 @@ function shareGif() {
 bindButton($('replayBtn'), () => { if (Game.state === 'over') { track('replay-watched', 'Re-watched a crash replay'); startReplay(false); } });
 // sharing needs a "real" user activation, which phones only grant when the finger lifts
 $('gifBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
-$('gifBtn').addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); if (Game.state === 'over') shareGif(); });
+$('gifBtn').addEventListener('pointerup', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  if (Game.state !== 'over') return;
+  if (GIF.ui === 'ready') shareGif();
+  else if (GIF.ui === 'make') { track('gif-rerun', 'Re-ran a skipped replay for a GIF'); startReplay(false); }
+});
 window.addEventListener('pointerdown', () => { if (Game.state === 'replay') endReplay(); });
 gifBtnState('wait');
 
@@ -2974,6 +3037,151 @@ function frame(now) {
   renderer.render(scene, camera);
   if (Game.state === 'replay' && GIF.cap) GIF.capture(dt);
 }
+
+/* ---------- online leaderboard (Cloudflare Worker + D1; Worker source lives in C:\code\whatdo-leaderboard) ----------
+   GET /top?board=day|all → [{ name, score, level }] (top 10) · POST /submit { name, score, level, secs } → { ok, rank }
+   The Worker only answers pages on https://restoneuc.com, so from localhost or file:// the board stays hidden. */
+const LB_URL = 'https://whatdo-leaderboard.whatdo-leaderboard.workers.dev';
+const LB_CH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const lbSaved = store.get('whatdo_name', '');
+const LB = {
+  boards: { day: null, all: null }, failed: false, tab: 'day', open: false, back: 'startScreen',
+  run: null,     // this crash: { score, level, secs, state: 'none'|'entry'|'sending'|'posted'|'queued'|'rejected', msg, err }
+  letters: (/^[A-Z0-9]{3}$/.test(lbSaved) ? lbSaved : 'AAA').split(''), named: /^[A-Z0-9]{3}$/.test(lbSaved), edited: false, cur: 0,
+  mine: null     // last score posted from this device, highlighted on the board
+};
+function lbFetch(path, opts) {
+  const ac = window.AbortController ? new AbortController() : null;
+  const t = ac && setTimeout(() => ac.abort(), 8000);
+  return fetch(LB_URL + path, Object.assign({ signal: ac ? ac.signal : undefined }, opts)).finally(() => clearTimeout(t));
+}
+LB.fetchBoards = (fresh) => {
+  const q = fresh ? '&t=' + Date.now() : '';   // skip the 30 s cache right after posting
+  return Promise.all(['day', 'all'].map((b) => lbFetch('/top?board=' + b + q).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })))
+    .then(([day, all]) => { LB.boards.day = day; LB.boards.all = all; LB.failed = false; return true; })
+    .catch(() => { LB.failed = true; return false; })
+    .then((ok) => { document.querySelectorAll('.lbOpen').forEach((b) => b.classList.toggle('hidden', !LB.boards.all)); if (LB.open) lbRenderBoard(); return ok; });
+};
+// scores that couldn't be sent (offline) wait in localStorage and go out on the next chance
+function lbQueueGet() { try { const q = JSON.parse(store.get('whatdo_lb_queue', '[]')); return Array.isArray(q) ? q : []; } catch (e) { return []; } }
+function lbQueueSet(q) { store.set('whatdo_lb_queue', JSON.stringify(q.slice(-5))); }
+function lbSend(entry) {   // → { ok, rank } | { error } (rejected, don't retry) | { retry } (offline / busy)
+  return lbFetch('/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) })
+    .then((res) => res.json().catch(() => ({})).then((d) => res.ok ? { ok: true, rank: d.rank } : res.status === 400 ? { error: d.error || 'invalid' } : { retry: true }))
+    .catch(() => ({ retry: true }));
+}
+let lbFlushing = false;
+function lbFlush() {
+  if (lbFlushing || !lbQueueGet().length) return Promise.resolve();
+  lbFlushing = true;
+  const next = () => {
+    const q = lbQueueGet(); if (!q.length) return null;
+    return lbSend(q[0]).then((res) => { if (res.retry) return null; lbQueueSet(lbQueueGet().slice(1)); return next(); });
+  };
+  return Promise.resolve(next()).finally(() => { lbFlushing = false; });
+}
+const lbMakes = (b, sc) => !!b && (b.length < 10 || sc > b[b.length - 1].score);
+LB.onGameOver = () => {   // runs again after every re-watched replay, so only set up once per crash
+  if (!LB.run) {
+    const score = Math.floor(Game.score), secs = Math.round(Game.runT);
+    // with no board loaded (offline), offer it for a personal best and queue it
+    const makes = score > 0 && secs > 0 && (LB.boards.all ? lbMakes(LB.boards.day, score) || lbMakes(LB.boards.all, score) : Game.newBest);
+    LB.run = { score, level: Game.level, secs, state: makes ? 'entry' : 'none', msg: '', err: false };
+    LB.cur = 0; LB.edited = false;
+  }
+  lbRender();
+};
+function lbRender() {
+  const r = LB.run, entry = !!r && r.state === 'entry';
+  $('lbBox').classList.toggle('hidden', !r || r.state === 'none');
+  $('lbEntry').classList.toggle('hidden', !entry);
+  $('overHint').textContent = entry ? (isTouch ? 'SET YOUR INITIALS, THEN TAP POST' : 'TYPE YOUR INITIALS \u00B7 ENTER TO POST \u00B7 ESC TO SKIP') : 'PRESS ENTER / SPACE OR TAP';
+  document.querySelectorAll('#lbEntry .slot').forEach((s, i) => { s.querySelector('b').textContent = LB.letters[i]; s.classList.toggle('cur', i === LB.cur); });
+  const m = $('lbMsg'); m.textContent = (r && r.msg) || ''; m.classList.toggle('err', !!(r && r.err));
+}
+function lbSet(i, ch) { LB.letters[i] = ch; LB.edited = true; if (LB.run) { LB.run.msg = ''; LB.run.err = false; } }
+function lbBump(i, d) { if (!LB.run || LB.run.state !== 'entry') return; lbSet(i, LB_CH[(LB_CH.indexOf(LB.letters[i]) + d + LB_CH.length) % LB_CH.length]); LB.cur = i; lbRender(); }
+LB.submit = () => {
+  const r = LB.run; if (!r || r.state !== 'entry') return;
+  const name = LB.letters.join(''), entry = { name, score: r.score, level: r.level, secs: r.secs };
+  store.set('whatdo_name', name); LB.named = true;
+  r.state = 'sending'; r.msg = 'POSTING...'; r.err = false; lbRender();
+  lbFlush().then(() => lbSend(entry)).then((res) => {
+    if (res.ok) {
+      r.state = 'posted'; r.msg = 'POSTED AS ' + name + ' \u00B7 #' + res.rank + ' ALL-TIME'; LB.mine = { name, score: r.score };
+      track('lb-posted', 'Posted a leaderboard score');
+      LB.fetchBoards(true).then(() => {
+        const i = (LB.boards.day || []).findIndex((e) => e.name === name && e.score === r.score);
+        if (i >= 0) r.msg = 'POSTED AS ' + name + ' \u00B7 #' + (i + 1) + ' TODAY \u00B7 #' + res.rank + ' ALL-TIME';
+        if (LB.run === r) lbRender();
+      });
+    } else if (res.retry) {
+      lbQueueSet(lbQueueGet().concat([entry])); r.state = 'queued'; r.msg = 'OFFLINE \u00B7 YOUR SCORE WILL POST LATER';
+    } else if (res.error === 'pick other initials') {
+      r.state = 'entry'; r.err = true; r.msg = 'PICK OTHER INITIALS';
+    } else {
+      r.state = 'rejected'; r.err = true; r.msg = 'THE LEADERBOARD DIDN\'T ACCEPT THAT SCORE';
+    }
+    if (LB.run === r) lbRender();
+  });
+};
+LB.autoSubmit = () => { if (LB.run && LB.run.state === 'entry' && (LB.named || LB.edited)) LB.submit(); };
+LB.openBoard = () => {
+  LB.back = Game.state === 'menu' ? 'startScreen' : 'overScreen'; LB.open = true;
+  showScreen('boardScreen'); lbRenderBoard(); LB.fetchBoards(false);
+  track('lb-view', 'Viewed the leaderboard');
+};
+LB.closeBoard = () => { LB.open = false; showScreen(LB.back); };
+function lbRenderBoard() {
+  document.querySelectorAll('.lbTabs .btn').forEach((b) => b.classList.toggle('on', b.dataset.b === LB.tab));
+  const list = $('lbList'), rows = LB.boards[LB.tab];
+  list.textContent = '';
+  if (!rows || !rows.length) {
+    const li = document.createElement('li'); li.className = 'empty';
+    li.textContent = !rows ? (LB.failed ? 'CAN\'T REACH THE LEADERBOARD RIGHT NOW' : 'LOADING...') : LB.tab === 'day' ? 'NO SCORES YET TODAY. BE THE FIRST!' : 'NO SCORES YET. BE THE FIRST!';
+    list.appendChild(li); return;
+  }
+  rows.forEach((e, i) => {
+    const li = document.createElement('li');
+    if (LB.mine && e.name === LB.mine.name && e.score === LB.mine.score) li.className = 'me';
+    for (const [cls, txt] of [['r', '#' + (i + 1)], ['n', e.name], ['s', Number(e.score).toLocaleString()], ['l', 'LV ' + e.level]]) {
+      const s = document.createElement('span'); s.className = cls; s.textContent = txt; li.appendChild(s);
+    }
+    list.appendChild(li);
+  });
+}
+LB.key = (e) => {   // true = the key was for the leaderboard, so the game ignores it
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (LB.open) {
+    if (['Escape', 'Enter', 'NumpadEnter', 'Space', 'Backspace'].includes(e.code)) { e.preventDefault(); if (!e.repeat) LB.closeBoard(); }
+    else if (['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'].includes(e.code)) { e.preventDefault(); LB.tab = LB.tab === 'day' ? 'all' : 'day'; lbRenderBoard(); }
+    return true;
+  }
+  const r = LB.run;
+  if (Game.state !== 'over' || !r || r.state !== 'entry') return false;
+  const c = e.code, ch = e.key && e.key.length === 1 ? e.key.toUpperCase() : '';
+  if (LB_CH.includes(ch) && ch) { lbSet(LB.cur, ch); LB.cur = Math.min(2, LB.cur + 1); }
+  else if (c === 'Backspace' || c === 'ArrowLeft') LB.cur = Math.max(0, LB.cur - 1);
+  else if (c === 'ArrowRight') LB.cur = Math.min(2, LB.cur + 1);
+  else if (c === 'ArrowUp') lbBump(LB.cur, 1);
+  else if (c === 'ArrowDown') lbBump(LB.cur, -1);
+  else if ((c === 'Enter' || c === 'NumpadEnter') && !e.repeat) LB.submit();
+  else if (c === 'Escape') { r.state = 'none'; }
+  else if (c !== 'Space') return true;   // other keys: just keep them away from the game
+  e.preventDefault(); lbRender();
+  return true;
+};
+document.querySelectorAll('.lbOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'over') LB.openBoard(); }));
+document.querySelectorAll('.lbTabs .btn').forEach((b) => bindButton(b, () => { LB.tab = b.dataset.b; lbRenderBoard(); }));
+bindButton($('lbBack'), LB.closeBoard);
+bindButton($('lbOk'), LB.submit);
+document.querySelectorAll('#lbEntry .slot').forEach((s, i) => {
+  bindButton(s.querySelector('.up'), () => lbBump(i, 1));
+  bindButton(s.querySelector('.dn'), () => lbBump(i, -1));
+  s.querySelector('b').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); LB.cur = i; lbRender(); });
+});
+window.addEventListener('online', () => { lbFlush().then(() => LB.fetchBoards(true)); });
+lbFlush().then(() => LB.fetchBoards(false));
 
 /* ---------- analytics (GoatCounter custom events) ---------- */
 const trackQueue = [];
