@@ -292,7 +292,7 @@ body:not(.touch) .card.tch{display:none}
       <div class="row">NEAR MISSES FILL <b>FOCUS</b> &middot; HOLD IT FOR SLOW-MO</div>
     </div>
   </div>
-  <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p>
+  <!-- <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p> -->
   <button class="btn" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
   <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm scoreOpen">SCORING</button><button class="btn sm alt lbOpen hidden">TOP 10</button></div>
@@ -1586,6 +1586,8 @@ function removeRun(r) {
   if (r.prev && r.prev.next === r) r.prev.next = null;
   r.ents.length = 0; r.chunks.length = 0;
 }
+// road behind the rider is kept this far (m): the instant replay can start ~150 m back at top speed, and its camera looks back
+const REPLAY_KEEP = 170;
 function manageRuns(sync) {
   const cur = player.run;
   if (cur.chunkCount >= cur.length && !cur.next) spawnNextRun(cur);
@@ -1594,9 +1596,9 @@ function manageRuns(sync) {
     setPL(r);
     let n = sync ? 30 : (r.nextChunkZ > PL.z - 250 ? 3 : 1);
     while (n-- > 0 && r.chunkCount < r.length && r.nextChunkZ > PL.z - 400) { genChunk(r, r.nextChunkZ, r.chunkCount++); r.nextChunkZ -= CH; }
-    for (let i = r.chunks.length - 1; i >= 0; i--) if (r.chunks[i].z0 - CH > PL.z + 45) removeChunk(r, i);
+    for (let i = r.chunks.length - 1; i >= 0; i--) if (r.chunks[i].z0 - CH > PL.z + REPLAY_KEEP) removeChunk(r, i);
   }
-  if (cur.prev && player.z < -70) { removeRun(cur.prev); cur.prev = null; }
+  if (cur.prev && player.z < -(REPLAY_KEEP + 20)) { removeRun(cur.prev); cur.prev = null; }
   for (let i = runs.length - 1; i >= 0; i--) { const r = runs[i]; if (r !== cur && r !== cur.next && r !== cur.prev) removeRun(r); }
 }
 
@@ -3169,7 +3171,7 @@ document.querySelectorAll('.scoreOpen').forEach((b) => bindButton(b, () => { if 
 bindButton($('scoreBack'), closeScoring);
 /* ---------- FOCUS (bullet time): near misses fill it; hold the button to slow the world ---------- */
 const FOCUS = { meter: 0, on: false, k: 0, shown: -1 };
-const FOCUS_SCALE = 0.40, FOCUS_DRAIN = 0.30, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
+const FOCUS_SCALE = 0.50, FOCUS_DRAIN = 0.50, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
 function focusGain(a) { FOCUS.meter = Math.min(1, FOCUS.meter + a * (FOCUS.on ? 0.35 : 1)); }   // less while already in slow-mo
 function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time scale for the world
   const held = Game.state === 'play' && readFocus();
@@ -3694,24 +3696,24 @@ function updateCamera(dt) {
    INSTANT REPLAY — records the last ~3s, replays the crash from a
    low cinematic angle in slow motion, and records it as a shareable video
    ===================================================================== */
-const REC = [], REC_SPAN = 3.2;
+const REC = [], REC_SPAN = 3.2, REC_RADIUS = 140;   // seconds kept, and how far around the rider traffic is recorded
 const RP = { frames: null, t: 0, tEnd: 0, i: 0, phase: 'pre', post: 0, side: 1, ax: 0, az: 0, orbit: 0, ang: 0, rx: 0, rz: 0 };
 const _v3 = new THREE.Vector3();
 function recordFrame() {
   if (!rig) return;
   updatePW();
-  const meshes = [], geos = [], data = [];
+  const meshes = [], geos = [], parents = [], data = [];
   for (const r of runs) {
     setPL(r);
     for (const e of r.ents) {
-      const dx = e.x - PL.x, dz = e.z - PL.z; if (dx * dx + dz * dz > 75 * 75) continue;
-      const m = e.mesh; meshes.push(m); geos.push(m.geometry);
+      const dx = e.x - PL.x, dz = e.z - PL.z; if (dx * dx + dz * dz > REC_RADIUS * REC_RADIUS) continue;
+      const m = e.mesh; meshes.push(m); geos.push(m.geometry); parents.push(r.root);
       data.push(m.position.x, m.position.y, m.position.z, m.rotation.x, m.rotation.y, m.rotation.z, m.visible ? 1 : 0, m.scale.x);
     }
   }
   REC.push({ t: Game.time, run: player.run,
     rig: [player.x, player.y, player.z, rig.root.rotation.y, rig.lean.rotation.z, rig.lean.rotation.x, rig.tire.rotation.x, rig.armL.rotation.z, rig.armR.rotation.z, rig.armL.rotation.x, rig.head.rotation.y],
-    meshes, geos, data: Float32Array.from(data) });
+    meshes, geos, parents, data: Float32Array.from(data) });
   while (REC.length > 2 && REC[0].t < Game.time - REC_SPAN) REC.shift();
 }
 function applyFrame(a, b, k) {
@@ -3728,6 +3730,7 @@ function applyFrame(a, b, k) {
   const D = a.data, E = b.data, same = a.meshes.length === b.meshes.length;
   for (let i = 0; i < a.meshes.length; i++) {
     const m = a.meshes[i], o = i * 8, interp = same && b.meshes[i] === m ? k : 0;
+    if (m.parent !== a.parents[i]) a.parents[i].add(m);   // a car since cleaned up, or moved to another street, comes back for the replay
     const f = (j) => D[o + j] + (E[o + j] - D[o + j]) * interp;
     m.position.set(f(0), f(1), f(2));
     m.rotation.set(f(3), D[o + 4] + normAng((interp ? E[o + 4] : D[o + 4]) - D[o + 4]) * interp, f(5));
@@ -3745,6 +3748,8 @@ function startReplay(auto) {
   const info = Game.replayInfo;
   if (REC.length < 8 || !info) { vidBtnState('none'); showGameOver(); return; }
   Game.state = 'replay'; Game.overReady = false;
+  RP.home = new Map();   // mesh -> its parent now (null if it has been cleaned up), restored when the replay ends
+  for (const f of REC) for (const m of f.meshes) if (!RP.home.has(m)) RP.home.set(m, m.parent);
   RP.frames = REC.slice(); RP.i = 0; RP.t = RP.frames[0].t; RP.tEnd = RP.frames[RP.frames.length - 1].t; RP.phase = 'pre'; RP.post = 0;
   showScreen(null); setHudVisible(false);
   $('comic').classList.remove('show'); $('bloodFx').innerHTML = '';
@@ -3816,6 +3821,7 @@ function endReplay() {
   if (Game.state !== 'replay') return;
   const complete = RP.phase === 'post' && RP.post > 3.2;   // false when the player skipped
   if (RP.phase === 'pre') { applyAt(RP.tEnd); replayImpact(true); }
+  if (RP.home) { for (const [m, par] of RP.home) if (m.parent !== par) { if (par) par.add(m); else m.parent.remove(m); } RP.home = null; }
   $('replayUI').classList.add('hidden');
   VID.stop(complete);
   orbitA = RP.orbit;
