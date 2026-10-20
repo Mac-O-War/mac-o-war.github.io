@@ -2682,6 +2682,7 @@ function updatePlay(dt) {
   Game.swerveWarn -= dt; $('warnT').classList.toggle('hidden', !(Game.swerveWarn > 0));
   if (Game.elapsed >= Game.levelTime) { Game.elapsed = Game.levelTime; winLevel(); }
 }
+const CAM_ZOOM = 0.75;   // gameplay camera distance: 1 = original, smaller = closer to the rider
 function updateCamera(dt) {
   updatePW();
   const R = player.run;
@@ -2694,7 +2695,8 @@ function updateCamera(dt) {
     replayCamera(dt);
   } else {
   if (Game.state === 'play' || Game.state === 'countdown') {
-    const back = (portrait ? 9.5 : 7.4) - sf * 1.2, up = (portrait ? 5.2 : 3.7) + sf * 0.3;
+    // chase distance: CAM_ZOOM scales the offset toward the rider's chest (y 1.2), keeping the same downward angle
+    const back = ((portrait ? 9.5 : 7.4) - sf * 1.2) * CAM_ZOOM, up = 1.2 + ((portrait ? 5.2 : 3.7) + sf * 0.3 - 1.2) * CAM_ZOOM;
     let lx = -player.x * 0.18, lz = back, ly = up, lookZ = -14;
     if (Game.state === 'countdown') { const k = clamp(Game.cd / 3.2, 0, 1), a = k * 2.2; lx = Math.sin(a) * 8 * k + lx * (1 - k); lz = Math.cos(a) * 8 * k + back * (1 - k); ly = up + k * 1.5; lookZ = -14 * (1 - k); }
     rotXZ(lx, lz, R.theta + player.h * 0.85, _o);
