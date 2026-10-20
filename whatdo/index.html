@@ -172,7 +172,8 @@ body:not(.touch) .card.tch{display:none}
 #nameScreen.typing{justify-content:flex-start;padding-top:calc(12px + var(--st))}
 #nameScreen.typing .big,#nameScreen.typing .cause,#nameScreen.typing #nmScore,#nameScreen.typing #lbSkip,#nameScreen.typing #nmHint{display:none}
 #nameScreen.typing .lbRow{margin-top:6px}
-#lbName{width:min(310px,72vw);box-sizing:border-box;padding:12px 10px;font-family:var(--hud);font-size:16px;letter-spacing:.05em;text-align:center;background:#000;color:var(--y);caret-color:var(--y);border:3px solid var(--y);border-radius:0;outline:none;-webkit-user-select:text;user-select:text;touch-action:manipulation}
+/* the game font is monospaced (1em per character): 17.5em fits 16 characters, their spacing and the caret */
+#lbName{width:calc(17.5em + 26px);max-width:calc(100vw - 32px);box-sizing:border-box;padding:12px 10px;font-family:var(--hud);font-size:min(16px,calc((100vw - 64px) / 17.5));letter-spacing:.05em;text-align:center;background:#000;color:var(--y);caret-color:var(--y);border:3px solid var(--y);border-radius:0;outline:none;-webkit-user-select:text;user-select:text;touch-action:manipulation}
 #lbName::placeholder{color:#555}
 #lbMsg{font-size:9px;color:#3ddc84;line-height:1.8;margin:0 0 14px;max-width:420px}
 #lbMsg.err{color:#ff8a7a}
@@ -203,7 +204,7 @@ body:not(.touch) .card.tch{display:none}
   .split #newBest{margin:0}
   .split .btn{padding:18px 30px}
 }
-@media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:14px;padding:8px 10px}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
+@media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:min(14px,calc((100vw - 64px) / 17.5));padding:8px 10px}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
 @media (max-height:520px){.title{font-size:clamp(40px,14vh,90px)}.goal{font-size:8px;line-height:1.7}.btn{padding:12px 28px}.sub{margin:8px 0 10px}.tut{margin-bottom:8px}.card{padding:8px 10px}.row{margin:5px 0}.goal{margin-bottom:10px}}
 </style>
 </head>
