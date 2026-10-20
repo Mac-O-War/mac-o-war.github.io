@@ -1,7 +1,7 @@
 /* What Do? service worker — offline play + update handling.
    RELEASING AN UPDATE: change VERSION below (any new string), then upload.
    Players see "NEW VERSION — TAP TO UPDATE" on their next visit. */
-const VERSION = 'whatdo-v13';
+const VERSION = 'whatdo-v16';
 const ASSETS = [
   './',
   './index.html',
@@ -25,7 +25,7 @@ self.addEventListener('activate', (e) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
-  );
+  ); 
 });
 
 self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.skipWaiting(); });

@@ -128,7 +128,7 @@ Each level adds a minute to the timer, raises base speed and traffic speed, adds
   - **Rider:** the EUC gets a headlight beam too.
   - **Sky:** stars appear.
 
-## 13. Crash instant replay + share GIF
+## 13. Crash instant replay + share video
 
 - **Recording:** during play, record the last ~3.2 s every frame: the rider's pose (position, heading, lean, wheel spin, arms) and the position, rotation, visibility, scale and walk frame of every entity within 75 m.
 - **Auto-replay:** after the live crash (2.8 s), play an **INSTANT REPLAY** automatically, with letterbox bars, a blinking red "● INSTANT REPLAY" label and "TAP TO SKIP".
@@ -138,14 +138,15 @@ Each level adds a minute to the timer, raises base speed and traffic speed, adds
   - Drop to slow motion (0.3×) for the last 0.75 s.
   - At the impact frame, re-run the crash: shatter, blood, sounds, screen flash, comic word.
   - Then slow-motion orbit around the wreck for ~3 s.
-- The Game Over screen gets **▶ REPLAY** and **SHARE GIF** buttons.
-- **GIF capture:**
-  - Capture the replay to a ~320 px GIF at about 12.5 fps (up to 80 frames), with a "WHAT DO?" title, "● INSTANT REPLAY", the score and the cause of death drawn on each frame.
-  - Write a GIF89a encoder inline (no libraries): a fixed 3-3-2 RGB palette, LZW compression, a looping NETSCAPE block and a longer hold on the last frame. Encode in chunks in the background after the replay.
+- The Game Over screen gets **▶ REPLAY** and **SHARE VIDEO** buttons.
+- **Video capture:**
+  - Each replay frame, draw the game canvas onto a 2D canvas (1280 px long side) with a "WHAT DO?" title, "● INSTANT REPLAY", the score and the cause of death.
+  - Record that canvas with `canvas.captureStream(30)` and `MediaRecorder` while the replay plays. Use the first supported type of `video/webm;codecs=vp9`, `video/webm;codecs=vp8`, `video/webm`, then MP4 for Safari. Hold the last frame for ~0.8 s.
+  - Only keep a replay that plays to the end. If it's skipped, offer MAKE VIDEO, which re-runs the replay.
 - **Sharing:**
-  - Share through the Web Share API (`navigator.share` with a file) where it's supported, otherwise download `what-do-crash.gif`.
+  - Share through the Web Share API (`navigator.share` with a file) where it's supported, otherwise download `what-do-crash.webm` (or `.mp4`).
   - Trigger sharing on `pointerup`, because phones only grant user activation when the finger lifts.
-  - Label the button SAVE GIF when file sharing isn't available.
+  - Label the button SAVE VIDEO when file sharing isn't available, and NO VIDEO when the browser can't record.
 
 ## 14. Haptics (touch devices)
 

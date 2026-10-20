@@ -293,7 +293,7 @@ body:not(.touch) .card.tch{display:none}
   <div class="act">
   <div id="lbMsg"></div>
   <button class="btn" id="restartBtn">RESTART</button>
-  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm alt dis" id="gifBtn">GIF...</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
+  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm alt dis" id="vidBtn">VIDEO...</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
   <div class="small">PRESS ENTER / SPACE OR TAP</div>
   </div>
 </section>
@@ -653,7 +653,26 @@ const VEH_WEIGHTS = [['taxi', 34], ['sedan', 30], ['suv', 15], ['truck', 10], ['
   const add = (k, parts, W, L, ly) => {
     ly = ly || 0.62; const lp = [];
     for (const sx of [-1, 1]) { lp.push([sx * (W / 2 - 0.35), ly - 0.02, -L / 2 - 0.09, 0.5, 0.26, 0.06, 0xfff6c8]); lp.push([sx * (W / 2 - 0.3), ly, L / 2 + 0.09, 0.46, 0.24, 0.06, 0xff1a1a]); }
-    VEH[k].push({ kind: k, geo: vox(parts), lightGeo: vox(lp), L, hw: W / 2 + 0.08, hd: L / 2 + 0.05 });
+    // moving traffic gets its front wheels (tyre + hubcap, front faces -Z) as separate pieces so they can steer;
+    // parked cars and cross traffic keep the all-in-one model
+    const HUB = 0x9a9a9a, isFront = (q) => q[2] < 0 && (q[6] === TIRE || q[6] === HUB);
+    const wheels = parts.filter((q) => q[6] === TIRE && q[2] < 0).map((t) => {
+      const hub = parts.find((q) => q[6] === HUB && q[2] === t[2] && Math.sign(q[0]) === Math.sign(t[0]));
+      const wp = [[0, 0, 0, t[3], t[4], t[5], TIRE]];
+      if (hub) wp.push([hub[0] - t[0], hub[1], 0, hub[3], hub[4], hub[5], HUB]);
+      return { geo: vox(wp), x: t[0], y: t[1], z: t[2] };
+    });
+    // bright headlights and tail lights flashed (day or night) as the warning before a swerve
+    const fp = [-1, 1].flatMap((sx) => [[sx * (W / 2 - 0.35), ly - 0.04, -L / 2 - 0.12, 0.56, 0.3, 0.08, 0xffffff],
+      [sx * (W / 2 - 0.3), ly - 0.03, L / 2 + 0.12, 0.52, 0.3, 0.08, 0xff2020]]);
+    // amber turn signals, one piece per side (front and rear corner, plus a side repeater), blinked before lane changes
+    const sigGeo = [-1, 1].map((sx) => vox([[sx * (W / 2 - 0.12), ly + 0.02, -L / 2 - 0.12, 0.26, 0.2, 0.08, 0xffa000],
+      [sx * (W / 2 - 0.12), ly + 0.04, L / 2 + 0.12, 0.26, 0.2, 0.08, 0xffa000],
+      [sx * (W / 2 + 0.04), ly + 0.1, -L / 2 + 0.7, 0.06, 0.12, 0.3, 0xffa000]]));
+    // police light bar: bright copies of the roof's red and blue blocks, flashed over them
+    const beacons = parts.filter((q) => q[1] > 1 && (q[6] === 0xff2020 || q[6] === 0x2060ff))
+      .map((q) => vox([[q[0], q[1] - 0.01, q[2], q[3] + 0.04, q[4] + 0.03, q[5] + 0.04, q[6] === 0xff2020 ? 0xff1a1a : 0x3a7bff]]));
+    VEH[k].push({ kind: k, geo: vox(parts), bodyGeo: vox(parts.filter((q) => !isFront(q))), wheels, lightGeo: vox(lp), flashGeo: vox(fp), sigGeo, beacons, L, hw: W / 2 + 0.08, hd: L / 2 + 0.05 });
   };
   add('taxi', carParts(0xf7c51e, { taxi: true }), 2.1, 4.4);
   add('taxi', carParts(0xf2b705, { taxi: true, L: 4.7, cl: 2.4 }), 2.1, 4.7);
@@ -897,6 +916,7 @@ beamTex.magFilter = THREE.LinearFilter; beamTex.minFilter = THREE.LinearFilter; 
 MAT.lampHead = new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0 });
 MAT.lampPool = new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffd890, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
 MAT.vlight = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0 });
+MAT.hflash = new THREE.MeshBasicMaterial({ vertexColors: true });   // swerve-warning light flash (white front, red back), full brightness by day
 MAT.beam = new THREE.MeshBasicMaterial({ map: beamTex, color: 0xfff0c0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
 GEO.beam = new THREE.PlaneGeometry(3.2, 11).rotateX(-Math.PI / 2);
 // flat quads (light pools) merged into one geometry
@@ -912,6 +932,32 @@ function quadsGeo(list, y) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   g.computeBoundingSphere();
   return g;
+}
+// police light bars: only cars on a call (COP_CALL_CHANCE) flash, red-red, blue-blue, each on its own beat, and run the siren
+const COP_CALL_CHANCE = 0.4;
+function addBeacons(m, v) {
+  if (!v.beacons || !v.beacons.length || Math.random() >= COP_CALL_CHANCE) return;
+  m.userData.siren = true;
+  m.userData.beacons = v.beacons.map((g) => { const b = new THREE.Mesh(g, MAT.hflash); b.visible = false; m.add(b); return b; });
+}
+// the siren follows the nearest police car on a call: louder as it gets closer (silent beyond 140 m), panned to its side
+function updateSiren() {
+  let best = 0, pan = 0;
+  for (const r of runs) {
+    setPL(r);
+    for (const e of r.ents) {
+      if (!e.mesh.userData.siren || e.delay > 0) continue;
+      const d = Math.hypot(e.x - PL.x, e.z - PL.z), lv = Math.pow(clamp(1 - d / 140, 0, 1), 2);
+      if (lv > best) { best = lv; pan = clamp((e.x - PL.x) / 18, -1, 1); }
+    }
+  }
+  setPL(player.run);
+  Sound.setSiren(best, pan);
+}
+function flashBeacons(m) {
+  const b = m.userData.beacons; if (!b) return;
+  const ph = Math.floor((animT + m.id * 0.37) * 10) % 8;
+  b[0].visible = ph === 0 || ph === 2; if (b[1]) b[1].visible = ph === 4 || ph === 6;
 }
 function attachLights(m, v) {
   m.add(new THREE.Mesh(v.lightGeo, MAT.vlight));
@@ -1064,6 +1110,24 @@ const Sound = (() => {
     os.connect(g); g.connect(o); os.start(t); os.stop(t + len + 0.02);
   }
   function jingle() { [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => blip(mtof(m), i === 6 ? 0.6 : 0.16, 'square', 0.13, i * 0.11)); }
+  // police siren: a wail (sweeping ~650–1450 Hz every 2.6 s); level 0..1 and pan follow the nearest car on a call
+  let sirOsc = null, sirGain = null, sirPan = null;
+  function setSiren(level, pan) {
+    if (!ctx) return; const t = ctx.currentTime;
+    if (!sirOsc) {
+      if (level <= 0) return;
+      sirOsc = ctx.createOscillator(); sirOsc.type = 'square'; sirOsc.frequency.value = 1050;
+      const lfo = ctx.createOscillator(), depth = ctx.createGain(); lfo.frequency.value = 1 / 2.6; depth.gain.value = 400;
+      lfo.connect(depth); depth.connect(sirOsc.frequency);
+      const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 2400;
+      sirGain = ctx.createGain(); sirGain.gain.value = 0;
+      sirOsc.connect(filt); filt.connect(sirGain);
+      if (ctx.createStereoPanner) { sirPan = ctx.createStereoPanner(); sirGain.connect(sirPan); sirPan.connect(sfx); } else sirGain.connect(sfx);
+      sirOsc.start(t); lfo.start(t);
+    }
+    sirGain.gain.setTargetAtTime(Math.max(0, level) * 0.11, t, 0.15);
+    if (sirPan) sirPan.pan.setTargetAtTime(clamp(pan || 0, -1, 1), t, 0.1);
+  }
   function setEngine(speed, active, boost) {
     if (!ctx) return; const t = ctx.currentTime;
     engOsc.frequency.setTargetAtTime(active ? 45 + speed * 2.2 : 40, t, 0.1);
@@ -1136,6 +1200,13 @@ const Sound = (() => {
     schedTimer = setInterval(tick, 25); tick();
   }
   function stopMusic() { musicOn = false; if (schedTimer) clearInterval(schedTimer); schedTimer = null; }
+  // replay videos record the whole mix, taken before the mute (muting is for your speakers, not the clip)
+  let recDest = null;
+  function recStream() {
+    if (!ctx || ctx.state !== 'running' || !ctx.createMediaStreamDestination) return null;   // a stalled audio track can stall the recording
+    if (!recDest) { recDest = ctx.createMediaStreamDestination(); comp.connect(recDest); }
+    return recDest.stream;
+  }
   function setMuted(m) { muted = m; store.set('whatdo_mute', m ? '1' : '0'); if (ctx) master.gain.setTargetAtTime(m ? 0 : 0.85, ctx.currentTime, 0.02); }
   function suspend() { if (ctx && ctx.state === 'running') ctx.suspend(); }
   function resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); }
@@ -1148,7 +1219,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, get muted() { return muted; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -1643,12 +1714,16 @@ function spawnCar(run, li, z, forceKind) {
   let spd = v.kind === 'bus' ? rand(6, 10) : rand(8, 14.5) + diff * 0.7;
   if (dir < 0) spd = Math.min(spd, player.base - 3);
   else spd = Math.min(spd + 1, 18 + diff);
-  const m = new THREE.Mesh(v.geo, MAT.vox); if (dir > 0) m.rotation.y = Math.PI;
+  const m = new THREE.Mesh(v.bodyGeo, MAT.vox); if (dir > 0) m.rotation.y = Math.PI;
   m.position.set(LANES[li], 0, z); attachLights(m, v);
+  m.userData.wheels = v.wheels.map((w) => { const wm = new THREE.Mesh(w.geo, MAT.vox); wm.position.set(w.x, w.y, w.z); m.add(wm); return wm; });
+  const fl = new THREE.Mesh(v.flashGeo, MAT.hflash); fl.visible = false; m.add(fl); m.userData.flash = fl;
+  addBeacons(m, v);
+  m.userData.sig = v.sigGeo.map((g) => { const sm = new THREE.Mesh(g, MAT.hflash); sm.visible = false; m.add(sm); return sm; });   // [left, right]
   const erratic = Math.random() < (v.kind === 'taxi' ? 0.3 : 0.15) + 0.07 * diff;
   return addEnt(run, {
     type: 'car', kind: v.kind, mesh: m, x: LANES[li], z, hw: v.hw, hd: v.hd, lane: li, dir, v: spd, vBase: spd, vx: 0,
-    erratic, runsRed: erratic && Math.random() < 0.35 + 0.08 * diff, t: rand(0, 10), brakeT: 0, swerveT: 0,
+    erratic, runsRed: erratic && Math.random() < 0.35 + 0.08 * diff, t: rand(0, 10), brakeT: 0, swerveT: 0, swervePre: 0, steer: 0, signalT: 0, signalLane: 0,
     nextAct: erratic ? rand(1, 3) : rand(4, 12), honkT: 0, nm: false, lethal: true
   });
 }
@@ -1661,6 +1736,9 @@ function nextInter(run, z, dir) {
   }
   return best;
 }
+const SWERVE_TELL = 0.7;    // seconds of warning before an erratic car swerves: wheels point at your side, headlights flash, it drifts
+const SWERVE_DRIFT = 0.7;
+const SIGNAL_TIME = 0.7, SIGNAL_TIME_ERRATIC = 0.3;   // seconds a car signals before a normal lane change (erratic drivers barely bother)   // metres it drifts toward your side during the tell (still inside its own lane)
 function updCar(run, e, dt) {
   e.t += dt; e.nextAct -= dt; e.honkT -= dt;
   const own = e.dir < 0 ? FWD : ONC;
@@ -1668,15 +1746,19 @@ function updCar(run, e, dt) {
   if (e.erratic) target *= 1 + 0.22 * Math.sin(e.t * 1.4 + e.x);
   if (e.brakeT > 0) { e.brakeT -= dt; target = 1.2; }
   if (e.swerveT > 0) { e.swerveT -= dt; if (e.swerveT <= 0) e.lane = e.homeLane; }
-  if (e.nextAct <= 0 && e.swerveT <= 0) {
+  // the tell: wheels point at your side for SWERVE_TELL seconds, then the car swerves (if the lane is still clear)
+  if (e.swervePre > 0) { e.swervePre -= dt; if (e.swervePre <= 0 && laneFree(run, 2, e.z, 6, e)) { e.homeLane = 1; e.lane = 2; e.swerveT = rand(1.2, 2.2); } }
+  // turn signal first, then the lane change (cancelled if the lane has filled up meanwhile)
+  if (e.signalT > 0) { e.signalT -= dt; if (e.signalT <= 0 && laneFree(run, e.signalLane, e.z, 4, e)) e.lane = e.signalLane; }
+  if (e.nextAct <= 0 && e.swerveT <= 0 && !(e.swervePre > 0) && !(e.signalT > 0)) {
     e.nextAct = e.erratic ? rand(0.9, 2.8) : rand(4, 12);
     const r = Math.random();
     if (r < 0.55) {
       const nl = e.lane + (Math.random() < 0.5 ? -1 : 1);
-      if (own.includes(nl) && laneFree(run, nl, e.z, 4, e)) e.lane = nl;
+      if (own.includes(nl) && laneFree(run, nl, e.z, 4, e)) { e.signalLane = nl; e.signalT = e.erratic ? SIGNAL_TIME_ERRATIC : SIGNAL_TIME; }
     } else if (e.erratic && r < 0.78) { e.brakeT = rand(0.6, 1.6); }
     else if (e.erratic && e.dir > 0 && r < 0.9 && e.lane === 1 && run === player.run && Math.abs(e.z - PL.z) < 140 && e.z < PL.z) {
-      if (laneFree(run, 2, e.z, 6, e)) { e.homeLane = 1; e.lane = 2; e.swerveT = rand(1.2, 2.2); Game.swerveWarn = 1.5; }
+      if (laneFree(run, 2, e.z, 6, e)) e.swervePre = SWERVE_TELL;   // warned by updateWarnings() from this moment
     }
   }
   for (const c of run.closures) {
@@ -1705,13 +1787,31 @@ function updCar(run, e, dt) {
   if (e.turnYaw !== 0) { target = Math.min(target, 9); const s = Math.sign(e.turnYaw); e.turnYaw = s * Math.max(0, Math.abs(e.turnYaw) - 2.6 * dt); }
   e.v += clamp(target - e.v, -16 * dt, 5 * dt);
   if (e.v < 0) e.v = 0;
-  const tx = LANES[e.lane], ls = e.erratic ? 6.5 : 3.5;
+  const tx = LANES[e.lane] + (e.swervePre > 0 ? Math.sign(LANES[2] - LANES[e.lane]) * SWERVE_DRIFT : 0), ls = e.erratic ? 6.5 : 3.5;
   e.vx = clamp((tx - e.x) * 2.2, -ls, ls);
   e.x += e.vx * dt; e.z += e.dir * e.v * dt;
   const wob = e.erratic ? Math.sin(e.t * 2.3) * 0.12 : 0;
   e.mesh.position.set(e.x + wob, 0, e.z);
   const yaw = clamp(e.vx / Math.max(e.v, 3), -0.4, 0.4);
   e.mesh.rotation.y = (e.dir > 0 ? Math.PI : 0) + (e.dir < 0 ? -yaw : yaw) + e.turnYaw;
+  // front wheels point where the car is going: into a lane change, or toward a swerve before it starts
+  const ws = e.mesh.userData.wheels;
+  if (ws) {
+    const want = e.swervePre > 0 ? Math.sign(LANES[2] - e.x) * 0.5 : clamp((tx - e.x) * 0.3, -0.45, 0.45);
+    e.steer = damp(e.steer, want, 10, dt);
+    for (const w of ws) w.rotation.y = (e.dir < 0 ? -1 : 1) * e.steer;   // a car facing +Z is turned round, so flip
+  }
+  if (e.mesh.userData.flash) e.mesh.userData.flash.visible = e.swervePre > 0 && Math.floor(e.swervePre * 12) % 2 === 0;   // ~6 flashes a second
+  flashBeacons(e.mesh);
+  // turn signal: on while signalling and while moving across (not during a swerve, which has its own warning)
+  const sig = e.mesh.userData.sig;
+  if (sig) {
+    const goal = e.signalT > 0 ? LANES[e.signalLane] : LANES[e.lane];
+    const d = e.swervePre > 0 || e.swerveT > 0 ? 0 : (e.signalT > 0 || Math.abs(goal - e.x) > 0.4 ? Math.sign(goal - e.x) : 0);
+    e.sigClk = d !== 0 ? (e.sigClk || 0) + dt : 0;   // each signal starts lit
+    const side = e.dir < 0 ? d : -d, on = d !== 0 && Math.floor(e.sigClk * 3) % 2 === 0;   // 1.5 blinks a second; a car facing +Z is turned round
+    sig[0].visible = on && side < 0; sig[1].visible = on && side > 0;
+  }
   if (Game.state === 'play' && e.honkT <= 0) {
     const dz = Math.abs(e.z - PL.z), dx = Math.abs(e.x - PL.x);
     if (dz < (e.dir > 0 ? 28 : 9) && dx < 3.5 && (e.dir > 0 ? e.z < PL.z : true)) {
@@ -1723,7 +1823,7 @@ function spawnCross(run, I, delay, dir, spd, startX) {
   const v = pickVehicle(Math.random() < 0.08 ? 'bus' : null);
   const m = new THREE.Mesh(v.geo, MAT.vox); m.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   const z = I.zc + (dir > 0 ? 4.5 : -4.5);
-  m.position.set(startX, 0, z); m.visible = delay <= 0; attachLights(m, v);
+  m.position.set(startX, 0, z); m.visible = delay <= 0; attachLights(m, v); addBeacons(m, v);
   return addEnt(run, { type: 'xcar', kind: v.kind, mesh: m, x: startX, z, hw: v.hd, hd: v.hw, vx: dir * spd, delay, warned: false, nm: false, lethal: true, I });
 }
 function triggerCross(run, I) {
@@ -1745,6 +1845,7 @@ function triggerCross(run, I) {
 function updCross(e, dt) {
   if (e.delay > 0) { e.delay -= dt; if (e.delay <= 0) e.mesh.visible = true; return; }
   e.x += e.vx * dt; e.mesh.position.x = e.x;
+  flashBeacons(e.mesh);
 }
 function spawnPed(run, kind, x, z, mode, opts) {
   const v = pick(PEDS[kind]);
@@ -2050,7 +2151,7 @@ const readGas = () => input.up || input.mouseGas || input.tGas || input.canvasTo
    GAME STATE
    ===================================================================== */
 const LEVEL_TIME = 60;   // seconds to survive to clear a level (every level is the same length)
-const Game = { state: 'menu', level: 1, score: 0, runT: 0, best: parseInt(store.get('whatdo_best', '0'), 10) || 0, time: 0, elapsed: 0, levelTime: LEVEL_TIME, near: 0, turns: 0, bestChain: 0, shake: 0, deathT: 0, overReady: false, cd: 0, swerveWarn: 0, lastNear: null, startScore: 0 };
+const Game = { state: 'menu', level: 1, score: 0, runT: 0, best: parseInt(store.get('whatdo_best', '0'), 10) || 0, time: 0, elapsed: 0, levelTime: LEVEL_TIME, near: 0, turns: 0, bestChain: 0, shake: 0, deathT: 0, overReady: false, cd: 0, lastNear: null, startScore: 0 };
 window.WhatDo = Game;
 Game.debug = { player, runs, doTurn: () => doTurn(), spawnCar: (li, z, k) => spawnCar(player.run, li, z, k), get SC() { return SC; } };
 const deathPos = new THREE.Vector3();
@@ -2071,7 +2172,7 @@ function resetWorld() {
   manageRuns(true); manageRuns(true);
   setPL(player.run);
   for (let z = -70; z > -290; z -= rand(16, 30)) { const li = randi(0, 3); if (z > player.run.endZc + 30 && laneFree(player.run, li, z, 10)) spawnCar(player.run, li, z); }
-  Game.elapsed = 0; Game.levelTime = LEVEL_TIME; Game.time = 0; resetScoring(); player.prevZ = 0; Game.shake = 0; Game.swerveWarn = 0;
+  Game.elapsed = 0; Game.levelTime = LEVEL_TIME; Game.time = 0; resetScoring(); player.prevZ = 0; Game.shake = 0;
   camOff.set(0, 3.7, 7.4); skyAng = 0;
   $('bloodFx').innerHTML = ''; $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
@@ -2341,7 +2442,7 @@ function nearMiss(o, isStatic) {
   if (o.type === 'xcar') {
     // scored by crossPass(): in front (the car was still coming at you) is worth more than behind
     const front = o.crossFront, t = o.crossTight;
-    award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? 400 : 250) * sf * (1 + t * 2), 'nm');
+    award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? 800 : 500) * sf * (1 + t * 2), 'nm');
   } else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
   else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
   else if (o.type === 'ped') award(pick(['EXCUSE ME!', 'HEY!', 'WATCH IT!', 'SORRY!']), 150 * sf * (1 + tight), 'nm');
@@ -2357,6 +2458,27 @@ function testHit(o) {
   if (gx < 0 && gz < 0) return 2;
   if (!o.nm && Math.max(gx, gz) < NEAR && Math.min(gx, gz) < 0) return 1;
   return 0;
+}
+// hazard banner: each frame, show the most urgent car threat ahead (checked live, not on a timer)
+let warnTxt = '';
+const warnArrow = (dx, s) => Math.abs(dx) < 1.6 ? '! ' + s + ' !' : dx < 0 ? '◀ ' + s : s + ' ▶';
+function updateWarnings() {
+  let txt = '', pri = 0, near = Infinity;
+  for (const e of player.run.ents) {
+    if (e.type !== 'car') continue;
+    const ahead = PL.z - e.z, dx = e.x - PL.x, tx = LANES[e.signalT > 0 ? e.signalLane : e.lane];   // a signalling car counts as already heading over
+    if (ahead <= 0) continue;
+    let p = 0, t = '';
+    if (e.dir > 0 && (e.swervePre > 0 || (e.swerveT > 0 && tx > 0)) && ahead < 100) { p = 3; t = warnArrow(dx, 'ONCOMING SWERVE'); }   // erratic oncoming car about to swerve, or on your side
+    else if (ahead < (e.dir > 0 ? 70 : 35) && Math.abs(tx - PL.x) < 2.2 && Math.abs(e.x - tx) > 0.6 && Math.abs(dx) > 1.4) {
+      p = 2; t = dx < 0 ? '◀ CUT-IN' : 'CUT-IN ▶';   // changing lanes into your path
+    } else if (e.dir < 0 && e.brakeT > 0 && ahead < 30 && Math.abs(dx) < 2) { p = 1; t = '! BRAKE CHECK !'; }   // erratic car braking hard in front of you
+    if (!p) continue;
+    if (!e['warned' + p]) { e['warned' + p] = true; Sound.blip(p === 3 ? 880 : 990, 0.08, 'square', 0.09); Sound.blip(p === 3 ? 660 : 990, 0.08, 'square', 0.09, 0.1); }
+    if (p > pri || (p === pri && ahead < near)) { pri = p; txt = t; near = ahead; }
+  }
+  if (txt !== warnTxt) { warnTxt = txt; if (txt) $('warnT').textContent = txt; }
+  $('warnT').classList.toggle('hidden', !txt);
 }
 // cross traffic: when the rider crosses a crossing car's path, note how close its bumper was;
 // score it once the rider is clear of the car's lane, so a pass that ends in a crash doesn't count
@@ -2436,7 +2558,7 @@ const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
   recordFrame();                       // final pose for the instant replay
-  GIF.reset(); LB.run = null; LB.fetchBoards(false);
+  VID.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
   if (SC.chainN > 1) popup('CHAIN LOST!', 'red');
   resetScoring(); $('chainBox').classList.add('hidden'); $('tricks').innerHTML = '';
@@ -2699,7 +2821,7 @@ function updatePlay(dt) {
     }
   }
   $('warnL').classList.toggle('hidden', !wl); $('warnR').classList.toggle('hidden', !wr);
-  Game.swerveWarn -= dt; $('warnT').classList.toggle('hidden', !(Game.swerveWarn > 0));
+  updateWarnings();
   if (Game.elapsed >= Game.levelTime) { Game.elapsed = Game.levelTime; winLevel(); }
 }
 const CAM_ZOOM = 0.80;   // gameplay camera distance: 1 = original, smaller = closer to the rider
@@ -2772,7 +2894,7 @@ function updateCamera(dt) {
 
 /* =====================================================================
    INSTANT REPLAY — records the last ~3s, replays the crash from a
-   low cinematic angle in slow motion, and captures it as a shareable GIF
+   low cinematic angle in slow motion, and records it as a shareable video
    ===================================================================== */
 const REC = [], REC_SPAN = 3.2;
 const RP = { frames: null, t: 0, tEnd: 0, i: 0, phase: 'pre', post: 0, side: 1, ax: 0, az: 0, orbit: 0, ang: 0, rx: 0, rz: 0 };
@@ -2823,7 +2945,7 @@ function applyAt(t) {
 }
 function startReplay(auto) {
   const info = Game.replayInfo;
-  if (REC.length < 8 || !info) { gifBtnState('none'); showGameOver(); return; }
+  if (REC.length < 8 || !info) { vidBtnState('none'); showGameOver(); return; }
   Game.state = 'replay'; Game.overReady = false;
   RP.frames = REC.slice(); RP.i = 0; RP.t = RP.frames[0].t; RP.tEnd = RP.frames[RP.frames.length - 1].t; RP.phase = 'pre'; RP.post = 0;
   showScreen(null); setHudVisible(false);
@@ -2836,7 +2958,7 @@ function startReplay(auto) {
   RP.orbit = Math.atan2(RP.ax - info.x, RP.az - info.z);
   applyAt(RP.t);
   camera.fov = 42;
-  GIF.start();
+  VID.start();
   Sound.whoosh(0, 0.6);
 }
 function replayImpact(silent) {
@@ -2897,136 +3019,134 @@ function endReplay() {
   const complete = RP.phase === 'post' && RP.post > 3.2;   // false when the player skipped
   if (RP.phase === 'pre') { applyAt(RP.tEnd); replayImpact(true); }
   $('replayUI').classList.add('hidden');
-  GIF.stop(complete);
+  VID.stop(complete);
   orbitA = RP.orbit;
   showGameOver();
 }
 
-/* ---------- GIF capture + encoder (no libraries) ---------- */
-const GIF = { frames: [], w: 0, h: 0, cap: false, acc: 0, blob: null, enc: false, ui: 'wait', token: 0, cv: document.createElement('canvas'), ctx: null };
-GIF.ctx = GIF.cv.getContext('2d', { willReadFrequently: true });
-const GIF_PAL = new Uint8Array(768);
-for (let i = 0; i < 256; i++) { GIF_PAL[i * 3] = Math.round(((i >> 5) & 7) * 255 / 7); GIF_PAL[i * 3 + 1] = Math.round(((i >> 2) & 7) * 255 / 7); GIF_PAL[i * 3 + 2] = Math.round((i & 3) * 255 / 3); }
-let canShareFiles = false;
-try { canShareFiles = !!(navigator.canShare && window.File && navigator.canShare({ files: [new File([new Uint8Array(1)], 'a.gif', { type: 'image/gif' })] })); } catch (e) { canShareFiles = false; }
-function gifBtnState(s, p) {
-  // wait: replay running · make: replay was skipped, tap to re-run it · enc: encoding · ready: tap to share · none: no replay
-  const b = $('gifBtn'); GIF.ui = s;
-  b.classList.toggle('dis', s !== 'ready' && s !== 'make');
-  b.textContent = s === 'ready' ? (canShareFiles ? 'SHARE GIF' : 'SAVE GIF') : s === 'make' ? 'MAKE GIF' : s === 'enc' ? 'MAKING GIF ' + Math.round((p || 0) * 100) + '%' : s === 'none' ? 'NO GIF' : 'GIF...';
+/* ---------- replay video with sound (MediaRecorder; WebM VP9/VP8 + Opus, MP4 as a last resort for Safari) ----------
+   Each replay frame is drawn, with a title bar and score overlay, onto VID.cv; MediaRecorder records that canvas
+   in real time while the replay plays. Only a replay that plays to the end is kept. */
+const VIDEO_SIZE = 1280;     // longest side of the saved video, in pixels
+const VIDEO_FPS = 30, VIDEO_BPS = 5000000, VIDEO_HOLD = 0.8;   // frame rate, bitrate, seconds the last frame is held
+// first supported type; with sound the Opus (or AAC for Safari's MP4) versions come first
+function pickVideoType(withAudio) {
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return '';
+  const types = (withAudio ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus'] : [])
+    .concat(['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'])
+    .concat(withAudio ? ['video/mp4;codecs=avc1,mp4a.40.2'] : []).concat(['video/mp4;codecs=avc1', 'video/mp4']);
+  for (const t of types) { try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) { /* keep looking */ } }
+  return '';
 }
-const GIF_SIZE = 640;   // longest side of the saved GIF, in pixels
-GIF.reset = () => {     // new crash: drop the old GIF and cancel any encode in progress
-  GIF.token++; GIF.frames = []; GIF.blob = null; GIF.cap = false; GIF.enc = false;
-  gifBtnState('wait');
+const VIDEO_TYPE = pickVideoType(false);   // '' = this browser can't record video
+const VIDEO_MIME = VIDEO_TYPE.split(';')[0], VIDEO_EXT = VIDEO_MIME === 'video/mp4' ? 'mp4' : 'webm';
+const VID = { cv: document.createElement('canvas'), ctx: null, w: 0, h: 0, rec: null, chunks: [], mime: VIDEO_MIME, ext: VIDEO_EXT, cap: false, blob: null, enc: false, ui: 'wait', token: 0, holdT: null };
+VID.ctx = VID.cv.getContext('2d');
+let canShareFiles = false;
+try { canShareFiles = !!(VIDEO_TYPE && navigator.canShare && window.File && navigator.canShare({ files: [new File([new Uint8Array(1)], 'a.' + VIDEO_EXT, { type: VIDEO_MIME })] })); } catch (e) { canShareFiles = false; }
+function vidBtnState(s) {
+  // wait: replay running · make: replay was skipped, tap to re-run it · enc: finishing the file · ready: tap to share
+  // none: no replay, or this browser can't record video
+  if (!VIDEO_TYPE) s = 'none';
+  const b = $('vidBtn'); VID.ui = s;
+  b.classList.toggle('dis', s !== 'ready' && s !== 'make');
+  b.textContent = s === 'ready' ? (canShareFiles ? 'SHARE VIDEO' : 'SAVE VIDEO') : s === 'make' ? 'MAKE VIDEO' : s === 'enc' ? 'SAVING VIDEO...' : s === 'none' ? 'NO VIDEO' : 'VIDEO...';
+}
+VID.discard = () => {   // stop any recording and throw it away
+  clearTimeout(VID.holdT); VID.holdT = null; VID.cap = false;
+  const r = VID.rec; VID.rec = null; VID.chunks = [];
+  if (!r) return;
+  r.ondataavailable = null; r.onstop = null;
+  try { if (r.state !== 'inactive') r.stop(); } catch (e) { /* already stopped */ }
+  r.stream.getTracks().forEach((t) => t.stop());
 };
-GIF.start = () => {
-  if (GIF.blob || GIF.enc) return;   // already have (or are making) this crash's GIF
-  const s = GIF_SIZE / Math.max(viewW, viewH);
-  GIF.w = Math.max(16, Math.round(viewW * s)); GIF.h = Math.max(16, Math.round(viewH * s));
-  GIF.cv.width = GIF.w; GIF.cv.height = GIF.h;
-  GIF.frames = []; GIF.cap = true; GIF.acc = 1;
-  gifBtnState('wait');
+VID.reset = () => {     // new crash: drop the old video and anything still recording
+  VID.token++; VID.discard(); VID.blob = null; VID.enc = false;
+  vidBtnState('wait');
 };
-GIF.capture = (dt) => {
-  // keep the leftover time so frames land every 0.08 s on average (matches the 80 ms GIF delay);
-  // 120 frames = 9.6 s, enough for the whole ~8.1 s replay
-  GIF.acc += dt; if (GIF.acc < 0.08 || GIF.frames.length >= 120) return; GIF.acc = Math.min(GIF.acc - 0.08, 0.08);
-  const c = GIF.ctx, w = GIF.w, h = GIF.h, k = Math.max(w, h) / 320;   // overlay scale
+VID.draw = () => {
+  const c = VID.ctx, w = VID.w, h = VID.h, k = Math.max(w, h) / 320;   // overlay scale
   c.imageSmoothingEnabled = false;
   c.drawImage(canvas, 0, 0, w, h);
   c.fillStyle = '#000'; c.fillRect(0, 0, w, 20 * k); c.fillRect(0, h - 18 * k, w, 18 * k);
   c.font = 'bold ' + 15 * k + 'px Bangers, Impact, sans-serif'; c.textBaseline = 'middle';
   c.lineWidth = 3 * k; c.strokeStyle = '#000'; c.fillStyle = '#ffd23f'; c.strokeText('WHAT DO?', 6 * k, 11 * k); c.fillText('WHAT DO?', 6 * k, 11 * k);
-  c.font = 'bold ' + 9 * k + 'px monospace'; c.fillStyle = '#ff3b3b'; c.textAlign = 'right'; c.fillText('\u25CF INSTANT REPLAY', w - 6 * k, 11 * k);
+  c.font = 'bold ' + 9 * k + 'px monospace'; c.fillStyle = '#ff3b3b'; c.textAlign = 'right'; c.fillText('● INSTANT REPLAY', w - 6 * k, 11 * k);
   c.textAlign = 'left'; c.fillStyle = '#ffffff';
-  const sc = 'SCORE ' + Math.floor(Game.score).toLocaleString();
-  c.fillText(sc, 6 * k, h - 9 * k);
+  c.fillText('SCORE ' + Math.floor(Game.score).toLocaleString(), 6 * k, h - 9 * k);
   c.textAlign = 'right'; c.fillStyle = '#ffd23f'; c.fillText((Game.cause || '').slice(0, 44), w - 6 * k, h - 9 * k); c.textAlign = 'left';
-  const px = c.getImageData(0, 0, w, h).data, idx = new Uint8Array(w * h);
-  for (let i = 0, j = 0; j < idx.length; i += 4, j++) idx[j] = (px[i] & 0xE0) | ((px[i + 1] & 0xE0) >> 3) | (px[i + 2] >> 6);
-  GIF.frames.push(idx);
 };
-GIF.stop = (complete) => {
-  const was = GIF.cap; GIF.cap = false;
-  if (!was) return;
-  const frames = GIF.frames; GIF.frames = [];
-  if (!complete || !frames.length) { gifBtnState('make'); return; }   // skipped: only build from a full replay
-  const tok = GIF.token; GIF.enc = true;
-  gifEncode(frames, GIF.w, GIF.h, 8, (p) => { if (tok === GIF.token) gifBtnState('enc', p); }, () => tok !== GIF.token)
-    .then((blob) => { if (blob && tok === GIF.token) { GIF.enc = false; GIF.blob = blob; gifBtnState('ready'); } });
+VID.start = () => {
+  if (!VIDEO_TYPE || VID.blob || VID.enc) return;   // can't record, or already have (or are saving) this crash's video
+  VID.discard();
+  const s = VIDEO_SIZE / Math.max(viewW, viewH);   // even sizes: some encoders need them
+  VID.w = Math.max(16, Math.round(viewW * s / 2) * 2); VID.h = Math.max(16, Math.round(viewH * s / 2) * 2);
+  VID.cv.width = VID.w; VID.cv.height = VID.h;
+  VID.draw();   // a first frame before the stream starts
+  try {
+    // picture from the replay canvas, plus a copy of the game's sound (a copy, so stopping it never silences the next clip)
+    const tracks = VID.cv.captureStream(VIDEO_FPS).getVideoTracks();
+    const snd = Sound.recStream(), at = snd && snd.getAudioTracks()[0];
+    if (at) tracks.push(at.clone());
+    const type = (at && pickVideoType(true)) || VIDEO_TYPE;
+    VID.mime = type.split(';')[0]; VID.ext = VID.mime === 'video/mp4' ? 'mp4' : 'webm';
+    const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: type, videoBitsPerSecond: VIDEO_BPS, audioBitsPerSecond: 128000 });
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) VID.chunks.push(e.data); };
+    VID.chunks = []; VID.rec = rec; rec.start(); VID.cap = true;
+  } catch (e) { VID.discard(); vidBtnState('none'); return; }
+  vidBtnState('wait');
 };
-function lzw(indices, minCode) {
-  const clear = 1 << minCode, eoi = clear + 1, out = [];
-  let codeSize = minCode + 1, next = eoi + 1, dict = new Map(), buf = 0, bits = 0;
-  const put = (code) => { buf |= code << bits; bits += codeSize; while (bits >= 8) { out.push(buf & 255); buf >>>= 8; bits -= 8; } };
-  put(clear);
-  let prefix = indices[0];
-  for (let i = 1; i < indices.length; i++) {
-    const k = indices[i], key = prefix * 256 + k, c = dict.get(key);
-    if (c !== undefined) { prefix = c; continue; }
-    put(prefix);
-    if (next === 4096) { put(clear); next = eoi + 1; codeSize = minCode + 1; dict = new Map(); }
-    else { if (next >= (1 << codeSize)) codeSize++; dict.set(key, next++); }
-    prefix = k;
-  }
-  put(prefix); put(eoi);
-  if (bits > 0) out.push(buf & 255);
-  return out;
-}
-function gifEncode(frames, w, h, delay, onProgress, cancelled) {
-  return new Promise((resolve) => {
-    const parts = [];
-    const bytes = (arr) => parts.push(new Uint8Array(arr));
-    const u16 = (v) => [v & 255, (v >> 8) & 255];
-    bytes([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, ...u16(w), ...u16(h), 0xF7, 0, 0]);
-    parts.push(GIF_PAL);
-    bytes([0x21, 0xFF, 0x0B, 0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30, 0x03, 0x01, 0x00, 0x00, 0x00]);
-    let i = 0;
-    const step = () => {
-      if (cancelled()) { resolve(null); return; }
-      if (i >= frames.length) { bytes([0x3B]); resolve(new Blob(parts, { type: 'image/gif' })); return; }
-      const d = i === frames.length - 1 ? 160 : delay;
-      bytes([0x21, 0xF9, 0x04, 0x00, ...u16(d), 0x00, 0x00]);
-      bytes([0x2C, 0, 0, 0, 0, ...u16(w), ...u16(h), 0x00, 0x08]);
-      const data = lzw(frames[i], 8), blk = [];
-      for (let o = 0; o < data.length; o += 255) { const n = Math.min(255, data.length - o); blk.push(n); for (let k = 0; k < n; k++) blk.push(data[o + k]); }
-      blk.push(0);
-      bytes(blk);
-      i++; onProgress(i / frames.length);
-      setTimeout(step, 0);
+VID.capture = () => VID.draw();
+VID.stop = (complete) => {
+  if (!VID.cap) return;
+  VID.cap = false;
+  if (!complete || !VID.rec) { VID.discard(); vidBtnState('make'); return; }   // skipped: only keep a full replay
+  const rec = VID.rec, tok = VID.token, t0 = performance.now();
+  VID.enc = true; vidBtnState('enc');
+  // hold the last frame briefly (redrawing it keeps the stream sending frames), then finish the file
+  const hold = () => {
+    if (tok !== VID.token || VID.rec !== rec) return;
+    if (performance.now() - t0 < VIDEO_HOLD * 1000) { VID.ctx.drawImage(VID.cv, 0, 0); VID.holdT = setTimeout(hold, 1000 / VIDEO_FPS); return; }
+    VID.holdT = null;
+    rec.onstop = () => {
+      if (tok !== VID.token) return;
+      const blob = new Blob(VID.chunks, { type: VID.mime });
+      VID.chunks = []; VID.rec = null; VID.enc = false; rec.stream.getTracks().forEach((t) => t.stop());
+      VID.blob = blob.size > 1024 ? blob : null;   // a header-only file means nothing was recorded
+      vidBtnState(VID.blob ? 'ready' : 'make');
     };
-    step();
-  });
-}
+    rec.stop();
+  };
+  hold();
+};
 function downloadBlob(blob) {
   const url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = 'what-do-crash.gif'; document.body.appendChild(a); a.click(); a.remove();
+  a.href = url; a.download = 'what-do-crash.' + VID.ext; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
-function shareGif() {
-  if (!GIF.blob) return;
+function shareVideo() {
+  if (!VID.blob) return;
   const text = (Game.cause || 'Crashed.') + ' Score: ' + Math.floor(Game.score).toLocaleString() + ' — What Do?';
   if (canShareFiles) {
     try {
-      const file = new File([GIF.blob], 'what-do-crash.gif', { type: 'image/gif' });
-      navigator.share({ files: [file], title: 'What Do?', text }).then(() => track('gif-shared', 'Shared a crash GIF')).catch((e) => { if (!e || e.name !== 'AbortError') { downloadBlob(GIF.blob); track('gif-saved', 'Saved a crash GIF'); } });
+      const file = new File([VID.blob], 'what-do-crash.' + VID.ext, { type: VID.mime });
+      navigator.share({ files: [file], title: 'What Do?', text }).then(() => track('video-shared', 'Shared a crash video')).catch((e) => { if (!e || e.name !== 'AbortError') { downloadBlob(VID.blob); track('video-saved', 'Saved a crash video'); } });
       return;
     } catch (e) { /* fall through to download */ }
   }
-  downloadBlob(GIF.blob); track('gif-saved', 'Saved a crash GIF');
+  downloadBlob(VID.blob); track('video-saved', 'Saved a crash video');
 }
 bindButton($('replayBtn'), () => { if (Game.state === 'over') { track('replay-watched', 'Re-watched a crash replay'); startReplay(false); } });
 // sharing needs a "real" user activation, which phones only grant when the finger lifts
-$('gifBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
-$('gifBtn').addEventListener('pointerup', (e) => {
+$('vidBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+$('vidBtn').addEventListener('pointerup', (e) => {
   e.preventDefault(); e.stopPropagation();
   if (Game.state !== 'over') return;
-  if (GIF.ui === 'ready') shareGif();
-  else if (GIF.ui === 'make') { track('gif-rerun', 'Re-ran a skipped replay for a GIF'); startReplay(false); }
+  if (VID.ui === 'ready') shareVideo();
+  else if (VID.ui === 'make') { track('video-rerun', 'Re-ran a skipped replay for a video'); startReplay(false); }
 });
 window.addEventListener('pointerdown', () => { if (Game.state === 'replay') endReplay(); });
-gifBtnState('wait');
+vidBtnState('wait');
 
 let lastT = performance.now();
 function frame(now) {
@@ -3080,8 +3200,9 @@ function frame(now) {
   updateCamera(dt);
   if (st === 'play' || st === 'countdown') updateHud(false);
   Sound.setEngine(player.speed, st === 'play', player.boost);
+  if (st === 'play') updateSiren(); else Sound.setSiren(0, 0);
   renderer.render(scene, camera);
-  if (Game.state === 'replay' && GIF.cap) GIF.capture(dt);
+  if (Game.state === 'replay' && VID.cap) VID.capture();
 }
 
 /* ---------- online leaderboard (Cloudflare Worker + D1; Worker source lives in C:\code\whatdo-leaderboard) ----------
