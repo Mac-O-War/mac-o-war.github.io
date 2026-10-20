@@ -1,7 +1,7 @@
 /* What Do? service worker — offline play + update handling.
    RELEASING AN UPDATE: change VERSION below (any new string), then upload.
    Players see "NEW VERSION — TAP TO UPDATE" on their next visit. */
-const VERSION = 'whatdo-v29';
+const VERSION = 'whatdo-v30';
 const ASSETS = [
   './',
   './index.html',

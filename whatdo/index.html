@@ -3839,10 +3839,12 @@ function updateCamera(dt) {
   slMesh.visible = vis > 0.02;
   if (slMesh.visible) updateSpeedLines(vis, player.speed, dt);
   // world-follow helpers
-  rotXZ(0, -30, R.theta, _o);
-  sun.position.set(PW.x + TOD.sd[0], TOD.sd[1], PW.z + TOD.sd[2]);
-  sun.target.position.set(PW.x + _o.x, 0, PW.z + _o.z); sun.target.updateMatrixWorld();
   skyAng = dampAng(skyAng, R.theta, 0.8, dt);
+  // the sun's direction comes only from the time of day (it used to swing when you turned a corner);
+  // the patch it casts shadows over stays ~30 m ahead of you and swings round smoothly with the skyline
+  rotXZ(0, -30, skyAng, _o);
+  sun.target.position.set(PW.x + _o.x, 0, PW.z + _o.z); sun.target.updateMatrixWorld();
+  sun.position.set(sun.target.position.x + TOD.sd[0], TOD.sd[1], sun.target.position.z + TOD.sd[2]);
   rotXZ(0, -640, skyAng, _o);
   skyline.position.set(PW.x + _o.x, -2, PW.z + _o.z); skyline.rotation.y = skyAng;
   clouds.position.set(PW.x * 0.9, 0, PW.z * 0.9);
