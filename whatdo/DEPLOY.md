@@ -43,7 +43,7 @@ Once installed, it opens full screen in landscape with its own icon and works of
 ## Releasing an update
 
 1. Upload the new `index.html` (and any changed files).
-2. **Open `sw.js` and change `VERSION`**, for example from `'whatdo-v1'` to `'whatdo-v2'`. This step is what tells installed copies there's an update.
+2. **`VERSION` in `sw.js` updates itself.** A git pre-commit hook in the repo root (`.git/hooks/pre-commit`) stamps it with the date and time whenever a commit includes game files. A new `VERSION` is what tells installed copies there's an update. On a machine without the hook, change it by hand to any new string.
 3. Next time players open the game, they see **NEW VERSION — TAP TO UPDATE** on the menu. It never appears mid-run.
 
 If you add new files, also add them to the `ASSETS` list in `sw.js` so they're available offline.
