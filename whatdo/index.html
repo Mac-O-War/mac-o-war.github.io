@@ -1941,7 +1941,7 @@ function updateEntities(dt) {
 /* =====================================================================
    PLAYER
    ===================================================================== */
-const player = { run: null, x: 0, z: 0, y: 0, vx: 0, h: 0, speed: 0, base: 19, max: 34, lean: 0, alive: true, boost: false, armed: false, armHold: 0, armAway: 0 };
+const player = { run: null, x: 0, z: 0, y: 0, vx: 0, h: 0, speed: 0, base: 19, max: 34, lean: 0, alive: true, boost: false, yawRate: 0, turnPhase: null, finishing: false, hitWall: false };
 let rig = null;
 const shadowMesh = new THREE.Mesh(GEO.shadow, MAT.shadow);
 function buildRig() {
@@ -1963,7 +1963,7 @@ function updateRig(dt, t) {
   const sf = clamp((player.speed - player.base) / (player.max - player.base), 0, 1);
   rig.root.position.set(player.x, player.y, player.z);
   rig.root.rotation.y = player.h - Math.atan2(player.vx, Math.max(player.speed, 1)) * 0.7;
-  player.lean = damp(player.lean, -player.vx * 0.035 - player.h * 0.5, 10, dt);
+  player.lean = damp(player.lean, clamp(-player.vx * 0.035 + (player.yawRate || 0) * 0.25, -0.8, 0.8), 10, dt);   // lean into slides and turns
   rig.lean.rotation.z = player.lean;
   rig.lean.rotation.x = -0.06 - sf * 0.16;
   rig.tire.rotation.x -= player.speed * dt / 0.45;
@@ -1978,7 +1978,7 @@ function doTurn() {
   const A = player.run, B = A.next;
   toWorld(A, player.x, player.z, _t); toLocal(B, _t.x, _t.z, _t);
   player.x = _t.x; player.z = _t.z; player.h = normAng(player.h + A.theta - B.theta); player.vx = 0;
-  player.run = B; B.root.add(rig.root); player.armed = false;
+  player.run = B; B.root.add(rig.root); player.finishing = true;
   Game.turns++; player.prevZ = player.z;
   award('DETOUR!', 150 * Game.level, 'good');
   Sound.whoosh(A.turnDir * 0.6, 0.8);
@@ -2065,7 +2065,7 @@ function resetWorld() {
   buildRig();
   const diff = Game.level - 1;
   player.base = Math.min(31, 19 + diff * 1.6); player.max = player.base + 15;
-  player.x = 0; player.z = 0; player.y = 0; player.vx = 0; player.h = 0; player.speed = 0; player.lean = 0; player.alive = true; player.armed = false; player.armHold = 0; player.armAway = 0;
+  player.x = 0; player.z = 0; player.y = 0; player.vx = 0; player.h = 0; player.speed = 0; player.lean = 0; player.alive = true; player.yawRate = 0; player.turnPhase = null; player.finishing = false; player.hitWall = false;
   updatePW();
   manageRuns(true); manageRuns(true);
   setPL(player.run);
@@ -2607,16 +2607,22 @@ function showWin() {
    MAIN UPDATE
    ===================================================================== */
 const _look = new THREE.Vector3();
-function movePlayer(dt, steer) {
-  if (player.h !== 0) { const s = Math.sign(player.h); player.h = s * Math.max(0, Math.abs(player.h) - 4.4 * dt); }
+// turning at a road closure is a real arc steered by the player (see updatePlay)
+const TURN_RADIUS = 8;        // tightest turn at full steer, in metres: yaw rate = speed / radius
+const TURN_STRAIGHTEN = 1.8;  // rad/s the rider straightens out by themselves once past the halfway point
+const TURN_ZONE = 24;         // steering yaws from this far before the cross street's centre (its near edge is at 10)
+function movePlayer(dt, steer, yawCtl) {
+  // outside a steered turn the heading eases back to straight (e.g. a level clear mid-turn)
+  if (!yawCtl && player.h !== 0) {
+    const h0 = player.h, s = Math.sign(player.h);
+    player.h = s * Math.max(0, Math.abs(player.h) - TURN_STRAIGHTEN * dt); player.yawRate = (player.h - h0) / dt;
+  }
   const maxLat = 11 + player.speed * 0.12;
   player.vx += clamp(steer * maxLat - player.vx, -70 * dt, 70 * dt);
   player.x += (-Math.sin(player.h) * player.speed + player.vx * Math.cos(player.h)) * dt;
   player.z += (-Math.cos(player.h) * player.speed) * dt;
-  if (player.armed && player.run.next) {
-    const td = player.run.turnDir, e = player.armEdge;
-    if (player.x * td > e) { player.x = td * e; if (player.vx * td > 0) player.vx = 0; }
-  }
+  // riding into the side of the street at a steep angle (turned in too early, or swung too wide) is a building
+  player.hitWall = Math.abs(player.x) > 16.4 && Math.abs(player.h) > 0.6;
   if (player.x < -16.4) { player.x = -16.4; player.vx = Math.max(0, player.vx); }
   if (player.x > 16.4) { player.x = 16.4; player.vx = Math.min(0, player.vx); }
   player.y = damp(player.y, groundY(player.run, player.x, player.z) - 0.02, 18, dt);
@@ -2628,36 +2634,33 @@ function updatePlay(dt) {
   player.boost = gas;
   const target = gas ? player.max : player.base;
   player.speed += clamp(target - player.speed, -12 * dt, 16 * dt);
-  // forced turn at the road closure
-  const r = player.run;
-  let mv = steer;
+  // turning at the road closure: near the intersection, steering yaws the rider along a real arc (no autopilot).
+  // Halfway round (45°) the rider switches onto the new street and the camera swings to it; from there you
+  // steer to finish the turn, or the rider straightens out by themselves when you let go.
+  const r = player.run, w = player.speed / TURN_RADIUS;   // yaw rate at full steer
+  let mv = steer, yawCtl = false, yaw = 0;
+  player.turnPhase = null;
   if (r.next) {
-    const dz = player.z - r.endZc, toward = steer * r.turnDir;
-    // the turn fires at the intersection mouth, from whatever lane you're in.
-    // (left turns land in the near — oncoming — lanes of the new street, right turns in your own lane)
-    const R = player.speed / 4.4, fireDz = r.turnDir < 0 ? R + 5.5 : Math.min(12, R + 6.75);
-    if (!player.armed) {
-      // arm only on purpose: hold toward the detour for 0.3 s within the last ~1.3 s before the mouth,
-      // so dodges and lane changes further back don't commit you
-      const inWindow = dz < fireDz + Math.max(player.speed, 19) * 1.3 && dz > -15;
-      player.armHold = inWindow && toward > 0.25 ? player.armHold + dt : 0;
-      if (player.armHold >= 0.4) {
-        player.armed = true; player.armAway = 0;
-        player.armEdge = Math.min(14.3, Math.max(8.2, Math.abs(player.x) * (Math.sign(player.x) === r.turnDir ? 1 : 0)));
-        Sound.blip(660, 0.12, 'square', 0.1); buzz(20);
-      }
-    } else {
-      // holding the other way for 0.5 s cancels (longer than a one-lane dodge, ~0.4 s, so dodging keeps the turn)
-      player.armAway = toward < -0.25 ? player.armAway + dt : 0;
-      if (player.armAway >= 0.5 && dz > fireDz) { player.armed = false; player.armHold = 0; Sound.blip(330, 0.12, 'square', 0.1); buzz(12); }
+    const dz = player.z - r.endZc, td = r.turnDir, prog = -td * player.h;   // prog: 0 = straight on, π/2 = facing the new street
+    if (dz < TURN_ZONE && dz > -14 && (steer !== 0 || Math.abs(prog) > 0.01)) {
+      yawCtl = true; mv = 0; player.turnPhase = 'in';
+      // positive steer heads toward +x (negative h); a little the wrong way is allowed, for a wide line
+      const p = clamp(prog + steer * td * w * dt, -0.35, 1.25);
+      yaw = -td * p - player.h; player.h = -td * p;
+      if (p >= Math.PI / 4 && Math.abs(dz) < 13) doTurn();
     }
-    if (player.armed) {
-      // still steerable to dodge traffic, but can't drift further toward the turn side than the lane edge
-      if (mv * r.turnDir > 0 && player.x * r.turnDir >= player.armEdge - 0.05) mv = 0;
-      if (dz <= fireDz) doTurn();
-    }
-  } else { player.armed = false; player.armHold = 0; }
-  movePlayer(dt, mv);
+  }
+  if (player.finishing && !yawCtl) {
+    yawCtl = true; mv = 0; player.turnPhase = 'out';
+    const sgn = Math.sign(player.h);
+    let nh = player.h + (steer !== 0 ? -steer * w * dt : -sgn * TURN_STRAIGHTEN * dt);
+    if (Math.sign(nh) !== sgn) { nh = 0; player.finishing = false; }   // straight again: back to normal steering
+    nh = clamp(nh, -1.2, 1.2);
+    yaw += nh - player.h; player.h = nh;
+  }
+  player.yawRate = yaw / dt;
+  movePlayer(dt, mv, yawCtl);
+  if (player.hitWall) { die('building', null); return; }
   Game.score += player.speed * dt * 0.25 * (1 + (Game.level - 1) * 0.25) * metalMult();
   updateScoring(dt);
   if (Game.best > 0 && Math.floor(Game.score) > Game.best) $('bestBox').style.outline = '2px solid #ffd23f';
@@ -2683,6 +2686,7 @@ function updatePlay(dt) {
   if (Game.elapsed >= Game.levelTime) { Game.elapsed = Game.levelTime; winLevel(); }
 }
 const CAM_ZOOM = 0.80;   // gameplay camera distance: 1 = original, smaller = closer to the rider
+let camYaw = 0;   // gameplay camera heading in world space, damped so the halfway hand-off swings smoothly
 function updateCamera(dt) {
   updatePW();
   const R = player.run;
@@ -2699,11 +2703,14 @@ function updateCamera(dt) {
     const back = ((portrait ? 9.5 : 7.4) - sf * 1.2) * CAM_ZOOM, up = 1.2 + ((portrait ? 5.2 : 3.7) + sf * 0.3 - 1.2) * CAM_ZOOM;
     let lx = -player.x * 0.18, lz = back, ly = up, lookZ = -14;
     if (Game.state === 'countdown') { const k = clamp(Game.cd / 3.2, 0, 1), a = k * 2.2; lx = Math.sin(a) * 8 * k + lx * (1 - k); lz = Math.cos(a) * 8 * k + back * (1 - k); ly = up + k * 1.5; lookZ = -14 * (1 - k); }
-    rotXZ(lx, lz, R.theta + player.h * 0.85, _o);
+    // first half of a turn the camera only leans slightly with you; after the hand-off it swings to the new street
+    const lean = player.turnPhase === 'in' ? 0.2 : 0.85, yawT = R.theta + player.h * lean;
+    camYaw = Game.state === 'countdown' ? yawT : camYaw + normAng(yawT - camYaw) * (1 - Math.exp(-7 * dt));
+    rotXZ(lx, lz, camYaw, _o);
     const kk = Game.state === 'countdown' ? 8 : 7;
     camOff.x = damp(camOff.x, _o.x, kk, dt); camOff.z = damp(camOff.z, _o.z, kk, dt); camOff.y = damp(camOff.y, ly, 8, dt);
     camera.position.set(PW.x + camOff.x, camOff.y, PW.z + camOff.z);
-    rotXZ(-player.x * 0.12 + player.vx * 0.06, lookZ, R.theta + player.h, _o2);
+    rotXZ(-player.x * 0.12 + player.vx * 0.06, lookZ, camYaw + player.h * (player.turnPhase === 'in' ? 0.05 : 0.15), _o2);
     _look.set(PW.x + _o2.x, 1.5, PW.z + _o2.z);
     fov = (portrait ? 80 : 66) + sf * 18 + (player.speed / player.max) * 4;
   } else if (Game.state === 'menu') {
