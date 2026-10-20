@@ -23,12 +23,12 @@
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Rider on an electric unicycle weaving through city traffic at sunset">
+<meta property="og:image:alt" content="Electric unicycle weaving through city traffic">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="What Do? — one electric unicycle, zero brakes">
-<meta name="twitter:description" content="Dodge taxis, tourists and pigeons on an electric unicycle in a voxel New York / DC.">
+<meta name="twitter:description" content="Dodge taxis, tourists and pigeons on an electric unicycle in New York City.">
 <meta name="twitter:image" content="https://restoneuc.com/whatdo/whatdo.png">
-<meta name="twitter:image:alt" content="Rider on an electric unicycle weaving through city traffic at sunset">
+<meta name="twitter:image:alt" content="Electric unicycle weaving through city traffic">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
@@ -87,6 +87,8 @@ body{position:fixed;inset:0}
 #focusBar{display:block;height:100%;width:0;background:linear-gradient(90deg,#3dafff,#b36bff)}
 #focusBox.ready #focusTxt{color:#fff}
 #focusBox.on #focusTxt{color:#b36bff;animation:blink .2s infinite alternate}
+#focusBox.empty .cbar{animation:focusEmpty .45s ease-out}
+@keyframes focusEmpty{0%,60%{border-color:#ff3b3b;box-shadow:0 0 0 2px #ff3b3b}100%{border-color:#000;box-shadow:none}}
 body.touch #focusBox{bottom:calc(min(26vmin,120px) + 40px + var(--sb))}
 #focusFx{background:radial-gradient(ellipse at center,rgba(40,70,150,0) 45%,rgba(40,70,150,.55) 100%);opacity:0;pointer-events:none}
 #tFocus{right:calc(30px + var(--sr));bottom:calc(36px + min(30vmin,140px) + var(--sb));width:min(30vmin,140px);height:min(30vmin,140px);font-size:clamp(14px,4vmin,20px);background:rgba(120,90,255,.3);border-color:rgba(20,10,60,.7)}
@@ -1190,6 +1192,17 @@ const Sound = (() => {
     os.connect(g); g.connect(o); os.start(t); os.stop(t + len + 0.02);
   }
   function jingle() { [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => blip(mtof(m), i === 6 ? 0.6 : 0.16, 'square', 0.13, i * 0.11)); }
+  // FOCUS pressed without enough meter: a short, low double buzz
+  function deny() {
+    if (!ctx) return; const t = ctx.currentTime, o = out(0);
+    for (const dt of [0, 0.11]) {
+      const os = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      os.type = 'square'; os.frequency.setValueAtTime(150, t + dt); os.frequency.linearRampToValueAtTime(115, t + dt + 0.08);
+      f.type = 'lowpass'; f.frequency.value = 900;
+      g.gain.setValueAtTime(0.0001, t + dt); g.gain.linearRampToValueAtTime(0.16, t + dt + 0.005); g.gain.setValueAtTime(0.16, t + dt + 0.07); g.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.09);
+      os.connect(f); f.connect(g); g.connect(o); os.start(t + dt); os.stop(t + dt + 0.1);
+    }
+  }
   function setFocus(on) { if (ctx && focusLp) focusLp.frequency.setTargetAtTime(on ? 750 : 20000, ctx.currentTime, on ? 0.08 : 0.15); }
   // ---- steam hiss: a looping noise bed, its level set every frame from the nearest vent ----
   let amb = null;
@@ -1458,7 +1471,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, deny, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -3291,12 +3304,15 @@ function scoringKey(e) {
 document.querySelectorAll('.scoreOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'paused') openScoring(); }));
 bindButton($('scoreBack'), closeScoring);
 /* ---------- FOCUS (bullet time): near misses fill it; hold the button to slow the world ---------- */
-const FOCUS = { meter: 0, on: false, k: 0, shown: -1 };
+const FOCUS = { meter: 0, on: false, k: 0, shown: -1, held: false };
 const FOCUS_SCALE = 0.50, FOCUS_DRAIN = 0.50, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
 function focusGain(a) { FOCUS.meter = Math.min(1, FOCUS.meter + a * (FOCUS.on ? 0.35 : 1)); }   // less while already in slow-mo
 function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time scale for the world
-  const held = Game.state === 'play' && readFocus();
+  const held = Game.state === 'play' && readFocus(), pressed = held && !FOCUS.held; FOCUS.held = held;
   if (held && !FOCUS.on && FOCUS.meter >= FOCUS_MIN) { FOCUS.on = true; Sound.whoosh(0, 1.4); Sound.setFocus(true); }
+  else if (pressed && !FOCUS.on) {   // not enough saved: a buzz and a red flash on the meter (once per press)
+    Sound.deny(); const b = $('focusBox'); b.classList.remove('empty'); void b.offsetWidth; b.classList.add('empty');
+  }
   if (FOCUS.on) { FOCUS.meter = Math.max(0, FOCUS.meter - FOCUS_DRAIN * dt); if (!held || FOCUS.meter <= 0) { FOCUS.on = false; Sound.whoosh(0, 0.9); Sound.setFocus(false); } }
   FOCUS.k = damp(FOCUS.k, FOCUS.on ? 1 : 0, 9, dt);
   if (FOCUS.k < 0.002) FOCUS.k = 0;
