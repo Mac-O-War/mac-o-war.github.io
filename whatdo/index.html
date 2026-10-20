@@ -292,8 +292,8 @@ body:not(.touch) .card.tch{display:none}
   </div>
   <div class="act">
   <div id="lbMsg"></div>
-  <button class="btn" id="restartBtn">RESTART</button>
-  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm alt dis" id="vidBtn">VIDEO...</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
+  <button class="btn alt" id="restartBtn">RESTART</button>
+  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm dis" id="vidBtn">VIDEO...</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
   <div class="small">PRESS ENTER / SPACE OR TAP</div>
   </div>
 </section>
@@ -631,6 +631,28 @@ function busParts(color) {
   p.push([0, 0.3, -L / 2 - 0.05, W, 0.2, 0.12, 0x262626]);
   return p;
 }
+// open-top double-decker sightseeing bus: tourists sit up top (see addTourists)
+function tourBusParts(color) {
+  const L = 11, W = 2.5, p = [];
+  p.push([0, 0.38, 0, W, 2.3, L, color]);
+  p.push([0, 1.2, 0.5, W + 0.04, 0.8, L - 2.6, GLASS]);
+  p.push([0, 0.9, -L / 2 - 0.02, W - 0.24, 1.5, 0.05, GLASS]);
+  for (const sx of [-1, 1]) p.push([sx * (W / 2 + 0.01), 0.75, 0.4, 0.02, 0.16, L * 0.8, 0xffd23f]);
+  p.push([0, 2.68, 0, W, 0.12, L, 0xefefef]);                                   // upper deck floor
+  for (const sx of [-1, 1]) {
+    p.push([sx * (W / 2 - 0.06), 2.8, 0.2, 0.12, 0.75, L - 0.4, color]);        // half-height side walls
+    p.push([sx * (W / 2 - 0.06), 3.55, 0.2, 0.14, 0.06, L - 0.4, 0xf2c94c]);    // gold rail
+  }
+  p.push([0, 2.8, -L / 2 + 0.2, W, 0.95, 0.12, color], [0, 2.8, L / 2 - 0.08, W, 0.75, 0.12, color]);
+  for (const z of [-3.6, -1.8, 0, 1.8, 3.6]) p.push([0, 2.8, z + 0.35, W - 0.4, 0.4, 0.4, 0x2b2b2b]);   // benches
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.push([sx * (W / 2 - 0.08), 0, sz * (L / 2 - 1.7), 0.36, 0.86, 0.86, TIRE]);
+  for (const sx of [-1, 1]) {
+    p.push([sx * (W / 2 - 0.3), 0.5, -L / 2 - 0.02, 0.4, 0.22, 0.06, 0xfff6c8]);
+    p.push([sx * (W / 2 - 0.3), 0.6, L / 2 + 0.02, 0.4, 0.3, 0.06, 0xe01818]);
+  }
+  p.push([0, 0.3, -L / 2 - 0.05, W, 0.2, 0.12, 0x262626]);
+  return p;
+}
 function truckParts(stripe) {
   const L = 7, W = 2.3, p = [];
   p.push([0, 0.32, -L / 2 + 1.05, W, 1.85, 2.1, 0xf2f2f2]);
@@ -647,8 +669,8 @@ function truckParts(stripe) {
   p.push([0, 0.32, L / 2 - 0.4, W, 0.2, 0.12, 0x262626]);
   return p;
 }
-const VEH = { taxi: [], sedan: [], suv: [], bus: [], truck: [], police: [] };
-const VEH_WEIGHTS = [['taxi', 34], ['sedan', 30], ['suv', 15], ['truck', 10], ['bus', 7], ['police', 4]];
+const VEH = { taxi: [], sedan: [], suv: [], bus: [], tourbus: [], truck: [], police: [] };
+const VEH_WEIGHTS = [['taxi', 34], ['sedan', 30], ['suv', 15], ['truck', 10], ['bus', 6], ['tourbus', 3], ['police', 4]];
 (function buildVehicles() {
   const add = (k, parts, W, L, ly) => {
     ly = ly || 0.62; const lp = [];
@@ -679,6 +701,7 @@ const VEH_WEIGHTS = [['taxi', 34], ['sedan', 30], ['suv', 15], ['truck', 10], ['
   [0xc0392b, 0x2c3e50, 0xecf0f1, 0x7f8c8d, 0x16a085, 0x8e44ad, 0x1f3a93, 0x151515, 0xd35400, 0x27ae60].forEach((c) => add('sedan', carParts(c), 2.1, 4.4));
   [0x111111, 0x5d6d7e, 0x7b241c, 0xf4f6f7, 0x1b4f72].forEach((c) => add('suv', carParts(c, { L: 4.8, W: 2.2, bh: 0.9, ch: 0.72, cl: 2.9, cz: 0.4 }), 2.2, 4.8));
   [0x1c5fae, 0x2e8b57].forEach((c) => add('bus', busParts(c), 2.5, 11));
+  [0xc0392b, 0x1e8449].forEach((c) => add('tourbus', tourBusParts(c), 2.5, 11));
   [0xd62828, 0x1d70b8, 0x6a1b9a, 0xff8c00].forEach((c) => add('truck', truckParts(c), 2.3, 7));
   add('police', carParts(0xf4f4f4, { police: true }), 2.1, 4.4);
 })();
@@ -954,6 +977,31 @@ function updateSiren() {
   setPL(player.run);
   Sound.setSiren(best, pan);
 }
+// tourists on the top deck turn to face the rider and snap photos as the bus goes by
+function addTourists(m, v) {
+  if (v.kind !== 'tourbus') return;
+  const seats = []; for (const z of [-3.6, -1.8, 0, 1.8, 3.6]) for (const x of [-0.6, 0.6]) if (Math.random() < 0.75) seats.push([x, z]);
+  m.userData.tourists = seats.map(([x, z]) => {
+    const t = new THREE.Mesh(pick(PEDS.tourist).geo[0], MAT.vox); t.position.set(x, 2.3, z); m.add(t);
+    const fl = new THREE.Mesh(GEO.flash, MAT.flash); fl.position.set(0, 1.24, -0.38); fl.visible = false; t.add(fl);
+    return { m: t, fl, ft: 0, look: rand(-0.6, 0.6) };
+  });
+}
+function updTourists(e, dt) {
+  const tl = e.mesh.userData.tourists; if (!tl) return;
+  const dx = PL.x - e.x, dz = PL.z - e.z, d = Math.hypot(dx, dz), ry = e.mesh.rotation.y;
+  const lx = dx * Math.cos(ry) - dz * Math.sin(ry), lz = dx * Math.sin(ry) + dz * Math.cos(ry);   // rider in the bus's own frame
+  const near = Game.state === 'play' && d < 32;
+  for (const t of tl) {
+    const want = near ? Math.atan2(-(lx - t.m.position.x), -(lz - t.m.position.z)) : t.look;
+    t.m.rotation.y += normAng(want - t.m.rotation.y) * Math.min(1, dt * 6);
+    t.ft -= dt; t.fl.visible = t.ft > 0;
+    if (near && d < 26 && t.ft < -0.2 && Math.random() < dt * 0.9) {
+      t.ft = 0.08;
+      if (shutterCd <= 0) { Sound.shutter(clamp(-dx / 10, -1, 1), clamp(1 - d / 40, 0.15, 0.7)); shutterCd = 0.12; }
+    }
+  }
+}
 function flashBeacons(m) {
   const b = m.userData.beacons; if (!b) return;
   const ph = Math.floor((animT + m.id * 0.37) * 10) % 8;
@@ -1110,6 +1158,113 @@ const Sound = (() => {
     os.connect(g); g.connect(o); os.start(t); os.stop(t + len + 0.02);
   }
   function jingle() { [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => blip(mtof(m), i === 6 ? 0.6 : 0.16, 'square', 0.13, i * 0.11)); }
+  // car alarm: the classic three-part cycle (fast warble, slow whoop, beeps), about 3 s
+  function carAlarm(pan) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan);
+    const os = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    os.type = 'square'; f.type = 'lowpass'; f.frequency.value = 2600;
+    for (let k = 0; k < 8; k++) os.frequency.setValueAtTime(k % 2 ? 1350 : 950, t + k * 0.12);
+    for (let k = 0; k < 3; k++) { os.frequency.setValueAtTime(650, t + 1 + k * 0.33); os.frequency.linearRampToValueAtTime(1550, t + 1.3 + k * 0.33); }
+    os.frequency.setValueAtTime(1050, t + 2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09, t + 0.02);
+    for (let k = 0; k < 8; k++) { g.gain.setValueAtTime(0.09, t + 2 + k * 0.14); g.gain.setValueAtTime(0.0001, t + 2.07 + k * 0.14); }
+    g.gain.setValueAtTime(0.0001, t + 3.2);
+    os.connect(f); f.connect(g); g.connect(o); os.start(t); os.stop(t + 3.25);
+  }
+  // fireworks: a low boom (arriving after `delay` seconds, as sound travels) with a crackle tail
+  function boom(pan, vol, delay) {
+    if (!ctx) return; const t = ctx.currentTime + (delay || 0), o = out(pan); vol = vol || 1;
+    const n = noise(t, 1.6), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(110, t + 1.2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.55 * vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+    n.connect(f); f.connect(g); g.connect(o);
+    for (let i = 0; i < 10; i++) {
+      const tt = t + 0.25 + Math.random() * 0.9, c = noise(tt, 0.06), hp = ctx.createBiquadFilter(), cg = ctx.createGain();
+      hp.type = 'highpass'; hp.frequency.value = 3000;
+      cg.gain.setValueAtTime(0.0001, tt); cg.gain.linearRampToValueAtTime(0.12 * vol * Math.random(), tt + 0.003); cg.gain.exponentialRampToValueAtTime(0.001, tt + 0.045);
+      c.connect(hp); hp.connect(cg); cg.connect(o);
+    }
+  }
+  // helicopter: band-passed noise chopped at ~11 Hz, level 0..1 and pan from the sky module
+  let chopSrc = null, chopGain = null, chopPan = null;
+  function setChopper(level, pan) {
+    if (!ctx) return; const t = ctx.currentTime;
+    if (!chopSrc) {
+      if (level <= 0) return;
+      chopSrc = ctx.createBufferSource(); chopSrc.buffer = noiseBuf; chopSrc.loop = true;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 160; bp.Q.value = 0.9;
+      const trem = ctx.createGain(); trem.gain.value = 0.5;
+      const lfo = ctx.createOscillator(), ld = ctx.createGain(); lfo.type = 'square'; lfo.frequency.value = 11; ld.gain.value = 0.5; lfo.connect(ld); ld.connect(trem.gain);
+      chopGain = ctx.createGain(); chopGain.gain.value = 0;
+      chopSrc.connect(bp); bp.connect(trem); trem.connect(chopGain);
+      if (ctx.createStereoPanner) { chopPan = ctx.createStereoPanner(); chopGain.connect(chopPan); chopPan.connect(sfx); } else chopGain.connect(sfx);
+      chopSrc.start(t); lfo.start(t);
+    }
+    chopGain.gain.setTargetAtTime(Math.max(0, level) * 0.5, t, 0.3);
+    if (chopPan) chopPan.pan.setTargetAtTime(clamp(pan || 0, -1, 1), t, 0.2);
+  }
+  // street performers: a short loop, scheduled a little ahead, while one is in earshot
+  let bkKind = null, bkStep = 0, bkNext = 0, bkTimer = null, bkGain = null, bkPan = null;
+  const BK_STEP = 60 / 104 / 2;   // eighth notes at 104 bpm
+  const BK_SAX = [62, 65, 67, 69, 67, 65, 62, 0, 60, 62, 65, 0, 67, 69, 72, 0];
+  const BK_BASS = [38, 0, 38, 0, 41, 0, 43, 0, 38, 0, 38, 0, 36, 0, 41, 0];
+  function bkTone(t, type, f0, f1, dur, vol, filt) {
+    const os = ctx.createOscillator(), g = ctx.createGain(); os.type = type; os.frequency.setValueAtTime(f0, t); if (f1) os.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    if (filt) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filt; os.connect(f); f.connect(g); } else os.connect(g);
+    g.connect(bkGain); os.start(t); os.stop(t + dur + 0.02);
+  }
+  function bkNoise(t, type, freq, q, dur, vol) {
+    const n = noise(t, dur + 0.02), f = ctx.createBiquadFilter(), g = ctx.createGain(); f.type = type; f.frequency.value = freq; if (q) f.Q.value = q;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    n.connect(f); f.connect(g); g.connect(bkGain);
+  }
+  const BK_BAND = [67, 67, 72, 0, 76, 74, 72, 0, 69, 69, 74, 0, 77, 76, 74, 0];   // brass tune (with a third below)
+  function bkVoice(kind, step, t) {
+    if (kind === 'band') {   // march: big drum on the beat, snare rolls, brass and tuba
+      const s = step % 8;
+      if (s === 0 || s === 4) bkTone(t, 'sine', 95, 40, 0.35, 1.0);
+      bkNoise(t, 'bandpass', 1800, 0.8, 0.05, s % 2 ? 0.12 : 0.28);
+      if (s === 3 || s === 7) bkNoise(t + BK_STEP / 2, 'bandpass', 1800, 0.8, 0.04, 0.14);
+      const m = BK_BAND[step % 16];
+      if (m) { bkTone(t, 'square', mtof(m), 0, BK_STEP * 0.9, 0.16, 1700); bkTone(t, 'square', mtof(m - 4), 0, BK_STEP * 0.9, 0.1, 1400); }
+      if (s === 0 || s === 4) bkTone(t, 'sawtooth', mtof(step % 16 < 8 ? 48 : 50), 0, BK_STEP * 1.6, 0.2, 500);
+      return;
+    }
+    if (kind === 'sax') {
+      const m = BK_SAX[step % 16]; if (!m) return;
+      const dur = BK_STEP * (BK_SAX[(step + 1) % 16] ? 0.95 : 1.8);
+      const os = ctx.createOscillator(), vib = ctx.createOscillator(), vd = ctx.createGain(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      os.type = 'sawtooth'; os.frequency.value = mtof(m); vib.frequency.value = 5.5; vd.gain.value = 4; vib.connect(vd); vd.connect(os.frequency);
+      f.type = 'lowpass'; f.frequency.value = 1500; f.Q.value = 3;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.04); g.gain.setValueAtTime(0.27, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      os.connect(f); f.connect(g); g.connect(bkGain); os.start(t); vib.start(t); os.stop(t + dur + 0.05); vib.stop(t + dur + 0.05);
+      return;
+    }
+    const s = step % 8;
+    if (s === 0 || s === 3 || s === 4) bkTone(t, 'sine', 120, 45, 0.25, 0.9);                                // bucket bottom (kick)
+    if (s === 2 || s === 6) { bkNoise(t, 'bandpass', 900, 1.2, 0.12, 0.6); bkTone(t, 'sine', 190, 120, 0.1, 0.35); }   // bucket rim slap
+    else if (kind === 'drums') bkNoise(t, 'highpass', 2500, 0, 0.03, 0.15);                                   // stick ticks
+    if (kind === 'dance') {                                                                                    // boombox: hats and a bass line
+      bkNoise(t, 'highpass', 6000, 0, 0.04, 0.12);
+      const b = BK_BASS[step % 16]; if (b) bkTone(t, 'square', mtof(b), 0, BK_STEP * 0.9, 0.22, 500);
+    }
+  }
+  function bkTick() { if (!ctx || !bkKind) return; while (bkNext < ctx.currentTime + 0.2) { bkVoice(bkKind, bkStep, bkNext); bkStep++; bkNext += BK_STEP; } }
+  function setBusker(kind, level, pan) {
+    if (!ctx) return; const t = ctx.currentTime;
+    if (!bkGain) {
+      if (!kind || level <= 0) return;
+      bkGain = ctx.createGain(); bkGain.gain.value = 0;
+      if (ctx.createStereoPanner) { bkPan = ctx.createStereoPanner(); bkGain.connect(bkPan); bkPan.connect(sfx); } else bkGain.connect(sfx);
+    }
+    bkGain.gain.setTargetAtTime(kind ? Math.max(0, level) * 0.5 : 0, t, 0.25);
+    if (bkPan) bkPan.pan.setTargetAtTime(clamp(pan || 0, -1, 1), t, 0.2);
+    if (kind && level > 0.001) {
+      if (kind !== bkKind) { bkKind = kind; bkStep = 0; bkNext = t + 0.05; }
+      if (!bkTimer) bkTimer = setInterval(bkTick, 40);
+    } else if (bkTimer) { clearInterval(bkTimer); bkTimer = null; bkKind = null; }
+  }
   // police siren: a wail (sweeping ~650–1450 Hz every 2.6 s); level 0..1 and pan follow the nearest car on a call
   let sirOsc = null, sirGain = null, sirPan = null;
   function setSiren(level, pan) {
@@ -1219,7 +1374,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -1329,11 +1484,14 @@ function signTex(lines, bg, fg, arrow) {
     x.fillStyle = bg; x.fillRect(0, 0, 128, 64);
     x.strokeStyle = fg; x.lineWidth = 4; x.strokeRect(3, 3, 122, 58);
     x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle';
-    const fs = lines.length > 1 ? 19 : 22; x.font = 'bold ' + fs + 'px Arial, sans-serif';
-    const cx = arrow ? 52 : 64;
+    // with an arrow, it gets a 32 px column on its side and the text is centred in the rest
+    const left = arrow < 0 ? 38 : 8, right = arrow > 0 ? 90 : 120, cx = (left + right) / 2, room = right - left - 4;
+    let fs = lines.length > 1 ? 19 : 22;
+    const widest = () => { x.font = 'bold ' + fs + 'px Arial, sans-serif'; return Math.max(...lines.map((l) => x.measureText(l).width)); };
+    while (fs > 10 && widest() > room) fs--;   // shrink until every line fits
     lines.forEach((l, i) => x.fillText(l, cx, 32 + (i - (lines.length - 1) / 2) * (fs + 3)));
     if (arrow) {
-      x.save(); x.translate(arrow > 0 ? 104 : 24, 32); if (arrow < 0) x.scale(-1, 1);
+      x.save(); x.translate(arrow > 0 ? 106 : 22, 32); if (arrow < 0) x.scale(-1, 1);
       x.beginPath(); x.moveTo(-14, -6); x.lineTo(2, -6); x.lineTo(2, -15); x.lineTo(16, 0); x.lineTo(2, 15); x.lineTo(2, 6); x.lineTo(-14, 6); x.closePath(); x.fill(); x.restore();
     }
   });
@@ -1455,12 +1613,440 @@ function excavator(p, x, z) {
   p.push([x, 0.7, z + 0.3, 2.6, 1.3, 2.8, 0xf2b705], [x - 0.5, 2.0, z + 0.6, 1.3, 1.2, 1.4, 0x1c2a3c], [x - 0.5, 3.2, z + 0.6, 1.4, 0.12, 1.5, 0xf2b705]);
   p.push([x + 0.6, 2.0, z - 1.0, 0.4, 0.4, 2.2, 0xf2b705], [x + 0.6, 1.6, z - 2.6, 0.4, 1.4, 0.4, 0xf2b705], [x + 0.6, 0.2, z - 2.9, 1.2, 0.8, 0.8, 0x555555]);
 }
+/* =====================================================================
+   CITY LIFE — harmless decoration: manhole steam, flapping awnings, building flags,
+   banners across the street, perched pigeons, street performers, helicopters, planes, fireworks
+   ===================================================================== */
+const DECO_GEO = new Map();   // shared geometry, keyed by shape
+const decoGeo = (key, parts) => { let g = DECO_GEO.get(key); if (!g) { g = parts(); DECO_GEO.set(key, g); } return g; };
+MAT.skyLight = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });   // blinking aircraft lights, fireworks
+// awning front flap: hinged at its top edge, flutters, and gusts when the rider passes close
+function decorAwning(g, ch, sx, cz, w, color) {
+  const geo = decoGeo('awn' + w.toFixed(1) + '_' + color, () => vox([[0, -0.3, 0, 0.06, 0.3, w, color], [0, -0.42, 0, 0.05, 0.12, w * 0.98, color]]));
+  const m = addMesh(g, geo, MAT.vox, sx * 15.62, 3.12, cz, false, false);
+  ch.anims.push({ kind: 'awn', m, sx, x: sx * 15.62, z: ch.z0 + cz, ph: rand(0, 6), gust: 0 });
+}
+// a flag on a short pole sticking out of a building; the flag swings about the pole
+const FLAG_DESIGNS = ['us', 'us', 'tri', 'bi', 'star'];
+const FLAG_PALS = [[0x1e5799, 0xffd23f, 0xc0392b], [0x16a085, 0xf5f5f5, 0xd35400], [0x8e44ad, 0xffd23f, 0x1e5799], [0x111111, 0xc0392b, 0xf5f5f5]];
+function flagParts(design, sx, pal) {
+  // fx runs from the hoist (0, by the wall) to the fly end (1); the mesh origin is the middle of the pole, y = 0 at the pole
+  const p = [], H = 1.25;
+  const put = (fx0, fx1, fy0, fy1, c, th) => { const a = sx * (1 - fx0 * 2), b = sx * (1 - fx1 * 2); p.push([(a + b) / 2, -fy1 * H, 0, Math.abs(a - b), (fy1 - fy0) * H, th || 0.05, c]); };
+  if (design === 'us') { for (let i = 0; i < 7; i++) put(0, 1, i / 7, (i + 1) / 7, i % 2 ? 0xf5f5f5 : 0xc8202a); put(0, 0.42, 0, 4 / 7, 0x1f3a78, 0.07); }
+  else if (design === 'tri') for (let i = 0; i < 3; i++) put(i / 3, (i + 1) / 3, 0, 1, pal[i]);
+  else if (design === 'bi') { put(0, 1, 0, 0.5, pal[0]); put(0, 1, 0.5, 1, pal[1]); }
+  else { put(0, 1, 0, 1, pal[0]); put(0.38, 0.62, 0.3, 0.7, pal[1], 0.07); }
+  return p;
+}
+function decorFlag(g, p, ch, sx, cz, h) {
+  const fy = Math.min(h - 3, rand(7, 13)), px = sx * (16.95 - 1.1);
+  p.push([px, fy, cz, 2.3, 0.08, 0.08, 0x9a9a9a], [sx * 14.65, fy - 0.04, cz, 0.16, 0.16, 0.16, 0xd4af37]);   // pole and gold finial
+  const d = pick(FLAG_DESIGNS), pi = d === 'us' ? 0 : randi(0, FLAG_PALS.length - 1);
+  const m = addMesh(g, decoGeo('flag_' + d + pi + '_' + sx, () => vox(flagParts(d, sx, FLAG_PALS[pi]))), MAT.vox, px, fy, cz, false, true);
+  ch.anims.push({ kind: 'flag', m, ph: rand(0, 6) });
+}
+// a banner (or a string of bunting) across the street, hung from a rope between the facades
+const BANNERS = ['STREET FAIR SATURDAY', 'FARMERS MARKET', 'SUMMER FESTIVAL', 'WELCOME TO THE CITY', 'BIKE TO WORK WEEK',
+  'GRAND OPENING', 'BLOCK PARTY TONIGHT', 'NO BRAKES? NO PROBLEM', 'WHAT DO? 5K FUN RUN', 'JAZZ IN THE PARK'];
+const bannerMats = new Map();
+function bannerMat(text) {
+  let m = bannerMats.get(text); if (m) return m;
+  const bg = pick(['#c0392b', '#1e5799', '#16a085', '#8e44ad', '#d35400', '#222222']);
+  const tex = canvasTex(512, 84, (x, w, h) => {
+    x.fillStyle = bg; x.fillRect(0, 0, w, h); x.fillStyle = '#ffd23f'; x.fillRect(0, 0, w, 6); x.fillRect(0, h - 6, w, 6);
+    x.font = 'bold 44px Impact, "Arial Black", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineWidth = 6; x.strokeStyle = '#000'; x.strokeText(text, w / 2, h / 2 + 2); x.fillStyle = '#fff'; x.fillText(text, w / 2, h / 2 + 2);
+  });
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  m = new THREE.MeshLambertMaterial({ map: tex }); bannerMats.set(text, m); return m;
+}
+GEO.banner = new THREE.BoxGeometry(12, 2, 0.06).translate(0, -1, 0);
+function decorBanner(g, p, ch) {
+  const bz = rand(-62, -22), y = 8.4;
+  p.push([0, y, bz, 33.8, 0.05, 0.05, 0x333333]);
+  if (Math.random() < 0.6) {
+    const m = addMesh(g, GEO.banner, bannerMat(pick(BANNERS)), 0, y - 0.05, bz, false, true);
+    for (const bx of [-5.6, 5.6]) p.push([bx, y - 0.1, bz, 0.04, 0.2, 0.04, 0x333333]);
+    ch.anims.push({ kind: 'banner', m, z: ch.z0 + bz, ph: rand(0, 6), gust: 0 });
+  } else {   // bunting: little triangular-ish pennants along the rope, in one swaying piece
+    const bp = [], cols = [0xc0392b, 0xffd23f, 0x1e5799, 0x16a085, 0xf5f5f5, 0xd35400];
+    for (let x = -16, i = 0; x <= 16; x += 1.15, i++) {
+      const sag = -0.9 * (1 - (x / 16.5) * (x / 16.5)), c = cols[i % cols.length];
+      bp.push([x, sag - 0.45, 0, 0.7, 0.3, 0.03, c], [x, sag - 0.7, 0, 0.36, 0.25, 0.03, c]);
+    }
+    const geo = decoGeo('bunting', () => vox(bp));
+    const m = addMesh(g, geo, MAT.vox, 0, y, bz, false, false);
+    ch.anims.push({ kind: 'banner', m, z: ch.z0 + bz, ph: rand(0, 6), gust: 0 });
+  }
+}
+// manhole covers: about half of them puff steam
+function decorManhole(p, ch, x, z) {
+  p.push([x, 0, z, 0.9, 0.035, 0.9, 0x2a2a2a]);
+  if (Math.random() < 0.55) ch.steam.push({ x, z: ch.z0 + z, acc: rand(0, 1), cd: 0 });
+}
+// after a chunk is built: perched pigeons and the odd street performer
+function decorPopulate(run, ch, isEnd, isFirst, plazaSide) {
+  const perches = ch.perches;
+  for (let k = 0; k < 2 && perches.length; k++) {
+    if (Math.random() > 0.5) continue;
+    const q = perches[randi(0, perches.length - 1)];
+    for (let i = 0; i < randi(2, 4); i++) spawnPigeon(run, q.x + rand(-0.3, 0.3) * Math.sign(q.x), q.z + rand(-q.len / 2.6, q.len / 2.6), q.y);
+  }
+  // a parade: the marching band takes over this block's cross street (so no cross traffic there), behind barriers
+  const I = run.inters.find((q) => q.chunk === ch);
+  if (I && !I.isEnd && !isFirst && ch.idx > 1 && Math.random() < 0.12) {
+    I.triggered = true; I.parade = true;
+    const sx = Math.random() < 0.5 ? -1 : 1, bp = [];
+    barrierZ(bp, -81.5, -98.5, sx * 17.5);
+    const bg = vox(bp); addMesh(ch.g, bg, MAT.vox, 0, 0, 0, false, true); ch.glow.push(bg);   // disposed with the chunk
+    spawnBand(run, ch, sx);
+  }
+  if (isEnd || isFirst || ch.idx < 1 || Math.random() > 0.22) return;
+  const sx = plazaSide || (Math.random() < 0.5 ? -1 : 1);
+  let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4;
+  spawnBusker(run, ch, pick(['drums', 'drums', 'sax', 'sax', 'dance']), sx * 15.6, z, sx);
+}
+// ---------- marching band ----------
+const BAND = (() => {
+  const v = { skin: 0xd8a27a, hair: 0x222222, shirt: 0xb22222, sleeve: 0xb22222, pants: 0xf5f5f5, shoe: 0x111111 };
+  const extra = [[0, 1.96, 0, 0.42, 0.42, 0.42, 0x111111], [0, 2.38, 0, 0.12, 0.3, 0.12, 0xffffff], [0, 1.06, -0.175, 0.5, 0.06, 0.02, 0xd4af37], [0, 1.3, -0.175, 0.06, 0.4, 0.02, 0xd4af37]];
+  const geo = [0, 1, 2].map((ph) => vox(pedParts(v, ph).concat(extra)));
+  const inst = {
+    drum: vox([[0, 0.55, -0.42, 0.75, 0.75, 0.36, 0xf5f5f5], [0, 0.55, -0.61, 0.62, 0.62, 0.02, 0xb22222], [0, 0.55, -0.23, 0.62, 0.62, 0.02, 0xb22222]]),
+    snare: vox([[0, 0.72, -0.34, 0.42, 0.24, 0.42, 0xd9d9d9], [0, 0.96, -0.34, 0.42, 0.02, 0.42, 0xffffff]]),
+    trumpet: vox([[0.12, 1.5, -0.45, 0.08, 0.08, 0.5, 0xd4af37], [0.12, 1.46, -0.72, 0.18, 0.16, 0.08, 0xe8c547]]),
+    tuba: vox([[0, 1.1, 0.0, 0.7, 0.9, 0.3, 0xd4af37], [0, 1.9, 0.02, 0.9, 0.5, 0.5, 0xe8c547]]),
+    mace: vox([[0.34, 0.6, -0.25, 0.06, 1.9, 0.06, 0xd4af37], [0.34, 2.5, -0.25, 0.2, 0.2, 0.2, 0xffd23f]])
+  };
+  return { geo, inst };
+})();
+function spawnBand(run, ch, sx) {
+  const root = new THREE.Group(), dir = sx, x = sx * 24, z = ch.z0 - 90;
+  root.position.set(x, 0, z); root.rotation.y = -dir * Math.PI / 2;   // face the way they march (away from the avenue)
+  const members = [];
+  const place = (lx, lz, inst) => { const m = new THREE.Mesh(BAND.geo[0], MAT.vox); m.position.set(lx, 0, lz); m.castShadow = true; m.add(new THREE.Mesh(BAND.inst[inst], MAT.vox)); root.add(m); members.push({ m, ph: members.length * 0.13 }); };
+  place(0, -2.2, 'mace');                                                                 // drum major leads
+  ['trumpet', 'trumpet', 'trumpet'].forEach((k, i) => place((i - 1) * 1.3, 0, k));
+  ['trumpet', 'tuba', 'trumpet'].forEach((k, i) => place((i - 1) * 1.3, 1.7, k));
+  ['snare', 'drum', 'snare'].forEach((k, i) => place((i - 1) * 1.3, 3.4, k));
+  ['tuba', 'snare', 'tuba'].forEach((k, i) => place((i - 1) * 1.3, 5.1, k));
+  return addEnt(run, { type: 'busker', kind: 'band', mesh: root, body: root, members, sticks: [], dir, x, z, hw: 3, hd: 4, t: 0, nm: true, lethal: false });
+}
+// ---------- street performers ----------
+const BUSK_PROPS = {
+  drums: () => vox([[-0.45, 0, -0.62, 0.42, 0.52, 0.42, 0xf28c28], [0, 0, -0.7, 0.46, 0.6, 0.46, 0xf2f2f2], [0.45, 0, -0.62, 0.42, 0.52, 0.42, 0xf28c28],
+    [-0.45, 0.52, -0.62, 0.36, 0.02, 0.36, 0x6b4a2e], [0, 0.6, -0.7, 0.4, 0.02, 0.4, 0x6b4a2e], [0.45, 0.52, -0.62, 0.36, 0.02, 0.36, 0x6b4a2e]]),
+  sax: () => vox([[0.08, 0.78, -0.28, 0.1, 0.5, 0.1, 0xd4af37], [0.14, 0.66, -0.36, 0.22, 0.18, 0.22, 0xe8c547], [0.02, 1.26, -0.26, 0.06, 0.12, 0.06, 0x222222]]),
+  dance: () => vox([[0, 0, 0, 0.9, 0.5, 0.36, 0x222222], [-0.24, 0.12, -0.19, 0.28, 0.28, 0.02, 0x777777], [0.24, 0.12, -0.19, 0.28, 0.28, 0.02, 0x777777], [0, 0.5, 0, 0.6, 0.06, 0.06, 0xaaaaaa]])
+};
+const STICK_GEO = vox([[0, -0.02, -0.22, 0.04, 0.04, 0.46, 0xd9b38c]]);
+const TIP_GEO = vox([[0, 0, 0, 0.5, 0.08, 0.5, 0x222222], [0, 0.08, 0, 0.36, 0.06, 0.36, 0x111111], [0.05, 0.14, 0.03, 0.08, 0.02, 0.08, 0xffd23f], [-0.07, 0.14, -0.04, 0.08, 0.02, 0.08, 0xc0c0c0]]);
+function spawnBusker(run, ch, kind, x, z, sx) {
+  const root = new THREE.Group(); root.position.set(x, groundY(run, x, ch.z0 + z), ch.z0 + z); root.rotation.y = sx * Math.PI / 2;   // face the road
+  const body = new THREE.Mesh(pick(PEDS.ped).geo[0], MAT.vox); body.castShadow = true; root.add(body);
+  const sticks = [];
+  if (kind === 'drums') {
+    const props = new THREE.Mesh(decoGeo('busk_drums', BUSK_PROPS.drums), MAT.vox); root.add(props);
+    for (const s of [-1, 1]) { const st = new THREE.Mesh(STICK_GEO, MAT.vox); st.position.set(s * 0.385, 0.86, -0.1); root.add(st); sticks.push(st); }
+  } else if (kind === 'sax') { const props = new THREE.Mesh(decoGeo('busk_sax', BUSK_PROPS.sax), MAT.vox); body.add(props); }
+  // the boombox and tip hat sit on the pavement in front (part of the chunk, so they don't spin with a dancer)
+  const fwd = -sx;   // toward the road, in run-local x
+  if (kind === 'dance') addMesh(ch.g, decoGeo('busk_dance', BUSK_PROPS.dance), MAT.vox, x + fwd * 0.2, 0.26, z + 1.3, false, true).rotation.y = sx * Math.PI / 2;
+  addMesh(ch.g, TIP_GEO, MAT.vox, x + fwd * 1.0, 0.26, z - 0.6, false, false);
+  return addEnt(run, { type: 'busker', kind, mesh: root, body, sticks, x, z: ch.z0 + z, hw: 0.4, hd: 0.4, t: rand(0, 5), nm: true, lethal: false });
+}
+function updBusker(e, dt) {
+  e.t += dt; const t = e.t, b = e.body;
+  if (e.kind === 'band') {   // march down the cross street, high-stepping in time
+    e.x += e.dir * 1.3 * dt; e.mesh.position.x = e.x;
+    const step = Math.floor(t * 4.3);
+    for (const mb of e.members) { mb.m.geometry = BAND.geo[(step + (mb.ph > 0.5 ? 1 : 0)) % 2 ? 1 : 2]; mb.m.position.y = Math.abs(Math.sin(t * 13.5)) * 0.07; }
+    return;
+  }
+  if (e.kind === 'drums') {
+    b.position.y = Math.abs(Math.sin(t * 7.2)) * 0.05;
+    e.sticks[0].rotation.x = Math.max(0, Math.sin(t * 14.4)) * -0.9; e.sticks[1].rotation.x = Math.max(0, Math.sin(t * 14.4 + Math.PI)) * -0.9;
+  } else if (e.kind === 'sax') {
+    b.rotation.x = Math.sin(t * 2.6) * 0.12; b.rotation.z = Math.sin(t * 1.3) * 0.08; b.position.y = Math.abs(Math.sin(t * 2.6)) * 0.04;
+  } else {   // breakdancer: bounce, then spin on the spot
+    const spin = (t % 6) > 3.6;
+    b.rotation.y = spin ? b.rotation.y + dt * 14 : Math.sin(t * 4) * 0.4;
+    b.position.y = spin ? 0 : Math.abs(Math.sin(t * 8.6)) * 0.18;
+    b.rotation.z = spin ? 0.25 : Math.sin(t * 8.6) * 0.1;
+  }
+}
+// the nearest performer within 45 m sets the street music, panned to their side of the road
+function updateBuskers() {
+  let best = 0, kind = null, pan = 0;
+  setPL(player.run);
+  for (const e of player.run.ents) {
+    if (e.type !== 'busker') continue;
+    const d = Math.hypot(e.x - PL.x, e.z - PL.z), lv = Math.pow(clamp(1 - d / (e.kind === 'band' ? 80 : 45), 0, 1), 2);   // a band carries further
+    if (lv > best) { best = lv; kind = e.kind; pan = clamp((e.x - PL.x) / 9, -1, 1); }
+  }
+  Sound.setBusker(kind, best, pan);
+}
+// ---------- per-frame: steam and things that sway ----------
+// steam has its own particles, drawn half see-through; each puff rises (lift), slows (drag) and swells as it ages
+const STEAM_N = 500, STEAM_OPACITY = 0.5;
+const steamMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: STEAM_OPACITY, depthWrite: false }), STEAM_N);
+steamMesh.frustumCulled = false; steamMesh.renderOrder = 3; scene.add(steamMesh);
+const SP = Array.from({ length: STEAM_N }, () => ({ life: 0, max: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, s: 0.3, lift: 0.35, r: 0 }));
+let spNext = 0, spAny = false;
+const _sm = new THREE.Object3D(), _scol = new THREE.Color();
+for (let i = 0; i < STEAM_N; i++) { _sm.scale.set(0, 0, 0); _sm.updateMatrix(); steamMesh.setMatrixAt(i, _sm.matrix); steamMesh.setColorAt(i, _scol.setHex(0xffffff)); }
+function steamPuff(x, y, z, vx, vy, vz, color, size, lift, life) {
+  const i = spNext; spNext = (spNext + 1) % STEAM_N; const q = SP[i];
+  q.x = x; q.y = y; q.z = z; q.vx = vx; q.vy = vy; q.vz = vz; q.s = size; q.lift = lift; q.life = q.max = life; q.r = rand(0, 3);
+  steamMesh.setColorAt(i, _scol.setHex(color)); steamMesh.instanceColor.needsUpdate = true; spAny = true;
+}
+function updateSteam(dt) {
+  if (!spAny) return;
+  let any = false;
+  for (let i = 0; i < STEAM_N; i++) {
+    const q = SP[i]; if (q.life <= 0) continue;
+    q.life -= dt;
+    if (q.life <= 0) { _sm.scale.set(0, 0, 0); _sm.updateMatrix(); steamMesh.setMatrixAt(i, _sm.matrix); continue; }
+    any = true;
+    q.vx *= 1 - 0.8 * dt; q.vz *= 1 - 0.8 * dt; q.vy += q.lift * dt;
+    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+    const age = 1 - q.life / q.max, sz = q.s * (1 + age * 0.8) * Math.min(1, q.life / (q.max * 0.25));
+    _sm.position.set(q.x, q.y, q.z); _sm.rotation.set(q.r + age, q.r, 0); _sm.scale.set(sz, sz, sz); _sm.updateMatrix(); steamMesh.setMatrixAt(i, _sm.matrix);
+  }
+  steamMesh.instanceMatrix.needsUpdate = true; spAny = any;
+}
+// ---------- leaves: fall from trees, lie in the gutters, drift on a shifting wind and swirl up in the rider's wake ----------
+const LEAF_N = 600, LEAF_COLS = [0xc0392b, 0xe67e22, 0xf1c40f, 0xa04000, 0xd35400, 0x9a7d0a, 0x5f8f33, 0x4a7a2a];
+const leafMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffffff }), LEAF_N);
+leafMesh.frustumCulled = false; scene.add(leafMesh);
+const LF = Array.from({ length: LEAF_N }, () => ({ st: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, spin: 0, ph: 0, life: 0 }));
+let lfNext = 0, lfAny = false;
+const WIND = { a: rand(0, 6.3), x: 0, z: 0 }, _lm = new THREE.Object3D(), _lc = new THREE.Color();
+for (let i = 0; i < LEAF_N; i++) { _lm.scale.set(0, 0, 0); _lm.updateMatrix(); leafMesh.setMatrixAt(i, _lm.matrix); leafMesh.setColorAt(i, _lc.setHex(0xe67e22)); }
+function leaf(x, y, z, grounded, life) {
+  const i = lfNext; lfNext = (lfNext + 1) % LEAF_N; const q = LF[i];
+  q.st = grounded ? 2 : 1; q.x = x; q.y = y; q.z = z; q.vx = 0; q.vy = 0; q.vz = 0;
+  q.rx = grounded ? rand(-0.15, 0.15) : rand(0, 6.3); q.ry = rand(0, 6.3); q.rz = rand(0, 6.3); q.spin = rand(2, 6); q.ph = rand(0, 6.3); q.life = life;
+  leafMesh.setColorAt(i, _lc.setHex(pick(LEAF_COLS))); leafMesh.instanceColor.needsUpdate = true; lfAny = true;
+}
+function updateLeaves(dt) {
+  // the wind slowly swings round and gusts
+  WIND.a += dt * 0.05 * Math.sin(animT * 0.07);
+  const w = 0.5 + 1.6 * Math.max(0, Math.sin(animT * 0.21) * Math.sin(animT * 0.13 + 1));
+  WIND.x = Math.cos(WIND.a) * w; WIND.z = Math.sin(WIND.a) * w;
+  if (!lfAny) return;
+  const playing = Game.state === 'play', r = player.run;
+  // the rider's velocity in world space, for the wake
+  const lvx = -Math.sin(player.h) * player.speed + player.vx, lvz = -Math.cos(player.h) * player.speed;
+  const wvx = r ? lvx * r.cos + lvz * r.sin : 0, wvz = r ? -lvx * r.sin + lvz * r.cos : 0, sp = player.speed;
+  let any = false;
+  for (let i = 0; i < LEAF_N; i++) {
+    const q = LF[i]; if (q.st === 0) continue;
+    q.life -= dt;
+    const dx = q.x - PW.x, dz = q.z - PW.z, d2 = dx * dx + dz * dz;
+    if (q.life <= 0 || d2 > 160 * 160) { q.st = 0; _lm.scale.set(0, 0, 0); _lm.updateMatrix(); leafMesh.setMatrixAt(i, _lm.matrix); continue; }
+    any = true;
+    // swept up by the rider passing close (more at speed)
+    if (playing && d2 < 2.6 * 2.6 && q.y < 2.2 && sp > 4) {
+      const k = sp / 20, side = (dx * wvz - dz * wvx) > 0 ? 1 : -1;
+      q.st = 1; q.vy = rand(1.8, 3.6) * k; q.vx = wvx * rand(0.25, 0.5) + side * wvz * 0.12 + rand(-1, 1); q.vz = wvz * rand(0.25, 0.5) - side * wvx * 0.12 + rand(-1, 1);
+      q.spin = rand(8, 16); q.life = Math.max(q.life, 8);
+    } else if (q.st === 2 && Math.random() < dt * 0.04 * w * w) { q.st = 1; q.vy = rand(0.8, 1.8) * w; }   // a gust lifts it
+    if (q.st === 1) {
+      q.vx += (WIND.x - q.vx) * 0.9 * dt; q.vz += (WIND.z - q.vz) * 0.9 * dt;
+      q.vy = Math.max(q.vy - 2.2 * dt, -1.1);                                   // flutters down slowly
+      q.x += (q.vx + Math.sin(animT * 3 + q.ph) * 0.6) * dt; q.y += q.vy * dt; q.z += (q.vz + Math.cos(animT * 2.6 + q.ph) * 0.6) * dt;
+      q.rx += q.spin * dt; q.rz += q.spin * 0.7 * dt; q.spin *= 1 - 0.3 * dt;
+      const gy = groundYW(q.x, q.z) + 0.02;
+      if (q.y <= gy && q.vy <= 0) { q.y = gy; q.st = 2; q.rx = rand(-0.15, 0.15); q.rz = rand(-0.15, 0.15); }
+    }
+    const sc = Math.min(1, q.life / 1.5);
+    _lm.position.set(q.x, q.y, q.z); _lm.rotation.set(q.rx, q.ry, q.rz); _lm.scale.set(0.26 * sc, 0.02, 0.2 * sc); _lm.updateMatrix(); leafMesh.setMatrixAt(i, _lm.matrix);
+  }
+  leafMesh.instanceMatrix.needsUpdate = true; lfAny = any;
+}
+const _sv = { x: 0, z: 0 };
+function updateDecor(dt) {
+  const playing = Game.state === 'play';
+  for (const r of runs) {
+    setPL(r);
+    for (const ch of r.chunks) {
+      const dz = ch.z0 - 50 - PL.z; if (dz > 140 || dz < -160) continue;
+      if (!ch.leavesDone && dz > -130) {
+        ch.leavesDone = true;
+        for (let k = 0; k < randi(10, 18); k++) {
+          const t = ch.trees.length && Math.random() < 0.4 ? pick(ch.trees) : null;
+          const lx = t ? t.x + rand(-1.6, 1.6) : (Math.random() < 0.5 ? -1 : 1) * rand(8.6, 11), lz = t ? t.z + rand(-1.6, 1.6) : ch.z0 + rand(-78, -4);
+          toWorld(r, lx, lz, _t); leaf(_t.x, 0.3, _t.z, true, rand(30, 60));
+        }
+      }
+      for (const t of ch.trees) {
+        if (t.z - PL.z > 25 || t.z - PL.z < -100) continue;
+        t.acc += dt * 0.35;
+        if (t.acc >= 1) { t.acc -= 1; toWorld(r, t.x + rand(-1.3, 1.3), t.z + rand(-1.3, 1.3), _t); leaf(_t.x, rand(2.8, 5), _t.z, false, rand(20, 40)); }
+      }
+      for (const s of ch.steam) {
+        const ax = s.x - PL.x, az = s.z - PL.z;
+        if (az > 30 || az < -110) continue;
+        toWorld(r, s.x, s.z, _t);
+        s.acc += dt * 5;
+        while (s.acc >= 1) { s.acc -= 1; steamPuff(_t.x + rand(-0.3, 0.3), 0.1, _t.z + rand(-0.3, 0.3), rand(-0.25, 0.25), rand(1, 1.8), rand(-0.25, 0.25), pick([0xe4e7ea, 0xd5d9de, 0xc8cdd3]), rand(0.25, 0.45), 0.35, rand(1.8, 2.8)); }
+        s.cd -= dt;
+        if (playing && s.cd <= 0 && Math.abs(ax) < 2.2 && Math.abs(az) < 2.5) {   // riding through: a big swirling burst
+          s.cd = 1.5;
+          for (let k = 0; k < 18; k++) {
+            const lvx = rand(-2.5, 2.5) + player.vx * 0.4, lvz = -player.speed * rand(0.1, 0.35);
+            steamPuff(_t.x + rand(-0.4, 0.4), rand(0.2, 1.2), _t.z + rand(-0.4, 0.4), lvx * r.cos + lvz * r.sin, rand(1.5, 3.5), -lvx * r.sin + lvz * r.cos, 0xe8ebee, rand(0.35, 0.6), 0.5, rand(1.4, 2.2));
+          }
+        }
+      }
+      for (const a of ch.anims) {
+        if (a.kind === 'flag') { a.m.rotation.x = Math.sin(animT * 3.1 + a.ph) * 0.28 + Math.sin(animT * 7.7 + a.ph * 2) * 0.08; continue; }
+        const near = playing && Math.abs(a.z - PL.z) < (a.kind === 'banner' ? 4 : 5) && (a.kind === 'banner' || Math.abs(a.x - PL.x) < 4);
+        if (near) a.gust = Math.min(1, a.gust + dt * 6); else a.gust = Math.max(0, a.gust - dt * 1.5);
+        if (a.kind === 'awn') a.m.rotation.z = a.sx * (0.1 + Math.sin(animT * 5.3 + a.ph) * 0.07 + a.gust * (0.5 + Math.sin(animT * 19 + a.ph) * 0.25));
+        else a.m.rotation.x = Math.sin(animT * 2.3 + a.ph) * 0.1 + a.gust * (0.45 + Math.sin(animT * 9 + a.ph) * 0.2);
+      }
+    }
+  }
+  setPL(player.run);
+}
+// ---------- sky: helicopters, planes with contrails, fireworks ----------
+const Sky = (() => {
+  const _d = new THREE.Vector3(), _s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+  // helicopter: body + spinning rotors + a light that blinks at night
+  const heli = new THREE.Group(), heliBody = new THREE.Group();
+  const hp = [[0, 0, 0, 2.3, 1.9, 4.3, 0x1e3a5f], [0, 0.5, -1.9, 2.0, 1.1, 0.5, GLASS], [0, 0.9, 3.9, 0.5, 0.5, 4.2, 0x1e3a5f], [0, 0.9, 5.9, 0.12, 1.6, 0.9, 0xf5f5f5],
+    [0, 1.9, 0, 0.3, 0.4, 0.3, 0x333333], [-0.9, -0.55, 0, 0.12, 0.12, 4.4, 0x222222], [0.9, -0.55, 0, 0.12, 0.12, 4.4, 0x222222],
+    [-0.9, -0.4, -1.2, 0.08, 0.4, 0.08, 0x222222], [0.9, -0.4, -1.2, 0.08, 0.4, 0.08, 0x222222], [-0.9, -0.4, 1.2, 0.08, 0.4, 0.08, 0x222222], [0.9, -0.4, 1.2, 0.08, 0.4, 0.08, 0x222222],
+    [0, 0.2, 0, 2.34, 0.25, 4.34, 0xf5f5f5]];
+  heliBody.add(new THREE.Mesh(vox(hp), MAT.vox));
+  const rotor = new THREE.Mesh(vox([[0, 0, 0, 9.5, 0.06, 0.32, 0x222222], [0, 0, 0, 0.32, 0.06, 9.5, 0x222222]]), MAT.vox); rotor.position.y = 2.3; heliBody.add(rotor);
+  const tailRotor = new THREE.Mesh(vox([[0, -0.9, 0, 0.04, 1.8, 0.18, 0x222222]]), MAT.vox); tailRotor.position.set(0.12, 1.5, 6.1); heliBody.add(tailRotor);
+  const heliLight = new THREE.Mesh(vox([[0, -1.0, 0.4, 0.3, 0.3, 0.3, 0xff2020], [0, 2.6, 0, 0.25, 0.25, 0.25, 0xffffff]]), MAT.skyLight); heliBody.add(heliLight);
+  heliBody.rotation.x = 0.1; heli.add(heliBody); heli.visible = false; heli.scale.setScalar(1.3); scene.add(heli);
+  const H = { on: false, t: rand(8, 20), vx: 0, vz: 0, left: 0 };
+  // plane + two contrails (instanced segments that spread and fade into the sky colour)
+  const planeMat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false });
+  const plane = new THREE.Mesh(vox([[0, 0, 0, 3.4, 3.4, 34, 0xe9edf2], [0, 0.6, 2, 34, 0.6, 6, 0xdfe3e8], [0, 1.6, 15, 0.6, 6, 4, 0xdfe3e8], [0, 1.8, 15.5, 12, 0.5, 3, 0xdfe3e8],
+    [-7, -0.8, 1, 1.6, 1.6, 4, 0xbfc5cc], [7, -0.8, 1, 1.6, 1.6, 4, 0xbfc5cc], [0, 1.2, -15.5, 2.6, 1.2, 2.5, 0x2c3e50]]), planeMat);
+  plane.visible = false; scene.add(plane);
+  const TRAIL_N = 120, trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, transparent: true, opacity: 0.75, depthWrite: false });
+  const trail = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), trailMat, TRAIL_N); trail.frustumCulled = false; scene.add(trail);
+  const TR = Array.from({ length: TRAIL_N }, () => ({ age: 99, x: 0, y: 0, z: 0, ry: 0 })); let trNext = 0, trAcc = 0;
+  const P = { on: false, t: rand(6, 16), vx: 0, vz: 0, left: 0 };
+  const _m = new THREE.Object3D();
+  for (let i = 0; i < TRAIL_N; i++) { _m.scale.set(0, 0, 0); _m.updateMatrix(); trail.setMatrixAt(i, _m.matrix); }
+  // fireworks: their own bright particles (unlit, unfogged) so they glow at night
+  const FW_N = 1400, fw = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ fog: false }), FW_N);
+  fw.frustumCulled = false; scene.add(fw);
+  const F = Array.from({ length: FW_N }, () => ({ life: 0, max: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, s: 0.3, g: 6 })); let fwNext = 0, fwAny = false;
+  const _c = new THREE.Color();
+  for (let i = 0; i < FW_N; i++) { _m.scale.set(0, 0, 0); _m.updateMatrix(); fw.setMatrixAt(i, _m.matrix); fw.setColorAt(i, _c.setHex(0xffffff)); }
+  const rockets = []; let show = 0, showNext = 0;
+  function spark(x, y, z, vx, vy, vz, color, s, life, g) {
+    const i = fwNext; fwNext = (fwNext + 1) % FW_N; const f = F[i];
+    f.x = x; f.y = y; f.z = z; f.vx = vx; f.vy = vy; f.vz = vz; f.s = s; f.life = f.max = life; f.g = g;
+    fw.setColorAt(i, _c.setHex(color)); fw.instanceColor.needsUpdate = true; fwAny = true;
+  }
+  function viewFrame(dist, side, height) {   // a point out in front of the camera, offset sideways
+    camera.getWorldDirection(_d); _d.y = 0; _d.normalize(); _s.crossVectors(_d, up);
+    return { x: camera.position.x + _d.x * dist + _s.x * side, z: camera.position.z + _d.z * dist + _s.z * side, y: height, sx: _s.x, sz: _s.z, dx: _d.x, dz: _d.z };
+  }
+  function crossing(o, dist, height, speed) {   // start off to one side, fly across the view
+    const dir = Math.random() < 0.5 ? -1 : 1, v = viewFrame(dist, -dir * dist * 1.1, height);
+    o.vx = v.sx * dir * speed; o.vz = v.sz * dir * speed; o.left = (dist * 2.4) / speed;
+    return v;
+  }
+  function update(dt) {
+    const playing = Game.state === 'play', night = TOD.night;
+    // helicopter
+    if (!H.on) { H.t -= dt; if (H.t <= 0) { const v = crossing(H, rand(110, 170), rand(42, 62), rand(16, 24)); heli.position.set(v.x, v.y, v.z); heli.rotation.y = Math.atan2(-H.vx, -H.vz); heli.visible = H.on = true; } }
+    else {
+      heli.position.x += H.vx * dt; heli.position.z += H.vz * dt; heli.position.y += Math.sin(animT * 0.7) * 0.6 * dt;
+      rotor.rotation.y += dt * 38; tailRotor.rotation.x += dt * 50;
+      heliLight.visible = night > 0.3 ? Math.floor(animT * 1.6) % 2 === 0 : false;
+      H.left -= dt; if (H.left <= 0) { heli.visible = H.on = false; H.t = rand(20, 50); }
+    }
+    let chop = 0, chopPan = 0;
+    if (H.on && playing) {
+      const dx = heli.position.x - camera.position.x, dz = heli.position.z - camera.position.z, d = Math.hypot(dx, dz, heli.position.y - camera.position.y);
+      chop = Math.pow(clamp(1 - d / 260, 0, 1), 1.5); camera.getWorldDirection(_d); _s.crossVectors(_d, up).normalize(); chopPan = clamp((dx * _s.x + dz * _s.z) / Math.max(d, 1) * 1.4, -1, 1);
+    }
+    Sound.setChopper(chop, chopPan);
+    // plane (daytime only)
+    if (!P.on) { P.t -= dt; if (P.t <= 0 && night < 0.65) { const v = crossing(P, rand(380, 520), rand(230, 300), rand(60, 80)); plane.position.set(v.x, v.y, v.z); plane.rotation.y = Math.atan2(-P.vx, -P.vz); plane.visible = P.on = true; } else if (P.t <= 0) P.t = 10; }
+    else {
+      plane.position.x += P.vx * dt; plane.position.z += P.vz * dt;
+      trAcc += dt;
+      while (trAcc > 0.14) {
+        trAcc -= 0.14;
+        for (const side of [-7, 7]) {
+          const s = TR[trNext]; trNext = (trNext + 1) % TRAIL_N;
+          const c = Math.cos(plane.rotation.y), sn = Math.sin(plane.rotation.y);
+          s.age = 0; s.x = plane.position.x + side * c + 18 * sn; s.y = plane.position.y - 0.8; s.z = plane.position.z - side * sn + 18 * c; s.ry = plane.rotation.y;
+        }
+      }
+      P.left -= dt; if (P.left <= 0) { plane.visible = P.on = false; P.t = rand(18, 40); }
+    }
+    trailMat.color.copy(MAT.cloud.color);   // white by day, pink-orange at sunset, like the clouds
+    for (let i = 0; i < TRAIL_N; i++) {
+      const s = TR[i]; if (s.age > 16) continue; s.age += dt;
+      const k = s.age / 16, w = 1.4 + s.age * 0.35;
+      _m.position.set(s.x, s.y - s.age * 0.15, s.z); _m.rotation.set(0, s.ry, 0);
+      if (k >= 1) _m.scale.set(0, 0, 0); else _m.scale.set(w * (1 - k * 0.6), w * (1 - k * 0.6), 11.5);
+      _m.updateMatrix(); trail.setMatrixAt(i, _m.matrix);
+    }
+    trail.instanceMatrix.needsUpdate = true;
+    // fireworks
+    if (show > 0) {
+      show -= dt; showNext -= dt;
+      if (showNext <= 0 && show > 0.6) {
+        showNext = rand(0.25, 0.6);
+        // down the street, where the sky shows between the buildings
+        const v = viewFrame(rand(90, 150), rand(-22, 22), 0), col = pick([0xff3b3b, 0xffd23f, 0x3ddc84, 0x3dafff, 0xff6fae, 0xffffff, 0xb36bff, 0xff9a2e]);
+        rockets.push({ x: v.x, y: rand(6, 14), z: v.z, vy: rand(34, 42), top: rand(48, 75), col, col2: Math.random() < 0.4 ? pick([0xffffff, 0xffd23f]) : col });
+      }
+    }
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const r = rockets[i]; r.y += r.vy * dt; r.vy -= 6 * dt;
+      spark(r.x + rand(-0.2, 0.2), r.y, r.z + rand(-0.2, 0.2), rand(-0.4, 0.4), rand(-2, 0), rand(-0.4, 0.4), 0xffcc66, 0.22, rand(0.3, 0.5), 4);
+      if (r.y >= r.top || r.vy < 4) {
+        const n = 70, sp = rand(13, 19);
+        for (let k = 0; k < n; k++) {
+          const u = rand(-1, 1), a = rand(0, Math.PI * 2), q = Math.sqrt(1 - u * u), s = sp * rand(0.85, 1);
+          spark(r.x, r.y, r.z, q * Math.cos(a) * s, u * s, q * Math.sin(a) * s, k % 3 === 0 ? r.col2 : r.col, rand(0.35, 0.55), rand(1.3, 2.1), 5);
+        }
+        const dx = r.x - camera.position.x, dz = r.z - camera.position.z, d = Math.hypot(dx, dz);
+        camera.getWorldDirection(_d); _s.crossVectors(_d, up).normalize();
+        Sound.boom(clamp((dx * _s.x + dz * _s.z) / Math.max(d, 1), -1, 1), clamp(1.4 - d / 140, 0.35, 1), d / 340);
+        rockets.splice(i, 1);
+      }
+    }
+    if (fwAny) {
+      let any = false;
+      for (let i = 0; i < FW_N; i++) {
+        const f = F[i]; if (f.life <= 0) continue;
+        f.life -= dt;
+        if (f.life <= 0) { _m.scale.set(0, 0, 0); _m.updateMatrix(); fw.setMatrixAt(i, _m.matrix); continue; }
+        any = true;
+        f.vx *= 1 - 1.4 * dt; f.vy = f.vy * (1 - 1.4 * dt) - f.g * dt; f.vz *= 1 - 1.4 * dt;
+        f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt;
+        const s = f.s * Math.min(1, f.life / f.max * 1.6);
+        _m.position.set(f.x, f.y, f.z); _m.rotation.set(0, 0, 0); _m.scale.set(s, s, s); _m.updateMatrix(); fw.setMatrixAt(i, _m.matrix);
+      }
+      fw.instanceMatrix.needsUpdate = true; fwAny = any;
+    }
+  }
+  return { update, fireworks() { show = 4.5; showNext = 0; } };
+})();
 function genChunk(run, z0, idx) {
   const diff = Game.level - 1;
   const isEnd = idx === run.length - 1, isFirst = idx === 0 && !!run.turnIn, isStart = idx === 0 && !run.turnIn;
   const td = run.turnDir, cs = run.turnIn;
   const g = new THREE.Group(); g.position.z = z0; run.root.add(g);
-  const ch = { z0, idx, g, statics: [], detail: null, glow: [] };
+  const ch = { z0, idx, g, statics: [], detail: null, glow: [], steam: [], anims: [], perches: [], trees: [], leavesDone: false };
   const p = [], glowP = [], pools = [];
   // ground surfaces
   addMesh(g, GEO.road, MAT.road, 0, 0, -40, true);
@@ -1488,7 +2074,7 @@ function genChunk(run, z0, idx) {
     p.push([sx * 62, 0, -89.84, 102, 0.03, 0.12, YEL]); p.push([sx * 62, 0, -90.16, 102, 0.03, 0.12, YEL]);
     for (let x = 16; x < 112; x += 9) { p.push([sx * x, 0, -85, 3.5, 0.03, 0.14, WHITE]); p.push([sx * x, 0, -95, 3.5, 0.03, 0.14, WHITE]); }
   }
-  for (let i = 0; i < 2; i++) p.push([rand(-8, 8), 0, rand(-70, -8), 0.9, 0.035, 0.9, 0x2a2a2a]);
+  for (let i = 0; i < 2; i++) decorManhole(p, ch, rand(-8, 8), rand(-70, -8));
 
   let plazaSide = 0;
   if (!isEnd && !isFirst && idx > 1 && idx % 4 === 2) plazaSide = Math.random() < 0.5 ? -1 : 1;
@@ -1502,7 +2088,7 @@ function genChunk(run, z0, idx) {
       else if (landmarkType === 1) landmarkCapitol(p, cx + sx * 4, -40, sx);
       else if (landmarkType === 2) landmarkArch(p, cx - sx * 6, -40);
       else landmarkFountain(p, cx, -40);
-      for (let z = -6; z > -78; z -= 12) treeParts(p, sx * 19.5, z);
+      for (let z = -6; z > -78; z -= 12) { treeParts(p, sx * 19.5, z); ch.trees.push({ x: sx * 19.5, z: z0 + z, acc: rand(0, 1) }); }
     } else {
       const startZ = isFirst ? -6 : 0, endZ = (isEnd && sx === td) ? -40 : -80;
       let z = startZ;
@@ -1519,10 +2105,13 @@ function genChunk(run, z0, idx) {
         p.push([fx, 0.25, cz, 0.12, 2.6, bw * 0.82, 0x1d2836]);
         p.push([fx, 2.85, cz, 0.16, 0.5, bw * 0.86, pick([0x9e2b25, 0x1d5e3a, 0x262626, 0x7a5a2a])]);
         if (Math.random() < 0.65) {
-          const ac = pick([0xc0392b, 0x16a085, 0x2c3e50, 0x8e44ad, 0xd35400, 0x1e5799]);
-          p.push([sx * 16.3, 3.1, cz, 1.4, 0.32, Math.max(2, bw * 0.55), ac]);
-          p.push([sx * 15.62, 2.82, cz, 0.06, 0.3, Math.max(2, bw * 0.55), ac]);
+          const ac = pick([0xc0392b, 0x16a085, 0x2c3e50, 0x8e44ad, 0xd35400, 0x1e5799]), aw = Math.max(2, bw * 0.55);
+          p.push([sx * 16.3, 3.1, cz, 1.4, 0.32, aw, ac]);
+          decorAwning(g, ch, sx, cz, aw, ac);   // the front flap flutters
+          ch.perches.push({ x: sx * 16.3, y: 3.42, z: z0 + cz, len: aw });
         }
+        if (h >= 16 && Math.random() < 0.22) decorFlag(g, p, ch, sx, cz, h);
+        if (h <= 28) ch.perches.push({ x: sx * 16.85, y: h + 0.6, z: z0 + cz, len: bw * 0.8 });   // low rooftops, visible from the street
         if (h < 70 && Math.random() < 0.3) {
           const wx = sx * (17 + depth / 2 + rand(-2, 2)), wz = cz + rand(-bw / 4, bw / 4);
           for (const a of [-0.9, 0.9]) for (const b of [-0.9, 0.9]) p.push([wx + a, h + 0.6, wz + b, 0.18, 2.2, 0.18, 0x3b2a1e]);
@@ -1555,7 +2144,7 @@ function genChunk(run, z0, idx) {
       if (lampZ.some((l) => Math.abs(l - z) < 3.2)) continue;
       if (isEnd && ((sx === td && z < -20 && z > -34) || (sx === -td && z < -12 && z > -26))) continue; // keep sign spots clear
       const r = Math.random();
-      if (r < 0.24 && sx !== plazaSide) { treeParts(p, sx * 12.4, z); addStatic(ch, sx * 12.4, z0 + z, 0.25, 0.25, 'tree'); }
+      if (r < 0.24 && sx !== plazaSide) { treeParts(p, sx * 12.4, z); addStatic(ch, sx * 12.4, z0 + z, 0.25, 0.25, 'tree'); ch.trees.push({ x: sx * 12.4, z: z0 + z, acc: rand(0, 1) }); }
       else if (r < 0.34) { const x = sx * 11.9; p.push([x, 0.25, z, 0.3, 0.55, 0.3, 0xc8202a], [x, 0.8, z, 0.22, 0.12, 0.22, 0xd8d8d8], [x, 0.55, z, 0.46, 0.1, 0.1, 0xc8202a]); addStatic(ch, x, z0 + z, 0.22, 0.2, 'hydrant'); }
       else if (r < 0.45) { const x = sx * 12.0; p.push([x, 0.25, z, 0.56, 0.92, 0.56, 0x2e5e33], [x, 1.1, z, 0.6, 0.06, 0.6, 0x1f3f22], [x, 0.4, z, 0.58, 0.04, 0.58, 0x1f3f22]); addStatic(ch, x, z0 + z, 0.3, 0.3, 'trash'); }
       const r2 = Math.random();
@@ -1600,6 +2189,7 @@ function genChunk(run, z0, idx) {
       const v = pickVehicle(pick(['sedan', 'sedan', 'taxi', 'suv']));
       const m = addMesh(g, v.geo, MAT.vox, -10, 0, z - 2.4, false, true); m.rotation.y = Math.PI;
       addStatic(ch, -10, z0 + z - 2.4, v.hw, v.hd, 'parked');
+      Object.assign(ch.statics[ch.statics.length - 1], { mesh: m, veh: v });   // so a squeeze can set its alarm off
     }
   }
   if (idx > 0 && !isEnd && Math.random() < 0.3) {
@@ -1663,6 +2253,7 @@ function genChunk(run, z0, idx) {
     p.push([cs * 4.5, 0, -9, 9, 0.03, 0.4, WHITE]);
   }
 
+  if (!isEnd && !isFirst && !plazaSide && Math.random() < 0.3) decorBanner(g, p, ch);
   if (glowP.length) {
     const gh = addMesh(g, vox(glowP), MAT.lampHead, 0, 0, 0); const gp = addMesh(g, quadsGeo(pools, 0.05), MAT.lampPool, 0, 0, 0);
     gp.renderOrder = 2; ch.glow.push(gh.geometry, gp.geometry);
@@ -1672,6 +2263,7 @@ function genChunk(run, z0, idx) {
   ch.detail.matrixAutoUpdate = false; ch.detail.updateMatrix();
   run.chunks.push(ch);
   populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst);
+  decorPopulate(run, ch, isEnd, isFirst, plazaSide);
 }
 function removeChunk(run, i) {
   const ch = run.chunks[i];
@@ -1711,14 +2303,14 @@ function laneFree(run, li, z, gap, self) {
 }
 function spawnCar(run, li, z, forceKind) {
   const v = pickVehicle(forceKind), dir = li < 2 ? 1 : -1, diff = Game.level - 1;
-  let spd = v.kind === 'bus' ? rand(6, 10) : rand(8, 14.5) + diff * 0.7;
+  let spd = v.kind === 'bus' || v.kind === 'tourbus' ? rand(6, 10) : rand(8, 14.5) + diff * 0.7;
   if (dir < 0) spd = Math.min(spd, player.base - 3);
   else spd = Math.min(spd + 1, 18 + diff);
   const m = new THREE.Mesh(v.bodyGeo, MAT.vox); if (dir > 0) m.rotation.y = Math.PI;
   m.position.set(LANES[li], 0, z); attachLights(m, v);
   m.userData.wheels = v.wheels.map((w) => { const wm = new THREE.Mesh(w.geo, MAT.vox); wm.position.set(w.x, w.y, w.z); m.add(wm); return wm; });
   const fl = new THREE.Mesh(v.flashGeo, MAT.hflash); fl.visible = false; m.add(fl); m.userData.flash = fl;
-  addBeacons(m, v);
+  addBeacons(m, v); addTourists(m, v);
   m.userData.sig = v.sigGeo.map((g) => { const sm = new THREE.Mesh(g, MAT.hflash); sm.visible = false; m.add(sm); return sm; });   // [left, right]
   const erratic = Math.random() < (v.kind === 'taxi' ? 0.3 : 0.15) + 0.07 * diff;
   return addEnt(run, {
@@ -1802,7 +2394,7 @@ function updCar(run, e, dt) {
     for (const w of ws) w.rotation.y = (e.dir < 0 ? -1 : 1) * e.steer;   // a car facing +Z is turned round, so flip
   }
   if (e.mesh.userData.flash) e.mesh.userData.flash.visible = e.swervePre > 0 && Math.floor(e.swervePre * 12) % 2 === 0;   // ~6 flashes a second
-  flashBeacons(e.mesh);
+  flashBeacons(e.mesh); updTourists(e, dt);
   // turn signal: on while signalling and while moving across (not during a swerve, which has its own warning)
   const sig = e.mesh.userData.sig;
   if (sig) {
@@ -1823,7 +2415,7 @@ function spawnCross(run, I, delay, dir, spd, startX) {
   const v = pickVehicle(Math.random() < 0.08 ? 'bus' : null);
   const m = new THREE.Mesh(v.geo, MAT.vox); m.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   const z = I.zc + (dir > 0 ? 4.5 : -4.5);
-  m.position.set(startX, 0, z); m.visible = delay <= 0; attachLights(m, v); addBeacons(m, v);
+  m.position.set(startX, 0, z); m.visible = delay <= 0; attachLights(m, v); addBeacons(m, v); addTourists(m, v);
   return addEnt(run, { type: 'xcar', kind: v.kind, mesh: m, x: startX, z, hw: v.hd, hd: v.hw, vx: dir * spd, delay, warned: false, nm: false, lethal: true, I });
 }
 function triggerCross(run, I) {
@@ -1845,7 +2437,7 @@ function triggerCross(run, I) {
 function updCross(e, dt) {
   if (e.delay > 0) { e.delay -= dt; if (e.delay <= 0) e.mesh.visible = true; return; }
   e.x += e.vx * dt; e.mesh.position.x = e.x;
-  flashBeacons(e.mesh);
+  flashBeacons(e.mesh); updTourists(e, dt);
 }
 function spawnPed(run, kind, x, z, mode, opts) {
   const v = pick(PEDS[kind]);
@@ -1900,18 +2492,20 @@ function updBike(run, e, dt) {
   e.mesh.rotation.y = (e.dir > 0 ? Math.PI : 0) + e.turnYaw;
   e.mesh.rotation.z = Math.sin(e.t * 3.5) * 0.05;
 }
-function spawnPigeon(run, x, z) {
-  const m = new THREE.Mesh(PIGEON_GEO[0], MAT.vox); m.rotation.y = rand(0, 6.28); m.position.set(x, groundY(run, x, z), z);
-  return addEnt(run, { type: 'pigeon', mesh: m, x, z, y: groundY(run, x, z), hw: 0.2, hd: 0.2, fly: false, vx: 0, vy: 0, vz: 0, t: rand(0, 3), life: 4, nm: true, lethal: false });
+function spawnPigeon(run, x, z, perchY) {   // perchY: sitting on an awning or roof edge instead of the ground
+  const y = perchY === undefined ? groundY(run, x, z) : perchY;
+  const m = new THREE.Mesh(PIGEON_GEO[0], MAT.vox); m.rotation.y = rand(0, 6.28); m.position.set(x, y, z);
+  return addEnt(run, { type: 'pigeon', mesh: m, x, z, y, perch: perchY !== undefined, hw: 0.2, hd: 0.2, fly: false, vx: 0, vy: 0, vz: 0, t: rand(0, 3), life: 4, nm: true, lethal: false });
 }
 let flapCd = 0;
 function updPigeon(run, e, dt) {
   e.t += dt;
   if (!e.fly) {
     const dz = e.z - PL.z, dx = Math.abs(e.x - PL.x);
-    if (Game.state === 'play' && dz < 0 && dz > -12 && dx < 6) {
+    if (Game.state === 'play' && dz < 0 && (e.perch ? dz > -18 && dx < 12 : dz > -12 && dx < 6)) {
       e.fly = true; e.mesh.geometry = PIGEON_GEO[1];
-      e.vx = (e.x > PL.x ? 1 : -1) * rand(2, 6); e.vy = rand(3.5, 6); e.vz = rand(-8, -2);
+      if (e.perch) { e.vx = -Math.sign(e.x) * rand(1, 4); e.vy = rand(1.5, 4); e.vz = rand(-7, -2); }   // off the ledge, out over the street
+      else { e.vx = (e.x > PL.x ? 1 : -1) * rand(2, 6); e.vy = rand(3.5, 6); e.vz = rand(-8, -2); }
       e.mesh.rotation.y = Math.atan2(-e.vx, -e.vz);
       if (flapCd <= 0) { Sound.flap((e.x - PL.x) / 8); flapCd = 0.4; }
       if (Math.random() < 0.5) { toWorld(run, e.x, e.z, _t); for (let k = 0; k < 3; k++) emit(_t.x, e.y + 0.2, _t.z, rand(-1, 1), rand(0.5, 2), rand(-1, 1), 0xb0b4bc, 0.06, 3, 3); }
@@ -2018,6 +2612,7 @@ function updateRunEntities(run, dt) {
       case 'ped': updPed(run, e, dt); break;
       case 'bike': updBike(run, e, dt); break;
       case 'pigeon': updPigeon(run, e, dt); break;
+      case 'busker': updBusker(e, dt); break;
     }
     // traffic turns at the closure into the next run (and oncoming traffic comes back out)
     if (e.type === 'car' || e.type === 'bike') {
@@ -2425,6 +3020,7 @@ function updateSqueeze(dt) {
 /* ---------- near miss / collisions ---------- */
 function nearMiss(o, isStatic) {
   Game.near++;
+  const alarmed = isStatic && o.kind === 'parked' && carAlarm(o);   // passing a parked car this close sets its alarm off
   const pan = clamp((o.x - PL.x) / 3, -1, 1);
   const gap = Math.max(0, Math.abs(PL.x - o.x) - (P_HW + o.hw), Math.abs(PL.z - o.z) - (P_HD + o.hd));
   const tight = clamp(1 - gap / NEAR, 0, 1);
@@ -2447,6 +3043,7 @@ function nearMiss(o, isStatic) {
   else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
   else if (o.type === 'ped') award(pick(['EXCUSE ME!', 'HEY!', 'WATCH IT!', 'SORRY!']), 150 * sf * (1 + tight), 'nm');
   else if (o.kind === 'closed' || o.kind === 'building') award('TIGHT TURN!', 150 * sf, 'nm');
+  else if (alarmed) award('CAR ALARM!', CAR_ALARM_PTS * sf * (1 + tight), 'nm');
   else award('CLOSE SHAVE!', 60 * sf * (1 + tight), 'nm');
   Sound.whoosh(pan, isVehicle(o) ? 1 : 0.6);
   if (o.type === 'ped' && screamCd <= 0) { Sound.scream(pan, 0.55, rand(0.9, 1.4)); screamCd = 0.7; }
@@ -2479,6 +3076,25 @@ function updateWarnings() {
   }
   if (txt !== warnTxt) { warnTxt = txt; if (txt) $('warnT').textContent = txt; }
   $('warnT').classList.toggle('hidden', !txt);
+}
+// car alarm: hazard lights and headlights blink for ~3 s while the alarm whoops
+const ALARMS = [];
+const CAR_ALARM_PTS = 300;   // base points for setting one off (scaled by speed and how close you passed)
+function carAlarm(o) {   // true if this pass set an alarm off (false while that car's alarm is already going or cooling down)
+  if (!o.mesh || !o.veh || (o.alarmUntil || 0) > Game.time) return false;
+  o.alarmUntil = Game.time + 6;
+  const lights = [...o.veh.sigGeo, o.veh.flashGeo].map((g) => { const l = new THREE.Mesh(g, MAT.hflash); o.mesh.add(l); return l; });
+  ALARMS.push({ o, lights, t: 3.2 });
+  Sound.carAlarm(clamp((o.x - PL.x) / 6, -1, 1));
+  return true;
+}
+function updateAlarms(dt) {
+  for (let i = ALARMS.length - 1; i >= 0; i--) {
+    const a = ALARMS[i]; a.t -= dt;
+    const on = a.t > 0 && Math.floor(a.t * 4) % 2 === 0;
+    for (const l of a.lights) l.visible = on;
+    if (a.t <= 0) { for (const l of a.lights) a.o.mesh.remove(l); ALARMS.splice(i, 1); }
+  }
 }
 // cross traffic: when the rider crosses a crossing car's path, note how close its bumper was;
 // score it once the rider is clear of the car's lane, so a pass that ends in a crash doesn't count
@@ -2724,6 +3340,7 @@ function winLevel() {
   const bonus = 1000 * Game.level; Game.bonus = bonus; Game.score += bonus;
   const sc = Math.floor(Game.score); if (sc > Game.best) { Game.best = sc; store.set('whatdo_best', sc); }
   Sound.jingle(); Sound.stopMusic(); buzz([40, 60, 40, 60, 120]);
+  if (TOD.night > 0.5) Sky.fireworks();
   popup('LEVEL CLEAR!', 'good');
   updatePW();
   for (let i = 0; i < 260; i++) emit(PW.x + rand(-8, 8), rand(6, 12), PW.z + rand(-8, 8), rand(-3, 3), rand(0, 5), rand(-3, 3), pick([0xff3b3b, 0xffd23f, 0x3ddc84, 0x3dafff, 0xff6fae, 0xffffff]), rand(0.1, 0.18), 6, 30);
@@ -3200,7 +3817,8 @@ function frame(now) {
   updateCamera(dt);
   if (st === 'play' || st === 'countdown') updateHud(false);
   Sound.setEngine(player.speed, st === 'play', player.boost);
-  if (st === 'play') updateSiren(); else Sound.setSiren(0, 0);
+  if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
+  updateDecor(dt); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); Sky.update(dt);
   renderer.render(scene, camera);
   if (Game.state === 'replay' && VID.cap) VID.capture();
 }
