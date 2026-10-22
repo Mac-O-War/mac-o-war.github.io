@@ -1474,10 +1474,88 @@ const Sound = (() => {
   function startMusic(level) {
     if (!ctx) return; baseTempo = tempo = 146 + Math.min(6, level - 1) * 4; MS.chain = 0; MS.squeeze = MS.boost = MS.final = false; MS.metal = 0;
     if (musicOn) return; musicOn = true; step = 0; nextT = ctx.currentTime + 0.06;
-    mus.gain.cancelScheduledValues(ctx.currentTime); mus.gain.setValueAtTime(0.3, ctx.currentTime);
+    replayStop(true);
+    mus.gain.cancelScheduledValues(ctx.currentTime); mus.gain.setValueAtTime(0.3 * vol.music, ctx.currentTime);
     schedTimer = setInterval(tick, 25); tick();
   }
   function stopMusic() { musicOn = false; if (schedTimer) clearInterval(schedTimer); schedTimer = null; }
+  // ---------- replay music: a tense build to the impact, then a heavy hit that rings out ----------
+  // a dissonant pad (A, B-flat, E) and a noise riser swell over the approach while a heartbeat and a ticking pulse
+  // speed up; at the impact both cut and a deep boom with a dark low chord takes over. It plays through the music
+  // channel, so the music volume applies and the replay video records it.
+  const RM = { on: false, timer: null, bus: null, src: [], t0: 0, dur: 1, step: 0, nextT: 0, pad: null, rise: null };
+  function rmTone(t, m, len, v, type, cut) {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = mtof(m);
+    const g = ctx.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+    if (cut) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 5; o.connect(f); f.connect(g); } else o.connect(g);
+    g.connect(RM.bus); o.start(t); o.stop(t + len + 0.02);
+  }
+  function rmThump(t, v) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(75, t); o.frequency.exponentialRampToValueAtTime(36, t + 0.18);
+    g.gain.setValueAtTime(0.8 * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    o.connect(g); g.connect(RM.bus); o.start(t); o.stop(t + 0.3);
+  }
+  function rmStep(s, t, k, sp) {
+    const i = s % 16;
+    if (i === 0) rmThump(t, 1); else if (i === 3) rmThump(t, 0.6);   // heartbeat
+    if (k > 0.6 && i === 8) rmThump(t, 0.9); else if (k > 0.6 && i === 11) rmThump(t, 0.55);   // ...that doubles near the end
+    if (i % 2 === 0) rmTone(t, 33, sp * 1.6, 0.22, 'sawtooth', 260 + 1500 * k);   // pulsing low A, opening up
+    const n = noise(t, 0.04), f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 8000;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.02 + 0.09 * k * (i % 4 === 2 ? 1.6 : 1), t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    n.connect(f); f.connect(g); g.connect(RM.bus);   // clock tick
+    if (k > 0.45) rmTone(t, i % 2 ? 82 : 81, sp * 0.8, 0.025 * k, 'square', 4000);   // high trill, A / B-flat
+  }
+  function rmTick() {
+    if (!ctx || !RM.on) return;
+    while (RM.nextT < ctx.currentTime + 0.14) {
+      const k = clamp((RM.nextT - RM.t0) / RM.dur, 0, 1), sp = 60 / (96 + 54 * k) / 4;   // 96 -> 150 bpm
+      rmStep(RM.step, RM.nextT, k, sp); RM.nextT += sp; RM.step++;
+    }
+  }
+  function replayMusic(dur) {   // dur: real seconds until the impact
+    if (!ctx) return; replayStop(true);
+    const t = ctx.currentTime;
+    RM.bus = ctx.createGain(); RM.bus.gain.value = 1; RM.bus.connect(mus);
+    RM.on = true; RM.t0 = t; RM.dur = Math.max(1.5, dur); RM.step = 0; RM.nextT = t + 0.05;
+    const pf = ctx.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.setValueAtTime(350, t); pf.frequency.linearRampToValueAtTime(2400, t + RM.dur);
+    RM.pad = ctx.createGain(); RM.pad.gain.setValueAtTime(0.0001, t); RM.pad.gain.exponentialRampToValueAtTime(0.085, t + RM.dur);
+    pf.connect(RM.pad); RM.pad.connect(RM.bus);
+    for (const [m, dt] of [[45, 0], [57, -8], [58, 7], [64, -4]]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = dt; o.connect(pf); o.start(t); RM.src.push(o);
+    }
+    const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 4; bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(7000, t + RM.dur);
+    RM.rise = ctx.createGain(); RM.rise.gain.setValueAtTime(0.0001, t); RM.rise.gain.exponentialRampToValueAtTime(0.3, t + RM.dur);
+    n.connect(bp); bp.connect(RM.rise); RM.rise.connect(RM.bus); n.start(t); RM.src.push(n);
+    RM.timer = setInterval(rmTick, 25); rmTick();
+  }
+  function replayHit() {
+    if (!ctx || !RM.on || !RM.bus) return;
+    const t = ctx.currentTime;
+    clearInterval(RM.timer); RM.timer = null; RM.on = false;
+    for (const g of [RM.pad, RM.rise]) { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0.0001, t, 0.03); }
+    // the boom: a deep drop, a noise blast and a dark low chord that rings through the slow-motion aftermath
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(27, t + 1.4);
+    g.gain.setValueAtTime(1.0, t); g.gain.exponentialRampToValueAtTime(0.001, t + 2.6);
+    o.connect(g); g.connect(RM.bus); o.start(t); o.stop(t + 2.7);
+    const n = noise(t, 0.9), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(2500, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.8);
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.5, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
+    n.connect(f); f.connect(ng); ng.connect(RM.bus);
+    for (const m of [33, 34, 40, 45]) rmTone(t, m, 3.6, 0.07, 'sawtooth', 700);
+    for (const m of [93, 94]) rmTone(t + 0.02, m, 2.4, 0.012, 'sine');   // a faint high ring
+  }
+  function replayStop(now) {
+    if (!ctx) return;
+    clearInterval(RM.timer); RM.timer = null; RM.on = false;
+    const bus = RM.bus, src = RM.src; RM.bus = null; RM.src = []; RM.pad = RM.rise = null;
+    if (!bus) return;
+    const t = ctx.currentTime, fade = now ? 0.02 : 0.25;
+    bus.gain.cancelScheduledValues(t); bus.gain.setTargetAtTime(0, t, fade);
+    for (const o of src) { try { o.stop(t + fade * 5); } catch (e) { /* already stopped */ } }
+    setTimeout(() => bus.disconnect(), (fade * 5 + 0.2) * 1000);
+  }
   // replay videos record the whole mix, taken before the mute (muting is for your speakers, not the clip)
   let recDest = null;
   function recStream() {
@@ -1497,7 +1575,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -4005,6 +4083,8 @@ function startReplay(auto) {
   camera.fov = 42;
   VID.start();
   Sound.whoosh(0, 0.6);
+  // tense music up to the impact (the last 0.75 s of the approach plays at 0.3x speed)
+  const len = RP.tEnd - RP.t; Sound.replayMusic(Math.max(0, len - 0.75) + Math.min(len, 0.75) / 0.3);
 }
 function replayImpact(silent) {
   RP.phase = 'post';
@@ -4012,7 +4092,7 @@ function replayImpact(silent) {
   clearSplats();   // the replay's own blood replaces the (hidden) live-crash blood, and the layer shows again
   explodeRig(info);
   if (!silent) {
-    Sound.splat(); Sound.scream(0, 0.9, 1.05); if (info.vehicle) Sound.crunch();
+    Sound.splat(); Sound.scream(0, 0.9, 1.05); if (info.vehicle) Sound.crunch(); Sound.replayHit();
     screenFlash(0.55); buzz([60, 40, 160]);   // no comic burst in the replay (only at the live crash)
   }
   for (const r of runs) for (const e of r.ents) {
@@ -4066,6 +4146,7 @@ function endReplay() {
   if (RP.phase === 'pre') { applyAt(RP.tEnd); replayImpact(true); }
   if (RP.home) { for (const [m, par] of RP.home) if (m.parent !== par) { if (par) par.add(m); else m.parent.remove(m); } RP.home = null; }
   $('replayUI').classList.add('hidden');
+  Sound.replayStop(false);
   VID.stop(complete);
   orbitA = RP.orbit;
   showGameOver();
