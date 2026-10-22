@@ -45,7 +45,7 @@ body{position:fixed;inset:0}
 /* ---------- HUD ---------- */
 #hud{opacity:0;transition:opacity .3s}
 #hud.on{opacity:1}
-.topbar{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:calc(10px + var(--st)) calc(12px + var(--sr)) 0 0;gap:8px}   /* SCORE sits flush in the left corner */
+.topbar{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:calc(10px + var(--st)) calc(12px + min(var(--sl),var(--sr))) 0 calc(12px + min(var(--sl),var(--sr)));gap:8px}   /* same gap both sides, so SCORE and BEST mirror each other */
 .box{background:rgba(13,15,26,.62);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.12),4px 4px 0 rgba(0,0,0,.45);padding:8px 10px;min-width:96px}
 .box .lbl{font-size:8px;color:#9fb4d8;letter-spacing:1px;margin-bottom:6px}
 .box .val{font-size:15px;color:#fff;text-shadow:2px 2px 0 #000}
