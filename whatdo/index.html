@@ -78,6 +78,7 @@ body{position:fixed;inset:0}
 #popups{position:absolute;left:0;right:0;top:34%;height:0;text-align:center}
 .pop{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(26px,6vw,46px);letter-spacing:2px;color:#fff;-webkit-text-stroke:2px #000;text-shadow:3px 3px 0 #000;animation:popUp .9s ease-out forwards}
 .pop.ls{color:#3dfcff}.pop.nm{color:var(--y);font-size:clamp(20px,4.5vw,34px)}.pop.good{color:#3ddc84}.pop.trick{color:#9dffb0;font-size:clamp(20px,4.5vw,34px)}.pop.red{color:#ff4a3b}.pop.chain{color:#ffd23f;font-size:clamp(34px,8vw,60px)}
+.pop.bt{color:#c08cff;font-size:clamp(18px,4vw,30px)}
 .pop.metal{color:#ff5a1f;font-size:clamp(22px,5vw,38px)}
 #metalBox{position:absolute;left:50%;bottom:calc(84px + var(--sb));transform:translateX(-50%);text-align:center;min-width:220px}
 #metalTxt{font-size:10px;color:#ff8a3b;text-shadow:2px 2px 0 #000;letter-spacing:1px}
@@ -2828,6 +2829,10 @@ function updPed(run, e, dt) {
     e.x += e.vx * dt; moving = true;
     if (Math.abs(e.x) > e.xLim) { e.x = Math.sign(e.x) * e.xLim; e.vx = -e.vx; }
     rot = e.vx > 0 ? -Math.PI / 2 : Math.PI / 2;
+  } else if (e.flash && e.subject) {   // photo op: framing their friend, flashing now and then
+    rot = Math.atan2(-(e.subject.x - e.x), -(e.subject.z - e.z));
+    e.flashT -= dt;
+    if (e.flashT < 0) { e.flash.visible = true; if (e.flashT < -0.08) { e.flash.visible = false; e.flashT = rand(1.2, 3); } }
   } else if (e.flash) {
     const dx = PL.x - e.x, dz = PL.z - e.z, d = Math.hypot(dx, dz), aim = Game.state === 'play' && d < 30 && dz < 6;
     if (aim) rot += normAng(Math.atan2(-dx, -dz) - rot) * Math.min(1, dt * 5);   // turn to photograph the rider
@@ -2921,6 +2926,17 @@ function updPigeon(run, e, dt) {
 }
 function populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst) {
   const z0 = ch.z0, roadHazards = !isStart;
+  // a photo op: a friend posing at the curb, a tourist photographing them from the building side (ride between = PHOTOBOMB!)
+  if (Math.random() < 0.35) {
+    const sx = Math.random() < 0.5 ? -1 : 1;
+    if (sx !== plazaSide) {
+      const z = z0 + rand(-70, -18), px = sx * 12.1, cx = sx * 15.6;
+      const friend = spawnPed(run, Math.random() < 0.5 ? 'ped' : 'business', px, z, 'stand');
+      friend.mesh.rotation.y = -sx * Math.PI / 2;   // facing the camera
+      const cam = spawnPed(run, 'tourist', cx, z, 'stand'); cam.subject = friend; cam.mesh.rotation.y = sx * Math.PI / 2;
+      (run.photoOps || (run.photoOps = [])).push({ z, x0: Math.min(px, cx), x1: Math.max(px, cx), cam, done: false });
+    }
+  }
   const zTop = isFirst ? -14 : -4;
   for (const sx of [-1, 1]) {
     const n = randi(2, 4 + Math.min(4, diff));
@@ -3461,7 +3477,7 @@ function updateHud(force) {
   cb.classList.toggle('hidden', !live);
   if (live) { setText('chainN', 'CHAIN x' + SC.chainN); setText('chainMult', 'x' + chainMult().toFixed(1) + ' POINTS'); $('chainBar').style.width = clamp(SC.chainT / CHAIN_WIN * 100, 0, 100) + '%'; }
   let th = '';
-  for (const k in SC.tricks) { const t = SC.tricks[k]; if (t.on && t.dur > 0.3) th += '<div class="trk">' + TRICK_NAMES[k] + '<b>+' + Math.round(t.pts * totalMult()).toLocaleString() + '</b></div>'; }
+  for (const k in SC.tricks) { const t = SC.tricks[k]; if (t.on && t.dur > Math.max(0.3, trickMin(k))) th += '<div class="trk">' + TRICK_NAMES[k] + '<b>+' + Math.round(t.pts * totalMult()).toLocaleString() + '</b></div>'; }
   if (SC.sq.t > 0) th += '<div class="trk sq">SQUEEZE!</div>';
   if (hudCache.tricks !== th) { hudCache.tricks = th; $('tricks').innerHTML = th; }
 }
@@ -3500,6 +3516,7 @@ function chainHit() {
 function bumpScore() { const el = $('score'); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function award(label, base, cls, hit) {
   announce(label);
+  if (BT.on) { base *= 1.5; if (!BT.shown) { BT.shown = true; popup('BULLET TIME \u00d71.5', 'bt'); } }
   if (hit !== false) chainHit(); else SC.chainT = Math.max(SC.chainT, 1.0);
   const m = totalMult(), pts = Math.max(1, Math.round(base * m));
   Game.score += pts; SC.chainPts += pts;
@@ -3517,18 +3534,23 @@ function endChain() {
   }
   SC.chainN = 0; SC.chainPts = 0; SC.chainT = 0;
 }
+// seconds a trick must be held before it counts (shows, feeds the chain, pays); TIGHTROPE needs a real run along the line
+const TRICK_MIN = { rope: 2 };
+const trickMin = (key) => TRICK_MIN[key] || 0.5;
 function trick(key, active, rate, dt) {
-  let t = SC.tricks[key]; if (!t) t = SC.tricks[key] = { on: false, pts: 0, off: 0, dur: 0 };
+  let t = SC.tricks[key]; if (!t) t = SC.tricks[key] = { on: false, pts: 0, off: 0, dur: 0, hit: false };
   if (active) {
-    if (!t.on) { t.on = true; t.pts = 0; t.dur = 0; chainHit(); }
-    t.off = 0; t.pts += rate * dt; t.dur += dt; SC.chainT = Math.max(SC.chainT, 1.2);
+    if (!t.on) { t.on = true; t.pts = 0; t.dur = 0; t.hit = false; }
+    t.off = 0; t.pts += rate * dt; t.dur += dt;
+    if (!t.hit && t.dur >= (TRICK_MIN[key] || 0)) { t.hit = true; chainHit(); }   // most tricks feed the chain right away; TIGHTROPE once it counts
+    if (t.dur >= trickMin(key)) SC.chainT = Math.max(SC.chainT, 1.2);
   } else if (t.on) {
     t.off += dt;
-    if (t.off > 0.35) { t.on = false; if (t.dur > 0.5 && t.pts >= 20) award(TRICK_NAMES[key], t.pts, 'trick', false); }
+    if (t.off > 0.35) { t.on = false; if (t.dur > trickMin(key) && t.pts >= 20) award(TRICK_NAMES[key], t.pts, 'trick', false); }
   }
 }
 function cashInAll() {
-  for (const k in SC.tricks) { const t = SC.tricks[k]; if (t.on && t.dur > 0.5) award(TRICK_NAMES[k], t.pts, 'trick', false); t.on = false; }
+  for (const k in SC.tricks) { const t = SC.tricks[k]; if (t.on && t.dur > trickMin(k)) award(TRICK_NAMES[k], t.pts, 'trick', false); t.on = false; }
   if (SC.sq.t > 0) finishSqueeze();
   endChain();
 }
@@ -3577,6 +3599,7 @@ function updateScoring(dt) {
   let ropeK = 1;
   if (rope) for (const e of R.ents) if (e.type === 'car' && e.dir > 0 && e.z < player.z && player.z - e.z < 30 && e.x > -4.6) { ropeK = 2; break; }
   trick('rope', rope, (60 + 140 * sr * sr) * ropeK, dt);
+  checkPhotobombs(R);
   // BIKE LANE HERO: a whole block (80 m) without leaving the green bike lane; consecutive blocks pay more
   const BL = SC.bike || (SC.bike = { d: 0, n: 0 });
   if (straight && player.x > 9.05 && player.x < 10.95) {
@@ -3654,7 +3677,7 @@ const Voice = (() => {
 const ANNOUNCE = [
   [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
   [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
-  [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1]
+  [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^PHOTOBOMB/, 'Photobomb!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1]
 ];
 function announce(label) {
   if (Game.state !== 'play') return;
@@ -3719,6 +3742,7 @@ function buildScoring() {
       ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
       ['TIGHT TURN!', 'Clip a barricade or corner', fmtPts(150)],
       ['BIKE DODGE!', 'Slip past a cyclist', fmtPts(120, 240)],
+      ['PHOTOBOMB!', 'Ride between a tourist’s camera and the friend they’re photographing', fmtPts(PHOTOBOMB_PTS, PHOTOBOMB_PTS * 2)],
       ['NEAR MISS!', 'Pass close to a car going your way', fmtPts(100, 200)],
       ['CLOSE SHAVE!', 'Pass close to lamps, trees, hydrants…', fmtPts(60, 120)],
       ['BIKE LANE HERO!', 'Ride a whole block (80 m) in the bike lane; more for each block in a row', fmtPts(BIKELANE_PTS) + '+'],
@@ -3727,7 +3751,7 @@ function buildScoring() {
       ['WRONG WAY', 'Ride in the oncoming lanes (more with cars coming)', '40–600 / SEC'],
       ['SIDEWALK SURFING', 'Ride on the sidewalk', '60–240 / SEC'],
       ['FULL THROTTLE', 'Stay at top speed', '45 / SEC'],
-      ['TIGHTROPE', 'Ride the double yellow line (double with oncoming cars close)', '60–400 / SEC'],
+      ['TIGHTROPE', 'Ride the double yellow line for 2+ seconds (double with oncoming cars close)', '60–400 / SEC'],
       ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
       ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
       ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)]]],
@@ -3736,6 +3760,7 @@ function buildScoring() {
       ['RIDING', 'Just keep moving', '~5 / SEC']]],
     ['MULTIPLIERS', '', [
       ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
+      ['BULLET TIME', 'Near misses while FOCUS slow-mo is on', '×1.5'],
       ['PEDAL TO THE METAL', 'Every 100 m without letting off the volts', 'UP TO ×2.5']]]
   ];
   const box = $('scoreList'); box.textContent = '';
@@ -3798,7 +3823,13 @@ function resetFocus() { FOCUS.meter = 0.5; FOCUS.k = 0;   // every new game star
   FOCUS.shown = Math.round(FOCUS.meter * 100); $('focusBar').style.width = FOCUS.shown + '%';
   const box = $('focusBox'); box.classList.remove('on', 'empty'); box.classList.toggle('ready', FOCUS.meter >= FOCUS_MIN); $('focusFx').style.opacity = 0; }
 /* ---------- near miss / collisions ---------- */
+// BULLET TIME: near misses scored while FOCUS slow-mo is on are worth x1.5
+const BT = { on: false, shown: false };
 function nearMiss(o, isStatic) {
+  BT.on = FOCUS.on; BT.shown = false;
+  try { return nearMissScore(o, isStatic); } finally { BT.on = false; }
+}
+function nearMissScore(o, isStatic) {
   Game.near++; focusGain(0.12);
   const alarmed = isStatic && o.kind === 'parked' && carAlarm(o);   // passing a parked car this close sets its alarm off
   const pan = clamp((o.x - PL.x) / 3, -1, 1);
@@ -3864,6 +3895,20 @@ function updateWarnings() {
 // SNAP!: a photo taken of the rider. Shutter sound now, points a moment later (snaps within 0.6 s add up into one popup).
 // Counts as a trick: keeps the chain alive but doesn't add to it, so a busload of tourists can't farm a x5 chain.
 const SNAP_PTS = 40, SNAP = { n: 0, t: 0 };
+// PHOTOBOMB: ride between a tourist's camera and the friend they're photographing on the sidewalk
+const PHOTOBOMB_PTS = 500, PB = { run: null, z: 0 };
+function checkPhotobombs(R) {
+  if (PB.run === R && R.photoOps) for (const op of R.photoOps) {
+    if (op.done || (PB.z - op.z) * (player.z - op.z) > 0) continue;   // only the frame you cross their line
+    if (player.x > op.x0 + 0.35 && player.x < op.x1 - 0.35) {
+      op.done = true;
+      const c = op.cam; if (c.flash) { c.flash.visible = true; c.flashT = 0; }
+      Sound.shutter(clamp((c.x - player.x) / 6, -1, 1), 0.9);
+      award('PHOTOBOMB!', PHOTOBOMB_PTS * (player.speed / player.base), 'good');
+    }
+  }
+  PB.run = R; PB.z = player.z;
+}
 function snapPhoto(pan, vol) {
   if (shutterCd <= 0) { Sound.shutter(pan, vol); shutterCd = 0.12; }
   if (Game.state === 'play') { SNAP.n++; SNAP.t = 0.6; }
@@ -3970,12 +4015,50 @@ const COMIC = ['SPLAT!', 'SPLORCH!', 'KA-SPLAT!', 'SQUELCH!', 'BLAMMO!', 'WHAT D
 const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
-  var sayings = ['Ouch!', 'What do?', 'Wipeout!', 'Oof!', 'You are Dead', 'Just a scratch', 'Walk it off', 'Skills issue', 'Skibidi Ohio',
-    'Yikes!', 'Splat!', "That's gonna leave a mark", 'Pancake!', 'Faceplant!', 'Gravity wins',
-    'Pedal dip!', 'Cut-out!', 'Overlean!', "Insurance won't cover that", "That's a warranty claim",
-    'Nailed it', 'Ten out of ten', 'Physics: one. You: zero', 'Bold strategy', 'Respawn pending', 'Character development',
-    'Bruh', 'Not very sigma', 'Caught in 4K', "It's giving pavement", 'Emotional damage', 'Touch grass. Literally', 'No cap, that hurt', 'Big L', 'Unalive speedrun'];
-
+  var sayings = [
+    'Ouch!',
+    'What do?',
+    'Wipeout!',
+    'Oof!',
+    'You are Dead',
+    'Just a scratch',
+    'Walk it off',
+    'Skills issue',
+    'Skibidi Ohio',
+    'Yikes!',
+    'Splat!',
+    "That's gonna leave a mark",
+    'Pancake!',
+    'Faceplant!',
+    'Gravity wins',
+    'Pedal dip!',
+    'Cut-out!',
+    'Overlean!',
+    "Insurance won't cover that",
+    "That's a warranty claim",
+    'Nailed it',
+    'Ten out of ten',
+    'Physics: one. You: zero',
+    'Bold strategy',
+    'Character development',
+    'You stole my brain rot!',
+    'Rider.exe has stopped working',
+    'The wheel chose violence',
+    'Achievement unlocked: Floor Inspector',
+    'The beeps were a suggestion',
+    'Absolute cinema',
+    'Your dignity took fall damage',
+    'Canon event unlocked',
+    'Bruh',
+    'Not very sigma',
+    'Caught in 4K',
+    "It's giving pavement",
+    'Emotional damage',
+    'Touch grass. Literally',
+    'No cap, that hurt',
+    'Big L',
+    'Unalive speedrun'
+  ];
   Voice.say(pick(sayings), 6);
   recordFrame();                       // final pose for the instant replay
   VID.reset(); LB.run = null; LB.fetchBoards(false);
