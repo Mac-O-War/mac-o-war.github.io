@@ -311,6 +311,7 @@ body:not(.touch) .card.tch{display:none}
       <div class="row"><span class="key">&#9650;</span><span class="key">W</span><span class="key wide">SPACE</span><b>BOOST</b> &middot; GRAB BATTERIES FOR VOLTS</div>
       <div class="row"><span class="mouse"></span>MOVE = <b>STEER</b> &middot; HOLD = <b>BOOST</b></div>
       <div class="row"><span class="key wide">SHIFT</span><span class="key">&#9660;</span>or RIGHT CLICK <b>FOCUS</b> (SLOW-MO)</div>
+      <div class="row">CONTROLLER: STICK <b>STEER</b> &middot; A / RT <b>BOOST</b> &middot; LT <b>FOCUS</b> &middot; START <b>PAUSE</b></div>
     </div>
     <div class="card tch">
       <h3>PHONE / TABLET</h3>
@@ -454,7 +455,17 @@ window.addEventListener('pointerdown', (e) => {
   }
 }, { capture: true, passive: true });
 // haptic buzz (Android Chrome; iOS Safari has no vibration API)
-const buzz = (p) => { if (!isTouch || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (e) { /* ignore */ } };
+const buzz = (p) => {
+  // phones vibrate; a connected game controller rumbles for the same total "on" time
+  try {
+    const gp = navigator.getGamepads && [...navigator.getGamepads()].find((g) => g && g.connected), act = gp && gp.vibrationActuator;
+    if (act && act.playEffect) {
+      const ms = Array.isArray(p) ? p.filter((x, i) => i % 2 === 0).reduce((a, x) => a + x, 0) : p;
+      act.playEffect('dual-rumble', { duration: Math.min(600, ms * 1.5), strongMagnitude: ms > 100 ? 0.9 : 0.5, weakMagnitude: 0.6 }).catch(() => {});
+    }
+  } catch (e) { /* no rumble */ }
+  if (!isTouch || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (e) { /* ignore */ }
+};
 
 /* =====================================================================
    RENDERER / SCENE
@@ -3103,8 +3114,42 @@ function holdButton(el, key) {
   el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('lostpointercapture', off);
 }
 holdButton($('tGas'), 'tGas'); holdButton($('tFocus'), 'tFocus'); holdButton($('tLeft'), 'tL'); holdButton($('tRight'), 'tR');
+/* ---------- game controllers (the browser Gamepad API, polled every frame; standard mapping) ----------
+   left stick / D-pad steer · A, RT or RB boost · LT, LB or X focus · START pauses (or starts) ·
+   on menus A works like Enter and B like Escape. Crashes and pickups rumble the controller (see buzz). */
+const PAD = { prev: [], active: null };
+const PAD_DEAD = 0.2;
+function padKey(code) {   // menu actions reuse the keyboard handler, so the controller behaves exactly like Enter / Escape
+  window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code }));
+  window.dispatchEvent(new KeyboardEvent('keyup', { code, key: code }));
+}
+function pollPad() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const p of pads) if (p && p.connected) { gp = p; if (p.mapping === 'standard') break; }
+  PAD.active = gp;
+  if (!gp) { input.padSteer = 0; input.padGas = input.padFocus = false; return; }
+  const b = (i) => { const x = gp.buttons[i]; return !!x && (x.pressed || x.value > 0.3); };
+  const ax = gp.axes[0] || 0;
+  let st = Math.abs(ax) > PAD_DEAD ? Math.sign(ax) * (Math.abs(ax) - PAD_DEAD) / (1 - PAD_DEAD) : 0;
+  if (b(14)) st = -1; else if (b(15)) st = 1;   // D-pad
+  if (st) { input.mouseSteer = false; input.mouseTravel = 0; }   // the controller takes over steering from the mouse
+  input.padSteer = st;
+  input.padGas = b(0) || b(7) || b(5);
+  input.padFocus = b(6) || b(4) || b(2);
+  // menu buttons fire once per press
+  const now = gp.buttons.map((x, i) => b(i)), was = PAD.prev, down = (i) => now[i] && !was[i];
+  PAD.prev = now;
+  if (now.some(Boolean)) Sound.init();   // wake the audio (browsers that count a controller press as a user gesture)
+  const playing = Game.state === 'play' || Game.state === 'countdown';
+  if (down(9)) padKey(Game.state === 'play' || Game.state === 'paused' ? 'Escape' : 'Enter');   // START: pause / resume, or go
+  if (!playing && down(0)) padKey('Enter');
+  if (down(1) && Game.state !== 'play') padKey('Escape');
+}
+window.addEventListener('gamepadconnected', (e) => track('gamepad', 'Connected a game controller: ' + String(e.gamepad.id).slice(0, 40)));
 function readSteer() {
   let s = (input.right ? 1 : 0) - (input.left ? 1 : 0) + (input.tR ? 1 : 0) - (input.tL ? 1 : 0);
+  if (s === 0 && input.padSteer) s = input.padSteer;   // game controller: analog stick or D-pad
   if (s === 0 && input.mouseSteer && input.mouseX !== null) {
     const tx = (input.mouseX - 0.5) * 2 * 17;
     s = clamp((tx - player.x) / 3, -1, 1);
@@ -3118,8 +3163,8 @@ function readSteer() {
 // FOCUS is always available and is earned by riding well (near misses and the like).
 const BATTERY_SECS = 7, GAS_MAX = 30, GAS_START = 2;   // seconds of boost per battery, the most you can hold, and what each level starts with
 const GASC = { t: 0, held: true, got: 0, shown: -1, pct: -1 };
-const rawGas = () => !!(input.up || input.mouseGas || input.tGas || input.canvasTouchGas);
-const rawFocus = () => !!(input.focus || input.mouseFocus || input.tFocus);
+const rawGas = () => !!(input.up || input.mouseGas || input.tGas || input.canvasTouchGas || input.padGas);
+const rawFocus = () => !!(input.focus || input.mouseFocus || input.tFocus || input.padFocus);
 const readGas = () => GASC.t > 0 && rawGas();
 const readFocus = () => rawFocus();
 function updateGasUI() {
@@ -4451,6 +4496,7 @@ vidBtnState('wait');
 let lastT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
+  pollPad();
   let dt = (now - lastT) / 1000; lastT = now;
   if (!(dt > 0)) dt = 0.016; dt = Math.min(dt, 0.05);
   animT += dt;
