@@ -4002,7 +4002,7 @@ function replayImpact(silent) {
   explodeRig(info);
   if (!silent) {
     Sound.splat(); Sound.scream(0, 0.9, 1.05); if (info.vehicle) Sound.crunch();
-    screenFlash(0.55); showComic(); buzz([60, 40, 160]);
+    screenFlash(0.55); buzz([60, 40, 160]);   // no comic burst in the replay (only at the live crash)
   }
   for (const r of runs) for (const e of r.ents) {
     if (e.type !== 'ped') continue;
