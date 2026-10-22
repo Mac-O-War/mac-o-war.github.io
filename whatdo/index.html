@@ -2552,7 +2552,8 @@ function genChunk(run, z0, idx) {
   run.chunks.push(ch);
   populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst);
   decorPopulate(run, ch, isEnd, isFirst, plazaSide);
-  if (run.turnIn || idx >= 2) placeItems(ch); else ch.items = [];   // the first two blocks of a level have no pickups
+  // a level's first three blocks have no pickups, and the 4th always has a battery
+  if (run.turnIn || idx >= 3) placeItems(ch, !run.turnIn && idx === 3); else ch.items = [];
 }
 /* ---------- PICKUPS: glowing batteries (10 s of VOLTS, the boost), floating in the lanes ---------- */
 const ITEM_GEO = {
@@ -2576,7 +2577,7 @@ function addItem(ch, type, x, z) {   // x, z in the run's coordinates
   const pool = new THREE.Mesh(ITEM_POOL_GEO, ITEM_POOL[type]); pool.position.y = 0.04; pool.renderOrder = 2; grp.add(pool);
   ch.items.push({ type, x, z, grp, spin, taken: -1, ph: rand(0, 6) });
 }
-function placeItems(ch) {
+function placeItems(ch, sure) {
   ch.items = [];
   const put = (type, lz, x) => {
     for (let k = 0; k < 6; k++) {
@@ -2585,7 +2586,7 @@ function placeItems(ch) {
       lz = rand(-72, -8); x = undefined;
     }
   };
-  if (Math.random() < 0.75) put('battery', rand(-72, -8));
+  if (sure || Math.random() < 0.75) put('battery', rand(-72, -8));
 }
 function checkItems() {
   const r = player.run; if (!r) return;
@@ -3309,6 +3310,7 @@ function popup(text, cls) {
      when a chain of 3+ ends you get a Chain Bonus. Crash and the chain is lost.
    ===================================================================== */
 const P_HW = 0.3, P_HD = 0.5, NEAR = 1.25, SQ_GAP = 1.5, CHAIN_WIN = 3.0;
+const CHICKEN_TTC = 1.3;   // seconds from impact you can still be in an oncoming car's lane and get CHICKEN! (was ~0.97)
 const CROSS_NEAR = 5.5;   // passing within this many metres of a crossing car's bumper scores
 const SC = { chainN: 0, chainT: 0, chainPts: 0, tricks: {}, sq: { t: 0, tight: 0, spd: 0, off: 0 }, gL: Infinity, gR: Infinity };
 const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE', rope: 'TIGHTROPE' };
@@ -3620,7 +3622,7 @@ function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time sc
   const box = $('focusBox'); box.classList.toggle('on', FOCUS.on); box.classList.toggle('ready', !FOCUS.on && FOCUS.meter >= FOCUS_MIN);
   return 1 + (FOCUS_SCALE - 1) * FOCUS.k;
 }
-function resetFocus() { FOCUS.meter = 1; FOCUS.k = 0;   // every new game starts with a full FOCUS meter
+function resetFocus() { FOCUS.meter = 0.5; FOCUS.k = 0;   // every new game starts with the FOCUS meter half full
   if (FOCUS.on) Sound.setFocus(false); FOCUS.on = false; }
 /* ---------- near miss / collisions ---------- */
 function nearMiss(o, isStatic) {
@@ -3634,7 +3636,8 @@ function nearMiss(o, isStatic) {
     // ONCOMING VELOCITY: closing speed squared, more for a tight pass and a late dodge
     const rel = player.speed + o.v, mph = Math.round(rel * 2.1);
     const chicken = o.minTTC !== undefined && o.minTTC < 1.5 ? 1 + (1.5 - o.minTTC) * 1.5 : 1;
-    award((chicken > 1.8 ? 'CHICKEN! ' : '') + 'ONCOMING VELOCITY ' + mph + ' MPH', rel * rel * 1.1 * (1 + tight) * chicken, 'ov');
+    // CHICKEN!: you were still in its lane under CHICKEN_TTC seconds before impact (about 40 m at a typical closing speed)
+    award((o.minTTC < CHICKEN_TTC ? 'CHICKEN! ' : '') + 'ONCOMING VELOCITY ' + mph + ' MPH', rel * rel * 1.1 * (1 + tight) * chicken, 'ov');
     Sound.whoosh(pan, 1.3);
     if (Math.random() < 0.7) Sound.honk(pan, 1, Math.random() < 0.5);
     Game.shake = Math.max(Game.shake, 0.4);
