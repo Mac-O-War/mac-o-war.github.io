@@ -216,6 +216,8 @@ body:not(.touch) .card.tch{display:none}
 #scoreList .note{font-size:8px;color:#ffd23f;line-height:1.8;margin:14px 8px 4px}
 @media (max-height:520px){#scoreScreen .big{font-size:clamp(28px,10vh,44px)}#scoreList{max-height:calc(100vh - 130px);margin:6px 0 8px}#scoreScreen>.btn{padding:8px 22px}}
 .btn.sm{font-size:clamp(9px,2.4vw,12px);padding:10px 12px;animation:none;box-shadow:0 4px 0 #000;letter-spacing:1px}
+/* every label sits in the same grid cell, so the button is always as wide as the longest one and the row never jumps */
+#vidBtn{display:inline-grid}#vidBtn>span{grid-area:1/1;visibility:hidden}#vidBtn>span.on{visibility:visible}
 .btn.dis{opacity:.45;pointer-events:none}
 #replayUI .lb{position:absolute;left:0;right:0;height:10vh;background:#000}
 #replayUI .lb.top{top:0}#replayUI .lb.bot{bottom:0}
@@ -324,7 +326,7 @@ body:not(.touch) .card.tch{display:none}
   <div class="act">
   <div id="lbMsg"></div>
   <button class="btn alt" id="restartBtn">RESTART</button>
-  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm dis" id="vidBtn">VIDEO...</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
+  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm dis" id="vidBtn"><span data-s="wait">VIDEO...</span><span data-s="make">MAKE VIDEO</span><span data-s="enc">SAVING VIDEO...</span><span data-s="ready">SHARE VIDEO</span><span data-s="none">NO VIDEO</span></button><button class="btn sm lbOpen hidden">TOP 10</button></div>
   <div class="small">PRESS ENTER / SPACE OR TAP</div>
   </div>
 </section>
@@ -4079,7 +4081,9 @@ function vidBtnState(s) {
   if (!VIDEO_TYPE) s = 'none';
   const b = $('vidBtn'); VID.ui = s;
   b.classList.toggle('dis', s !== 'ready' && s !== 'make');
-  b.textContent = s === 'ready' ? (canShareFiles ? 'SHARE VIDEO' : 'SAVE VIDEO') : s === 'make' ? 'MAKE VIDEO' : s === 'enc' ? 'SAVING VIDEO...' : s === 'none' ? 'NO VIDEO' : 'VIDEO...';
+  b.querySelector('[data-s=ready]').textContent = canShareFiles ? 'SHARE VIDEO' : 'SAVE VIDEO';
+  if (!['ready', 'make', 'enc', 'none'].includes(s)) s = 'wait';
+  for (const sp of b.children) sp.classList.toggle('on', sp.dataset.s === s);
 }
 VID.discard = () => {   // stop any recording and throw it away
   clearTimeout(VID.holdT); VID.holdT = null; VID.cap = false;
