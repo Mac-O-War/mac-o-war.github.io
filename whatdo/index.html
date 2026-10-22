@@ -91,7 +91,7 @@ body{position:fixed;inset:0}
 @keyframes focusEmpty{0%,60%{border-color:#ff3b3b;box-shadow:0 0 0 2px #ff3b3b}100%{border-color:#000;box-shadow:none}}
 body.touch #focusBox{bottom:calc(min(26vmin,120px) + 40px + var(--sb))}
 #focusFx{background:radial-gradient(ellipse at center,rgba(40,70,150,0) 45%,rgba(40,70,150,.55) 100%);opacity:0;pointer-events:none}
-#tFocus{right:calc(30px + var(--sr));bottom:calc(36px + min(30vmin,140px) + var(--sb));width:min(30vmin,140px);height:min(30vmin,140px);font-size:clamp(14px,4vmin,20px);background:rgba(120,90,255,.3);border-color:rgba(20,10,60,.7)}
+#tFocus{right:calc(30px + var(--sr));bottom:calc(36px + min(30vmin,140px) + var(--sb));width:min(18vmin,84px);height:min(18vmin,84px);font-size:clamp(9px,2.6vmin,12px);background:rgba(120,90,255,.3);border-color:rgba(20,10,60,.7)}
 #tFocus.down{background:rgba(150,110,255,.65)}
 #metalBox.maxed #metalTxt{color:#ffd23f;animation:blink .25s infinite alternate}
 .pop.ov{color:#ff8a00;font-size:clamp(30px,7vw,54px)}.pop.sq{color:#ff4fd8;font-size:clamp(36px,8.5vw,66px);animation-duration:1.3s}
@@ -199,14 +199,16 @@ body:not(.touch) .card.tch{display:none}
 #lbList .s,#lbList .l{text-align:right}
 #lbList li.empty{display:block;text-align:center;color:#9fb4d8;line-height:1.8}
 /* ---------- settings screen ---------- */
-#setList{width:min(520px,100%);margin:16px 0 20px;background:rgba(13,15,26,.78);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08)}
-.setRow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;text-align:left}
+#setList{width:min(480px,100%);margin:10px 0 12px;background:rgba(13,15,26,.78);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08)}
+.setRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 12px;text-align:left}
 .setRow+.setRow{border-top:2px solid rgba(255,255,255,.06)}
-.setRow .sl{font-size:10px;color:#fff;line-height:1.5}
-.setRow .sl small{display:block;font-size:8px;color:#9fb4d8;margin-top:3px}
-.setRow .btn{min-width:200px}
-.setRow input[type=range]{width:200px;accent-color:#ffd23f;touch-action:none;cursor:pointer}
-@media (max-height:520px){#settingsScreen .big{font-size:clamp(28px,10vh,44px)}#setList{margin:8px 0 10px}.setRow{padding:7px 12px}#settingsScreen>.btn{padding:8px 22px}}
+.setRow .sl{font-size:9px;color:#fff;line-height:1.4}
+.setRow .sl small{display:block;font-size:7px;color:#9fb4d8;margin-top:2px}
+#setList .btn.sm{min-width:110px;font-size:9px;padding:7px 10px;letter-spacing:0;box-shadow:0 3px 0 #000}
+#settingsScreen .big{font-size:clamp(30px,8vw,56px)}
+#settingsScreen>.btn{padding:10px 26px;font-size:clamp(12px,3vw,16px)}
+.setRow input[type=range]{width:150px;accent-color:#ffd23f;touch-action:none;cursor:pointer}
+@media (max-height:520px){#settingsScreen .big{font-size:clamp(24px,8vh,36px)}#setList{margin:4px 0 6px}.setRow{padding:4px 12px}.setRow .sl small:not([id]){display:none}#setList .btn.sm{padding:5px 8px}#settingsScreen>.btn{padding:6px 20px}}
 /* ---------- scoring screen ---------- */
 #scoreList{background:rgba(13,15,26,.78);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08);width:min(620px,100%);max-height:calc(100vh - 210px - var(--st) - var(--sb));overflow-y:auto;margin:14px 0 18px;padding:0 4px;text-align:left;touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 #scoreList h4{font-size:10px;color:var(--y);margin:16px 0 6px;letter-spacing:1px}
@@ -234,12 +236,6 @@ body:not(.touch) .card.tch{display:none}
   .split .stats{gap:6px 20px;margin-bottom:8px;font-size:clamp(8px,2.6vh,11px)}
   .split #newBest{margin:0}
   .split .btn{padding:18px 30px}
-  /* start screen in short landscape: title + controls on the left, PLAY and the buttons on the right */
-  #startScreen.split .btn.sm{padding:10px 12px}
-  #startScreen .title{font-size:clamp(34px,13vh,72px)}
-  #startScreen .sub{margin:8px 0 10px}
-  #startScreen .tut{margin-bottom:0}
-  #startScreen .act .sub2{max-width:44vw}
 }
 @media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:min(14px,calc((100vw - 64px) / 17.5));padding:8px 10px}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
 @media (max-height:520px){.title{font-size:clamp(40px,14vh,90px)}.goal{font-size:8px;line-height:1.7}.btn{padding:12px 28px}.sub{margin:8px 0 10px}.tut{margin-bottom:8px}.card{padding:8px 10px}.row{margin:5px 0}.goal{margin-bottom:10px}}
@@ -291,8 +287,7 @@ body:not(.touch) .card.tch{display:none}
 <div id="replayUI" class="layer hidden"><div class="lb top"></div><div class="lb bot"></div><div id="rpLabel"><i></i>INSTANT REPLAY</div><div id="rpSkip">TAP TO SKIP</div></div>
 <div id="comic"><div class="burst"><span id="comicTxt">SPLAT!</span></div></div>
 
-<section id="startScreen" class="screen split">
-  <div class="info">
+<section id="startScreen" class="screen">
   <h1 class="title">WHAT DO?</h1>
   <p class="sub">ONE ELECTRIC UNICYCLE. ONE GIANT CITY. ZERO BRAKES.</p>
   <div class="tut">
@@ -310,15 +305,12 @@ body:not(.touch) .card.tch{display:none}
       <div class="row">NEAR MISSES FILL <b>FOCUS</b> &middot; HOLD IT FOR SLOW-MO</div>
     </div>
   </div>
-  </div>
-  <div class="act">
   <!-- <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p> -->
   <button class="btn alt" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
   <div class="sub2" style="margin-top:12px"><button class="btn sm setOpen">SETTINGS</button><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button></div>
   <div id="pwaBox"><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
   <div id="rotateTip">TIP: TURN YOUR PHONE SIDEWAYS FOR THE BEST VIEW</div>
-  </div>
 </section>
 
 <section id="overScreen" class="screen split hidden">
@@ -361,11 +353,11 @@ body:not(.touch) .card.tch{display:none}
 <section id="settingsScreen" class="screen hidden">
   <h2 class="big g">SETTINGS</h2>
   <div id="setList">
-    <div class="setRow"><div class="sl">RESOLUTION<small>Lower is faster on phones</small></div><button class="btn sm resBtn">RESOLUTION: PIXEL</button></div>
-    <div class="setRow"><div class="sl">SOUND<small>Music and sound effects</small></div><button class="btn sm" id="soundSet">SOUND: ON</button></div>
+    <div class="setRow"><div class="sl">RESOLUTION<small>Lower is faster on phones</small></div><button class="btn sm resBtn">PIXEL &#9656;</button></div>
+    <div class="setRow"><div class="sl">SOUND<small>Music and sound effects</small></div><button class="btn sm" id="soundSet">ON</button></div>
     <div class="setRow"><div class="sl">MUSIC VOLUME<small id="musVal">100%</small></div><input type="range" id="musVol" min="0" max="100" step="5" value="100" aria-label="Music volume"></div>
     <div class="setRow"><div class="sl">EFFECTS VOLUME<small id="sfxVal">100%</small></div><input type="range" id="sfxVol" min="0" max="100" step="5" value="100" aria-label="Sound effects volume"></div>
-    <div class="setRow"><div class="sl">ANNOUNCER<small>A voice that calls out big moves</small></div><button class="btn sm voiceBtn">ANNOUNCER: OFF</button></div>
+    <div class="setRow"><div class="sl">ANNOUNCER<small>A voice that calls out big moves</small></div><button class="btn sm voiceBtn">OFF</button></div>
   </div>
   <button class="btn" id="setBack">BACK</button>
 </section>
@@ -1570,10 +1562,11 @@ function updateParticles(dt) {
       VY[i] -= PG[i] * dt;
       PX[i] += VX[i] * dt; PY[i] += VY[i] * dt; PZ[i] += VZ[i] * dt;
       const gy = groundYW(PX[i], PZ[i]);
-      if (PY[i] <= gy) {
-        PY[i] = gy; PST[i] = 2;
+      if (PY[i] <= gy) {   // it lands: becomes a splat on the ground layer, and this particle slot is freed
         const s = PS[i] * rand(2, 4.2);
-        _dummy.position.set(PX[i], gy, PZ[i]); _dummy.rotation.set(0, PR[i], 0); _dummy.scale.set(s, 0.03, s * rand(0.7, 1.5));
+        _dummy.position.set(PX[i], gy + 0.012, PZ[i]); _dummy.rotation.set(0, PR[i], 0); _dummy.scale.set(s, 0.02, s * rand(0.7, 1.5)); _dummy.updateMatrix();
+        pMesh.getColorAt(i, _pc); addSplat(_dummy.matrix, _pc, s > 0.6);
+        PST[i] = 0; _dummy.scale.set(0, 0, 0); _dummy.position.set(0, -50, 0);
       } else {
         _dummy.position.set(PX[i], PY[i], PZ[i]); _dummy.rotation.set(PR[i] + PY[i], PR[i], 0); _dummy.scale.set(PS[i], PS[i], PS[i]);
       }
@@ -1583,9 +1576,31 @@ function updateParticles(dt) {
   pMesh.instanceMatrix.needsUpdate = true;
   pAny = any;
 }
-function clearParticles() {
+function clearFlying() {   // particles still in the air
   for (let i = 0; i < PMAX; i++) { PST[i] = 0; _dummy.position.set(0, -50, 0); _dummy.scale.set(0, 0, 0); _dummy.updateMatrix(); pMesh.setMatrixAt(i, _dummy.matrix); }
   pMesh.instanceMatrix.needsUpdate = true; pAny = false;
+}
+function clearSplats() {   // blood etc. lying on the ground
+  _dummy.position.set(0, -50, 0); _dummy.scale.set(0, 0, 0); _dummy.updateMatrix();
+  for (let j = 0; j < SPLAT_N; j++) splatMesh.setMatrixAt(j, _dummy.matrix);
+  splatMesh.instanceMatrix.needsUpdate = true; splatNext = SPLAT_BIG; splatBigNext = 0; splatMesh.visible = true;
+}
+function clearParticles() { clearFlying(); clearSplats(); }
+// landed blood (and confetti, feathers...) lives on its own layer: drawn after the road with no depth writes and a small
+// depth bias, so splats sit on the road and overlap each other cleanly instead of z-fighting. Oldest are reused first.
+// big pool squares get their own slots so the steady drip of small drops can never overwrite them
+const SPLAT_BIG = 400, SPLAT_N = 4000;
+const splatMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), SPLAT_N);
+splatMesh.frustumCulled = false; splatMesh.renderOrder = 1; scene.add(splatMesh);
+let splatNext = SPLAT_BIG, splatBigNext = 0;
+{ _dummy.position.set(0, -50, 0); _dummy.scale.set(0, 0, 0); _dummy.updateMatrix(); for (let j = 0; j < SPLAT_N; j++) { splatMesh.setMatrixAt(j, _dummy.matrix); splatMesh.setColorAt(j, _pc.setHex(0x8a0000)); } }
+function addSplat(matrix, color, big) {
+  let j;
+  if (big) { j = splatBigNext; splatBigNext = (splatBigNext + 1) % SPLAT_BIG; }
+  else { j = splatNext; splatNext = splatNext + 1 >= SPLAT_N ? SPLAT_BIG : splatNext + 1; }
+  splatMesh.setMatrixAt(j, matrix); splatMesh.setColorAt(j, color);
+  splatMesh.instanceMatrix.needsUpdate = true; splatMesh.instanceColor.needsUpdate = true;
 }
 
 /* =====================================================================
@@ -3010,7 +3025,7 @@ function restart() {
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 function pauseGame() { if (Game.state !== 'play') return; if (FOCUS.on) { FOCUS.on = false; Sound.setFocus(false); } Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend(); }
 function resumeGame() { if (Game.state !== 'paused') return; Game.state = 'play'; showScreen(null); Sound.resume(); lastT = performance.now(); }
-function toggleMute() { Sound.setMuted(!Sound.muted); $('muteBtn').classList.toggle('off', Sound.muted); const ss = $('soundSet'); if (ss) ss.textContent = 'SOUND: ' + (Sound.muted ? 'OFF' : 'ON'); }
+function toggleMute() { Sound.setMuted(!Sound.muted); $('muteBtn').classList.toggle('off', Sound.muted); const ss = $('soundSet'); if (ss) ss.textContent = Sound.muted ? 'OFF' : 'ON'; }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); else if (Game.state !== 'menu') keepAwake(); });
 window.addEventListener('blur', () => pauseGame());
 
@@ -3025,7 +3040,7 @@ bindButton($('nextBtn'), () => { if (Game.state === 'win') nextLevel(); });
 bindButton($('resumeBtn'), resumeGame);
 bindButton($('pauseBtn'), () => { if (Game.state === 'play') pauseGame(); else resumeGame(); });
 bindButton($('muteBtn'), toggleMute);
-function updateResButtons() { document.querySelectorAll('.resBtn').forEach((b) => { b.textContent = 'RESOLUTION: ' + RES[resIdx].name + ' \u25B8'; }); }
+function updateResButtons() { document.querySelectorAll('.resBtn').forEach((b) => { b.textContent = RES[resIdx].name + ' \u25B8'; }); }
 document.querySelectorAll('.resBtn').forEach((b) => bindButton(b, () => {
   resIdx = (resIdx + 1) % RES.length; store.set('whatdo_res2', resIdx); resize(); updateResButtons();
 }));
@@ -3286,13 +3301,13 @@ function announce(label) {
   if (ov && +ov[1] < 75) return;   // oncoming passes are common: only call the really fast ones
   for (const [re, text, pri] of ANNOUNCE) if (re.test(label)) { Voice.say(text, pri); return; }
 }
-function updateVoiceButtons() { document.querySelectorAll('.voiceBtn').forEach((b) => { b.textContent = 'ANNOUNCER: ' + (Voice.on ? 'ON' : 'OFF'); b.classList.toggle('hidden', !Voice.ok); }); }
+function updateVoiceButtons() { document.querySelectorAll('.voiceBtn').forEach((b) => { b.textContent = Voice.on ? 'ON' : 'OFF'; b.classList.toggle('hidden', !Voice.ok); }); }
 document.querySelectorAll('.voiceBtn').forEach((b) => bindButton(b, () => { Voice.set(!Voice.on); updateVoiceButtons(); if (Voice.on) { Voice.unlock(); Voice.say('Announcer on!', 5); } }));
 updateVoiceButtons();
 /* ---------- SETTINGS screen: resolution, sound, announcer (opened from the start and pause screens) ---------- */
 const SETTINGS_UI = { open: false, back: 'startScreen' };
 function updateSettingsUI() {
-  $('soundSet').textContent = 'SOUND: ' + (Sound.muted ? 'OFF' : 'ON'); updateResButtons(); updateVoiceButtons();
+  $('soundSet').textContent = Sound.muted ? 'OFF' : 'ON'; updateResButtons(); updateVoiceButtons();
   const v = Sound.volume;
   $('musVol').value = Math.round(v.music * 100); $('musVal').textContent = Math.round(v.music * 100) + '%';
   $('sfxVol').value = Math.round(v.sfx * 100); $('sfxVal').textContent = Math.round(v.sfx * 100) + '%';
@@ -3554,7 +3569,7 @@ const DEATH = {
   sedan: ['Became a hood ornament.', 'Merged. Badly.'],
   suv: ['Out-sized by an SUV.', 'Crumple zone: you.'],
   bus: ['Thrown under the bus. Literally.', 'Missed your stop. The bus did not.'],
-  truck: ['Signed for a package. With your body.', 'Delivered: one (1) rider, slightly damaged.'],
+  truck: ['Signed for a package. With your body.', 'Delivered: one rider, slightly damaged.'],
   police: ['You have the right to remain splattered.'],
   ped: ["Bowled over a pedestrian. They're fine. You are not.", 'Sidewalk etiquette: failed.'],
   tourist: ['Photobombed a tourist. Fatally.', "Now you're in their vacation slideshow."],
@@ -3986,7 +4001,7 @@ function startReplay(auto) {
   showScreen(null); setHudVisible(false);
   $('comic').classList.remove('show'); $('bloodFx').innerHTML = '';
   $('replayUI').classList.remove('hidden');
-  clearParticles(); buildRig();
+  clearFlying(); splatMesh.visible = false; buildRig();   // the live crash's blood stays, just hidden until the replay's impact
   // film from the road side so parked cars and buildings don't block the shot
   RP.side = info.lx > 1 ? -1 : info.lx < -1 ? 1 : (Math.random() < 0.5 ? -1 : 1);
   rotXZ(RP.side * 5.5, -9, info.ang, _o); RP.ax = info.x + _o.x; RP.az = info.z + _o.z;
@@ -3999,6 +4014,7 @@ function startReplay(auto) {
 function replayImpact(silent) {
   RP.phase = 'post';
   const info = Game.replayInfo;
+  clearSplats();   // the replay's own blood replaces the (hidden) live-crash blood, and the layer shows again
   explodeRig(info);
   if (!silent) {
     Sound.splat(); Sound.scream(0, 0.9, 1.05); if (info.vehicle) Sound.crunch();
