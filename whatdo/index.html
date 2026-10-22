@@ -137,6 +137,9 @@ body.touch #touch.on{display:block}
 @keyframes unlockPulse{from{transform:scale(1)}to{transform:scale(1.18);box-shadow:0 0 0 6px rgba(255,210,63,.8),0 6px 0 rgba(0,0,0,.35)}}
 #unlockMsg{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(30px,7vw,60px);letter-spacing:2px;color:#3ddc84;-webkit-text-stroke:3px #000;text-shadow:5px 5px 0 #000;pointer-events:none;display:none;z-index:4}
 #unlockMsg.show{display:block;animation:unlockIn 2.6s ease-out forwards}
+#padToast{position:fixed;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:rgba(13,15,26,.85);border:3px solid #000;padding:8px 12px;pointer-events:none;opacity:0;z-index:20}
+#padToast.show{animation:padToast 3s ease-out forwards}@keyframes padToast{0%,85%{opacity:1}100%{opacity:0}}
+#padDebug{position:fixed;left:6px;top:6px;z-index:30;margin:0;padding:6px 8px;background:rgba(0,0,0,.8);color:#7dffb0;font:11px/1.35 monospace;pointer-events:none;white-space:pre}
 @keyframes unlockIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}22%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
 #countdown.tick{animation:cd .9s ease-out}
 @keyframes cd{0%{transform:translate(-50%,-50%) scale(1.8);opacity:0}20%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(.9);opacity:.9}}
@@ -297,6 +300,7 @@ body:not(.touch) .card.tch{display:none}
 
 <div id="countdown"></div>
 <div id="unlockMsg"></div>
+<div id="padToast"></div>
 <div id="updToast" class="hidden">NEW VERSION &mdash; TAP TO UPDATE</div>
 <div id="replayUI" class="layer hidden"><div class="lb top"></div><div class="lb bot"></div><div id="rpLabel"><i></i>INSTANT REPLAY</div><div id="rpSkip">TAP TO SKIP</div></div>
 <div id="comic"><div class="burst"><span id="comicTxt">SPLAT!</span></div></div>
@@ -3128,6 +3132,7 @@ function pollPad() {
   let gp = null;
   for (const p of pads) if (p && p.connected) { gp = p; if (p.mapping === 'standard') break; }
   PAD.active = gp;
+  padDebug();
   if (!gp) { input.padSteer = 0; input.padGas = input.padFocus = false; return; }
   const b = (i) => { const x = gp.buttons[i]; return !!x && (x.pressed || x.value > 0.3); };
   const ax = gp.axes[0] || 0;
@@ -3146,7 +3151,33 @@ function pollPad() {
   if (!playing && down(0)) padKey('Enter');
   if (down(1) && Game.state !== 'play') padKey('Escape');
 }
-window.addEventListener('gamepadconnected', (e) => track('gamepad', 'Connected a game controller: ' + String(e.gamepad.id).slice(0, 40)));
+function padToast(text) {
+  const t = $('padToast'); t.textContent = text; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+}
+window.addEventListener('gamepadconnected', (e) => {
+  track('gamepad', 'Connected a game controller: ' + String(e.gamepad.id).slice(0, 40));
+  padToast('CONTROLLER CONNECTED: ' + String(e.gamepad.id).replace(/\s*\(.*$/, '').slice(0, 32).toUpperCase() + (e.gamepad.mapping === 'standard' ? '' : ' (NON-STANDARD)'));
+});
+window.addEventListener('gamepaddisconnected', () => padToast('CONTROLLER DISCONNECTED'));
+// ?pad in the URL: a live readout of what the game reads from the controller (for troubleshooting)
+const PAD_DEBUG = /[?&]pad(&|=|$)/.test(location.search);
+if (PAD_DEBUG) { const d = document.createElement('pre'); d.id = 'padDebug'; document.body.appendChild(d); }
+function padDebug() {
+  if (!PAD_DEBUG) return;
+  const NL = String.fromCharCode(10);
+  const pads = navigator.getGamepads ? [...navigator.getGamepads()] : null;
+  const lines = ['GAMEPAD API: ' + (pads ? 'yes' : 'NOT AVAILABLE') + '  secure: ' + window.isSecureContext];
+  if (pads) pads.forEach((g, i) => {
+    if (!g) return;
+    lines.push('#' + i + ' ' + g.id.slice(0, 50));
+    lines.push('   mapping "' + g.mapping + '"  connected ' + g.connected);
+    lines.push('   axes ' + g.axes.map((a) => a.toFixed(2)).join(' '));
+    lines.push('   pressed ' + g.buttons.map((b, j) => (b.pressed || b.value > 0.3 ? j : null)).filter((x) => x !== null).join(' '));
+  });
+  if (!pads || !pads.some(Boolean)) lines.push('no controller seen yet: press a button with this page focused');
+  lines.push('game reads: steer ' + (input.padSteer || 0).toFixed(2) + '  boost ' + !!input.padGas + '  focus ' + !!input.padFocus);
+  $('padDebug').textContent = lines.join(NL);
+}
 function readSteer() {
   let s = (input.right ? 1 : 0) - (input.left ? 1 : 0) + (input.tR ? 1 : 0) - (input.tL ? 1 : 0);
   if (s === 0 && input.padSteer) s = input.padSteer;   // game controller: analog stick or D-pad
