@@ -3878,7 +3878,7 @@ function updateCamera(dt) {
   stars.position.copy(camera.position);
   // with the camera close in (70% or less), the rider is see-through while riding so the road ahead stays visible
   const ghost = camDist <= 70 && (Game.state === 'play' || Game.state === 'countdown');
-  if (RIDER_MAT.transparent !== ghost) { RIDER_MAT.transparent = ghost; RIDER_MAT.opacity = ghost ? 0.5 : 1; RIDER_MAT.needsUpdate = true; }
+  if (RIDER_MAT.transparent !== ghost) { RIDER_MAT.transparent = ghost; RIDER_MAT.opacity = ghost ? 0.3 : 1; RIDER_MAT.needsUpdate = true; }
   if (Game.state === 'replay') {
     replayCamera(dt);
   } else {
