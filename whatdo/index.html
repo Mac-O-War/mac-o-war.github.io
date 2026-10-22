@@ -2852,10 +2852,11 @@ function updateEntities(dt) {
 const player = { run: null, x: 0, z: 0, y: 0, vx: 0, h: 0, speed: 0, base: 19, max: 34, lean: 0, alive: true, boost: false, yawRate: 0, turnPhase: null, finishing: false, hitWall: false };
 let rig = null;
 const shadowMesh = new THREE.Mesh(GEO.shadow, MAT.shadow);
+const RIDER_MAT = MAT.vox.clone();   // the rider's own copy, so it can fade (CAMERA DISTANCE at its closest) without fading the city
 function buildRig() {
   if (rig) { for (const m of rig.parts) { if (m.parent) m.parent.remove(m); } if (rig.root.parent) rig.root.parent.remove(rig.root); }
   const root = new THREE.Group(), lean = new THREE.Group(); root.add(lean);
-  const mk = (geo, x, y, z) => { const m = new THREE.Mesh(geo, MAT.vox); m.position.set(x, y, z); m.castShadow = true; lean.add(m); return m; };
+  const mk = (geo, x, y, z) => { const m = new THREE.Mesh(geo, RIDER_MAT); m.position.set(x, y, z); m.castShadow = true; lean.add(m); return m; };
   const tire = mk(RIG_GEO.tire, 0, 0.45, 0), shell = mk(RIG_GEO.shell, 0, 0.45, 0);
   const legL = mk(RIG_GEO.leg, -0.26, 0.74, 0), legR = mk(RIG_GEO.leg, 0.26, 0.74, 0);
   const torso = mk(RIG_GEO.torso, 0, 1.16, 0.02);
@@ -3873,6 +3874,9 @@ function updateCamera(dt) {
   let fov;
   applyTOD(Game.state === 'menu' ? 0 : (Game.level - 1) + clamp(Game.elapsed / Game.levelTime, 0, 1));
   stars.position.copy(camera.position);
+  // with the camera all the way in (60%), the rider is see-through while riding so the road ahead stays visible
+  const ghost = camDist <= 60 && (Game.state === 'play' || Game.state === 'countdown');
+  if (RIDER_MAT.transparent !== ghost) { RIDER_MAT.transparent = ghost; RIDER_MAT.opacity = ghost ? 0.5 : 1; RIDER_MAT.needsUpdate = true; }
   if (Game.state === 'replay') {
     replayCamera(dt);
   } else {
