@@ -3392,8 +3392,8 @@ function popup(text, cls) {
      when a chain of 3+ ends you get a Chain Bonus. Crash and the chain is lost.
    ===================================================================== */
 const P_HW = 0.3, P_HD = 0.5, NEAR = 1.25, SQ_GAP = 1.5, CHAIN_WIN = 3.0;
-const CHICKEN_TTC = 1.3;   // seconds from impact you can still be in an oncoming car's lane and get CHICKEN! (was ~0.97)
-const CROSS_NEAR = 5.5;   // passing within this many metres of a crossing car's bumper scores
+const CHICKEN_TTC = 1.8;   // seconds from impact you can still be in an oncoming car's lane and get CHICKEN! (about 55 m)
+const CROSS_NEAR = 8;   // passing within this many metres of a crossing car's bumper scores
 const SC = { chainN: 0, chainT: 0, chainPts: 0, tricks: {}, sq: { t: 0, tight: 0, spd: 0, off: 0 }, gL: Infinity, gR: Infinity };
 const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE', rope: 'TIGHTROPE' };
 const BIKELANE_PTS = 400;   // a block (80 m) in the bike lane; each further block in a row pays 1.5x more
@@ -3474,7 +3474,7 @@ function updateScoring(dt) {
   for (const e of R.ents) {
     if (e.type !== 'car' || e.dir < 0 || e.z > player.z) continue;
     const dz = player.z - e.z - e.hd - P_HD;
-    if (dz > 70) continue;
+    if (dz > 90) continue;   // far enough ahead to cover the CHICKEN! window
     if (Math.abs(e.x - player.x) < e.hw + P_HW + 0.35) {
       const ttc = Math.max(0, dz) / Math.max(1, player.speed + e.v);
       e.minTTC = Math.min(e.minTTC === undefined ? 9 : e.minTTC, ttc);
@@ -3721,7 +3721,7 @@ function nearMiss(o, isStatic) {
     // ONCOMING VELOCITY: closing speed squared, more for a tight pass and a late dodge
     const rel = player.speed + o.v, mph = Math.round(rel * 2.1);
     const chicken = o.minTTC !== undefined && o.minTTC < 1.5 ? 1 + (1.5 - o.minTTC) * 1.5 : 1;
-    // CHICKEN!: you were still in its lane under CHICKEN_TTC seconds before impact (about 40 m at a typical closing speed)
+    // CHICKEN!: you were still in its lane under CHICKEN_TTC seconds before impact (about 55 m at a typical closing speed)
     award((o.minTTC < CHICKEN_TTC ? 'CHICKEN! ' : '') + 'ONCOMING VELOCITY ' + mph + ' MPH', rel * rel * 1.1 * (1 + tight) * chicken, 'ov');
     Sound.whoosh(pan, 1.3);
     if (Math.random() < 0.7) Sound.honk(pan, 1, Math.random() < 0.5);
