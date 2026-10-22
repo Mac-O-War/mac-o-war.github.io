@@ -3803,7 +3803,13 @@ const COMIC = ['SPLAT!', 'SPLORCH!', 'KA-SPLAT!', 'SQUELCH!', 'BLAMMO!', 'WHAT D
 const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
-  Voice.say(pick(['Ouch!', 'What do?', 'Wipeout!', 'Oof!', 'Dead', 'Just a scratch', 'Walk it off']), 6);
+  var sayings = ['Ouch!', 'What do?', 'Wipeout!', 'Oof!', 'You are Dead', 'Just a scratch', 'Walk it off', 'Skills issue', 'Skibidi Ohio',
+    'Yikes!', 'Splat!', "That's gonna leave a mark", 'Pancake!', 'Faceplant!', 'Gravity wins',
+    'Pedal dip!', 'Cut-out!', 'Overlean!', "Insurance won't cover that", "That's a warranty claim",
+    'Nailed it', 'Ten out of ten', 'Physics: one. You: zero', 'Bold strategy', 'Respawn pending', 'Character development',
+    'Bruh', 'Not very sigma', 'Caught in 4K', "It's giving pavement", 'Emotional damage', 'Touch grass. Literally', 'No cap, that hurt', 'Big L', 'Unalive speedrun'];
+
+  Voice.say(pick(sayings), 6);
   recordFrame();                       // final pose for the instant replay
   VID.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
