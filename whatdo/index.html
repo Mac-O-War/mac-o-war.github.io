@@ -2849,7 +2849,22 @@ function spawnBike(run, x, z, dir, kind) {
   m.position.set(x, 0, z);
   return addEnt(run, { type: 'bike', kind, mesh: m, x, z, hw: 0.32, hd: 0.95, dir, v: kind === 'delivery' ? rand(6, 9) : rand(5, 8), homeX: x, tx: x, t: rand(0, 6), swT: rand(3, 9), nm: false, lethal: true });
 }
+// a bike you hit tips over onto its side (away from you) and skids a little in your direction of travel
+function knockBike(e) {
+  e.v = 0; e.lethal = false; e.fallen = true; e.fall = 0;
+  e.fallSide = Math.sign(e.x - player.x) || (Math.random() < 0.5 ? -1 : 1);
+  e.slideV = Math.min(9, player.speed * 0.35);
+}
 function updBike(run, e, dt) {
+  if (e.fallen) {
+    e.fall = Math.min(1, e.fall + dt * 2.6);
+    e.slideV *= Math.exp(-3 * dt);
+    e.z -= e.slideV * dt; e.x += e.fallSide * e.slideV * 0.25 * dt;   // the rider travels toward -z
+    const k = e.fall * e.fall * (3 - 2 * e.fall);
+    e.mesh.position.set(e.x, groundY(run, e.x, e.z), e.z);
+    e.mesh.rotation.z = -e.fallSide * k * 1.45;   // onto its side
+    return;
+  }
   e.t += dt; e.swT -= dt;
   if (Game.state === 'play') {
     const d = Math.hypot(e.x - PL.x, e.z - PL.z);
@@ -3909,9 +3924,9 @@ function die(kind, ent) {
     else { if (ent.dir > 0) iz = 22; ent.vBase = 0; ent.brakeT = 99; ent.runsRed = false; }
   }
   if (ent && ent.type === 'ped') { ent.mode = 'fallen'; ent.lethal = false; }
-  if (ent && ent.type === 'bike') { ent.v = 0; ent.lethal = false; ent.mesh.rotation.z = 1.2; }
+  if (ent && ent.type === 'bike') knockBike(ent);
   updatePW();
-  const info = { lx: player.x, x: PW.x, z: PW.z, ang: player.run.theta + player.h, speed: player.speed, vx: player.vx, ix, iz, vehicle, ent: ent && ent.type === 'ped' ? ent : null };
+  const info = { lx: player.x, x: PW.x, z: PW.z, ang: player.run.theta + player.h, speed: player.speed, vx: player.vx, ix, iz, vehicle, ent: ent && ent.type === 'ped' ? ent : null, bike: ent && ent.type === 'bike' ? ent : null };
   Game.replayInfo = info;
   explodeRig(info);
   Game.shake = 1.4;
@@ -4308,14 +4323,15 @@ function replayImpact(silent) {
     screenFlash(0.55); buzz([60, 40, 160]);   // no comic burst in the replay (only at the live crash)
   }
   for (const r of runs) for (const e of r.ents) {
-    if (e.type !== 'ped') continue;
+    if (e.type !== 'ped' && e !== info.bike) continue;
     if (e === info.ent) { e.fall = 0; e.x = e.mesh.position.x; e.z = e.mesh.position.z; e.mesh.rotation.x = 0; }
+    else if (e === info.bike) { e.x = e.mesh.position.x; e.z = e.mesh.position.z; e.mesh.rotation.z = 0; knockBike(e); }
     else if (e.mode === 'photo') { e.x = e.mesh.position.x; e.z = e.mesh.position.z; e.photoT = rand(0.5, 1.4); e.snapped = false; }
   }
 }
 function updateCrashPeds(dt) {
   shutterCd -= dt;
-  for (const r of runs) { setPL(r); for (const e of r.ents) if (e.type === 'ped' && (e.mode === 'photo' || e.mode === 'fallen')) updPed(r, e, dt); }
+  for (const r of runs) { setPL(r); for (const e of r.ents) { if (e.type === 'ped' && (e.mode === 'photo' || e.mode === 'fallen')) updPed(r, e, dt); else if (e.type === 'bike' && e.fallen) updBike(r, e, dt); } }
 }
 const REPLAY_AFTER = 5.2;   // seconds the replay (and its video) keeps rolling after the impact
 function updateReplay(dt) {
