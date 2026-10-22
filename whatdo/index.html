@@ -92,7 +92,7 @@ body{position:fixed;inset:0}
 body.touch #focusBox{bottom:calc(min(26vmin,120px) + 40px + var(--sb))}
 #gasBox{position:absolute;left:calc(14px + var(--sl));bottom:calc(64px + var(--sb));width:150px}
 body.touch #gasBox{bottom:calc(min(26vmin,120px) + 74px + var(--sb))}
-#gasTxt{font-size:9px;color:#3ddc84;text-shadow:2px 2px 0 #000;letter-spacing:1px}
+#gasTxt{font-size:9px;color:var(--y);text-shadow:2px 2px 0 #000;letter-spacing:1px}#gasTxt b{color:#fff}
 #gasBar{display:block;height:100%;width:0;background:linear-gradient(90deg,#2bb36a,#7dffb0)}
 #gasBox.low #gasTxt{color:#ff4a3b;animation:blink .2s infinite alternate}
 #gasBox.dead #gasTxt{color:#7d8a92}#gasBox.empty .cbar{animation:focusEmpty .45s ease-out}
@@ -132,6 +132,7 @@ body.touch #touch.on{display:block}
 #countdown.go{color:#3ddc84}
 /* level 1 unlocks: locked controls are hidden; the big message and a pulse on the newly unlocked button */
 .tb.locked,#focusBox.locked{visibility:hidden}
+.tb.dry{opacity:.5}
 .tb.justUnlocked{animation:unlockPulse .35s ease-in-out 6 alternate}
 @keyframes unlockPulse{from{transform:scale(1)}to{transform:scale(1.18);box-shadow:0 0 0 6px rgba(255,210,63,.8),0 6px 0 rgba(0,0,0,.35)}}
 #unlockMsg{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(30px,7vw,60px);letter-spacing:2px;color:#3ddc84;-webkit-text-stroke:3px #000;text-shadow:5px 5px 0 #000;pointer-events:none;display:none;z-index:4}
@@ -273,7 +274,7 @@ body:not(.touch) .card.tch{display:none}
   <div id="tricks"></div>
   <div id="popups"></div>
   <div id="warnT" class="hidden">! ONCOMING SWERVE !</div>
-  <div id="gasBox" class="dead"><div id="gasTxt">VOLTS</div><div class="cbar"><i id="gasBar"></i></div></div>
+  <div id="gasBox" class="dead"><div id="gasTxt">VOLTS <b id="gasSecs">0</b>s</div><div class="cbar"><i id="gasBar"></i></div></div>
   <div id="focusBox"><div id="focusTxt">FOCUS</div><div class="cbar"><i id="focusBar"></i></div></div>
   <div id="metalBox" class="hidden"><div id="metalTxt">PEDAL TO THE METAL</div><div class="cbar"><i id="metalBar"></i></div></div>
   <div id="speedo"><div id="mph">0<small>MPH</small></div><div id="segs"></div></div>
@@ -288,7 +289,7 @@ body:not(.touch) .card.tch{display:none}
 <div id="touch">
   <div class="tb" id="tLeft">&#9664;</div>
   <div class="tb" id="tRight">&#9654;</div>
-  <div class="tb" id="tGas">VOLTS</div>
+  <div class="tb" id="tGas">BOOST</div>
   <div class="tb" id="tFocus">FOCUS</div>
 </div>
 
@@ -312,7 +313,7 @@ body:not(.touch) .card.tch{display:none}
     <div class="card tch">
       <h3>PHONE / TABLET</h3>
       <div class="row"><span class="key">&#9664;</span><span class="key">&#9654;</span> LEFT THUMB TO <b>STEER</b></div>
-      <div class="row"><span class="gasdemo">VOLTS</span>HOLD TO <b>BOOST</b> &middot; GRAB BATTERIES</div>
+      <div class="row"><span class="gasdemo">BOOST</span>HOLD TO <b>BOOST</b> &middot; GRAB BATTERIES</div>
       <div class="row">NEAR MISSES FILL <b>FOCUS</b> &middot; HOLD IT FOR SLOW-MO</div>
     </div>
   </div>
@@ -3120,9 +3121,9 @@ const readGas = () => GASC.t > 0 && rawGas();
 const readFocus = () => rawFocus();
 function updateGasUI() {
   const on = GASC.t > 0;
-  $('tGas').classList.toggle('locked', !on); $('gasBox').classList.toggle('dead', !on);   // the meter stays up (empty) so a denied press can flash it
+  $('tGas').classList.toggle('dry', !on); $('gasBox').classList.toggle('dead', !on);   // BOOST stays on screen, dimmed when there are no volts   // the meter stays up (empty) so a denied press can flash it
   const sec = Math.ceil(GASC.t), pct = Math.round(Math.min(1, GASC.t / BATTERY_SECS) * 100);
-  if (sec !== GASC.shown) { GASC.shown = sec; $('gasBox').classList.toggle('low', on && sec <= 3); }   // the label blinks red near empty
+  if (sec !== GASC.shown) { GASC.shown = sec; $('gasSecs').textContent = sec; $('gasBox').classList.toggle('low', on && sec <= 3); }   // seconds left; the label blinks red near empty
   if (pct !== GASC.pct) { GASC.pct = pct; $('gasBar').style.width = pct + '%'; }
 }
 // 'held' starts true so a press carried over from the menu doesn't buzz
