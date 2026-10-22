@@ -352,6 +352,7 @@ body:not(.touch) .card.tch{display:none}
     <div class="setRow"><div class="sl">SOUND<small>Music and sound effects</small></div><button class="btn sm" id="soundSet">ON</button></div>
     <div class="setRow"><div class="sl">MUSIC VOLUME<small id="musVal">100%</small></div><input type="range" id="musVol" min="0" max="100" step="5" value="100" aria-label="Music volume"></div>
     <div class="setRow"><div class="sl">EFFECTS VOLUME<small id="sfxVal">100%</small></div><input type="range" id="sfxVol" min="0" max="100" step="5" value="100" aria-label="Sound effects volume"></div>
+    <div class="setRow"><div class="sl">CAMERA DISTANCE<small id="camVal">100%</small></div><input type="range" id="camDist" min="60" max="150" step="5" value="100" aria-label="Camera distance"></div>
     <div class="setRow"><div class="sl">ANNOUNCER<small>A voice that calls out big moves</small></div><button class="btn sm voiceBtn">OFF</button></div>
   </div>
   <button class="btn" id="setBack">BACK</button>
@@ -3307,7 +3308,13 @@ function updateSettingsUI() {
   const v = Sound.volume;
   $('musVol').value = Math.round(v.music * 100); $('musVal').textContent = Math.round(v.music * 100) + '%';
   $('sfxVol').value = Math.round(v.sfx * 100); $('sfxVal').textContent = Math.round(v.sfx * 100) + '%';
+  $('camDist').value = camDist; $('camVal').textContent = camDist + '%';
 }
+$('camDist').addEventListener('input', () => {
+  camDist = clamp(+$('camDist').value, 60, 150); CAM_ZOOM = CAM_ZOOM_BASE * camDist / 100;
+  $('camVal').textContent = camDist + '%'; store.set('whatdo_camdist', String(camDist));
+});
+$('camDist').addEventListener('pointerdown', (e) => e.stopPropagation());
 for (const [id, kind, label] of [['musVol', 'music', 'musVal'], ['sfxVol', 'sfx', 'sfxVal']]) {
   $(id).addEventListener('input', () => { const v = +$(id).value / 100; Sound.setVolume(kind, v); $(label).textContent = Math.round(v * 100) + '%'; });
   $(id).addEventListener('change', () => { if (kind === 'sfx') Sound.blip(880, 0.08, 'square', 0.1); });   // a little test beep at the new level
@@ -3848,7 +3855,10 @@ function updatePlay(dt) {
   updateWarnings();
   if (Game.elapsed >= Game.levelTime) { Game.elapsed = Game.levelTime; winLevel(); }
 }
-const CAM_ZOOM = 0.80;   // gameplay camera distance: 1 = original, smaller = closer to the rider
+const CAM_ZOOM_BASE = 0.80;   // gameplay camera distance: 1 = original, smaller = closer to the rider
+// the CAMERA DISTANCE setting scales it: 100% = CAM_ZOOM_BASE (remembered)
+let camDist = clamp(parseInt(store.get('whatdo_camdist', '100'), 10) || 100, 60, 150);
+let CAM_ZOOM = CAM_ZOOM_BASE * camDist / 100;
 let camYaw = 0, lookYaw = 0;   // gameplay camera position heading and look direction (world space), each damped
 // how far the camera turns with the rider's heading (CAM) and how far it looks (LOOK): 1 = exactly the heading.
 // In a turn the view leads: before halfway it looks 1.5x further round than you face, after halfway it looks
@@ -4056,9 +4066,13 @@ function endReplay() {
 }
 
 /* ---------- replay video with sound (MediaRecorder; WebM VP9/VP8 + Opus, MP4 as a last resort for Safari) ----------
-   Each replay frame is drawn, with a title bar and score overlay, onto VID.cv; MediaRecorder records that canvas
+   The video is vertical (9:16, for phones and social media) whatever way the screen is turned: each replay frame the
+   scene is also rendered from a tall camera into a corner of the game canvas, copied (with a title and score overlay)
+   onto VID.cv, and then the normal frame is drawn over it, so the screen never shows it. MediaRecorder records VID.cv
    in real time while the replay plays. Only a replay that plays to the end is kept. */
-const VIDEO_SIZE = 1280;     // longest side of the saved video, in pixels
+const VIDEO_W = 720, VIDEO_H = 1280;   // size of the saved (vertical) video, in pixels
+const VIDEO_ASPECT = 9 / 16;
+const vcam = new THREE.PerspectiveCamera(60, VIDEO_ASPECT, 0.3, 760);   // the tall camera that films the video
 const VIDEO_FPS = 30, VIDEO_BPS = 5000000, VIDEO_HOLD = 0.8;   // frame rate, bitrate, seconds the last frame is held
 // first supported type; with sound the Opus (or AAC for Safari's MP4) versions come first
 function pickVideoType(withAudio) {
@@ -4097,25 +4111,55 @@ VID.reset = () => {     // new crash: drop the old video and anything still reco
   VID.token++; VID.discard(); VID.blob = null; VID.enc = false;
   vidBtnState('wait');
 };
-VID.draw = () => {
-  const c = VID.ctx, w = VID.w, h = VID.h, k = Math.max(w, h) / 320;   // overlay scale
+// sx, sy, sw, sh: the tall picture's place in the game canvas (in canvas pixels)
+VID.draw = (sx, sy, sw, sh) => {
+  const c = VID.ctx, w = VID.w, h = VID.h, k = w / 240;   // overlay scale
   c.imageSmoothingEnabled = false;
-  c.drawImage(canvas, 0, 0, w, h);
-  c.fillStyle = '#000'; c.fillRect(0, 0, w, 20 * k); c.fillRect(0, h - 18 * k, w, 18 * k);
-  c.font = 'bold ' + 15 * k + 'px Bangers, Impact, sans-serif'; c.textBaseline = 'middle';
-  c.lineWidth = 3 * k; c.strokeStyle = '#000'; c.fillStyle = '#ffd23f'; c.strokeText('WHAT DO?', 6 * k, 11 * k); c.fillText('WHAT DO?', 6 * k, 11 * k);
-  c.font = 'bold ' + 9 * k + 'px monospace'; c.fillStyle = '#ff3b3b'; c.textAlign = 'right'; c.fillText('● INSTANT REPLAY', w - 6 * k, 11 * k);
-  c.textAlign = 'left'; c.fillStyle = '#ffffff';
-  c.fillText('SCORE ' + Math.floor(Game.score).toLocaleString(), 6 * k, h - 9 * k);
-  c.textAlign = 'right'; c.fillStyle = '#ffd23f'; c.fillText((Game.cause || '').slice(0, 44), w - 6 * k, h - 9 * k); c.textAlign = 'left';
+  c.drawImage(canvas, sx, sy, sw, sh, 0, 0, w, h);
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  // top: the title and INSTANT REPLAY
+  c.fillStyle = '#000'; c.fillRect(0, 0, w, 36 * k);
+  c.font = 'bold ' + 24 * k + 'px Bangers, Impact, sans-serif';
+  c.lineWidth = 4 * k; c.strokeStyle = '#000'; c.fillStyle = '#ffd23f'; c.strokeText('WHAT DO?', w / 2, 15 * k); c.fillText('WHAT DO?', w / 2, 15 * k);
+  c.font = 'bold ' + 9 * k + 'px monospace'; c.fillStyle = '#ff3b3b'; c.fillText('● INSTANT REPLAY', w / 2, 30 * k);
+  // bottom: what happened, and the score
+  c.fillStyle = '#000'; c.fillRect(0, h - 44 * k, w, 44 * k);
+  // the cause, word-wrapped onto at most two lines
+  c.font = 'bold ' + 8 * k + 'px monospace';
+  const lines = [''], maxW = w - 12 * k;
+  for (const word of String(Game.cause || '').split(/\s+/)) {
+    const t = lines[lines.length - 1] ? lines[lines.length - 1] + ' ' + word : word;
+    if (c.measureText(t).width <= maxW || !lines[lines.length - 1]) lines[lines.length - 1] = t;
+    else if (lines.length < 2) lines.push(word);
+    else { lines[1] += '…'; break; }
+  }
+  while (lines[1] && c.measureText(lines[1]).width > maxW) lines[1] = lines[1].slice(0, -2).trim() + '…';
+  c.fillStyle = '#ffd23f';
+  lines.forEach((l, i) => c.fillText(l, w / 2, h - (lines.length === 2 ? 36 : 31) * k + i * 10 * k));
+  c.font = 'bold ' + 13 * k + 'px monospace'; c.fillStyle = '#ffffff';
+  c.fillText('SCORE ' + Math.floor(Game.score).toLocaleString(), w / 2, h - 11 * k);
+  c.textAlign = 'left';
+};
+// render the tall shot into the bottom-left of the game canvas (the normal frame is drawn over it straight after)
+VID.capture = () => {
+  const pw = Math.min(viewW, viewH * VIDEO_ASPECT), ph = pw / VIDEO_ASPECT;
+  vcam.position.copy(camera.position); vcam.quaternion.copy(camera.quaternion);
+  // a little narrower than the replay camera's height of view, so the rider fills more of the tall frame
+  const hf = THREE.MathUtils.degToRad(camera.fov * 0.9);
+  vcam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / VIDEO_ASPECT));
+  vcam.near = camera.near; vcam.far = camera.far; vcam.updateProjectionMatrix();
+  renderer.setViewport(0, 0, pw, ph); renderer.setScissor(0, 0, pw, ph); renderer.setScissorTest(true);
+  renderer.render(scene, vcam);
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, viewW, viewH);
+  const pr = renderer.getPixelRatio(), sw = Math.floor(pw * pr), sh = Math.floor(ph * pr);
+  VID.draw(0, canvas.height - sh, sw, sh);
 };
 VID.start = () => {
   if (!VIDEO_TYPE || VID.blob || VID.enc) return;   // can't record, or already have (or are saving) this crash's video
   VID.discard();
-  const s = VIDEO_SIZE / Math.max(viewW, viewH);   // even sizes: some encoders need them
-  VID.w = Math.max(16, Math.round(viewW * s / 2) * 2); VID.h = Math.max(16, Math.round(viewH * s / 2) * 2);
+  VID.w = VIDEO_W; VID.h = VIDEO_H;
   VID.cv.width = VID.w; VID.cv.height = VID.h;
-  VID.draw();   // a first frame before the stream starts
+  VID.capture();   // a first frame before the stream starts
   try {
     // picture from the replay canvas, plus a copy of the game's sound (a copy, so stopping it never silences the next clip)
     const tracks = VID.cv.captureStream(VIDEO_FPS).getVideoTracks();
@@ -4129,7 +4173,6 @@ VID.start = () => {
   } catch (e) { VID.discard(); vidBtnState('none'); return; }
   vidBtnState('wait');
 };
-VID.capture = () => VID.draw();
 VID.stop = (complete) => {
   if (!VID.cap) return;
   VID.cap = false;
@@ -4236,8 +4279,8 @@ function frame(now) {
   Sound.setEngine(player.speed, st === 'play', player.boost);
   if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
   updateDecor(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
+  if (Game.state === 'replay' && VID.cap) VID.capture();   // the tall video frame first: the normal frame then covers it
   renderer.render(scene, camera);
-  if (Game.state === 'replay' && VID.cap) VID.capture();
 }
 
 /* ---------- online leaderboard (Cloudflare Worker + D1; Worker source lives in C:\code\whatdo-leaderboard) ----------
