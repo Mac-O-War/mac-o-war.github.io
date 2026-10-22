@@ -205,6 +205,7 @@ body:not(.touch) .card.tch{display:none}
 .setRow .sl{font-size:10px;color:#fff;line-height:1.5}
 .setRow .sl small{display:block;font-size:8px;color:#9fb4d8;margin-top:3px}
 .setRow .btn{min-width:200px}
+.setRow input[type=range]{width:200px;accent-color:#ffd23f;touch-action:none;cursor:pointer}
 @media (max-height:520px){#settingsScreen .big{font-size:clamp(28px,10vh,44px)}#setList{margin:8px 0 10px}.setRow{padding:7px 12px}#settingsScreen>.btn{padding:8px 22px}}
 /* ---------- scoring screen ---------- */
 #scoreList{background:rgba(13,15,26,.78);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08);width:min(620px,100%);max-height:calc(100vh - 210px - var(--st) - var(--sb));overflow-y:auto;margin:14px 0 18px;padding:0 4px;text-align:left;touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
@@ -314,7 +315,7 @@ body:not(.touch) .card.tch{display:none}
   <!-- <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p> -->
   <button class="btn alt" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
-  <div class="sub2" style="margin-top:12px"><button class="btn sm scoreOpen">SCORING</button><button class="btn sm lbOpen hidden">TOP 10</button><button class="btn sm setOpen">SETTINGS</button><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button></div>
+  <div class="sub2" style="margin-top:12px"><button class="btn sm setOpen">SETTINGS</button><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button></div>
   <div id="pwaBox"><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
   <div id="rotateTip">TIP: TURN YOUR PHONE SIDEWAYS FOR THE BEST VIEW</div>
   </div>
@@ -362,6 +363,8 @@ body:not(.touch) .card.tch{display:none}
   <div id="setList">
     <div class="setRow"><div class="sl">RESOLUTION<small>Lower is faster on phones</small></div><button class="btn sm resBtn">RESOLUTION: PIXEL</button></div>
     <div class="setRow"><div class="sl">SOUND<small>Music and sound effects</small></div><button class="btn sm" id="soundSet">SOUND: ON</button></div>
+    <div class="setRow"><div class="sl">MUSIC VOLUME<small id="musVal">100%</small></div><input type="range" id="musVol" min="0" max="100" step="5" value="100" aria-label="Music volume"></div>
+    <div class="setRow"><div class="sl">EFFECTS VOLUME<small id="sfxVal">100%</small></div><input type="range" id="sfxVol" min="0" max="100" step="5" value="100" aria-label="Sound effects volume"></div>
     <div class="setRow"><div class="sl">ANNOUNCER<small>A voice that calls out big moves</small></div><button class="btn sm voiceBtn">ANNOUNCER: OFF</button></div>
   </div>
   <button class="btn" id="setBack">BACK</button>
@@ -1110,6 +1113,13 @@ function applyTOD(f) {
 const Sound = (() => {
   let ctx = null, focusLp = null, master, sfx, mus, comp, noiseBuf, engOsc, engOsc2, engGain, engFilt, windGain, windFilt;
   let muted = store.get('whatdo_mute', '0') === '1';
+  // music and sound-effects volume, 0..1 (remembered); mute still silences everything
+  const volOf = (k) => { const v = parseFloat(store.get(k, '1')); return isFinite(v) ? clamp(v, 0, 1) : 1; };
+  const vol = { music: volOf('whatdo_vol_music'), sfx: volOf('whatdo_vol_sfx') };
+  function setVolume(kind, v) {
+    vol[kind] = clamp(v, 0, 1); store.set(kind === 'music' ? 'whatdo_vol_music' : 'whatdo_vol_sfx', vol[kind].toFixed(2));
+    if (ctx) (kind === 'music' ? mus : sfx).gain.setTargetAtTime((kind === 'music' ? 0.3 : 0.9) * vol[kind], ctx.currentTime, 0.05);
+  }
   let musicOn = false, nextT = 0, step = 0, tempo = 148, baseTempo = 148, schedTimer = null;
   // live game state the soundtrack reacts to
   const MS = { chain: 0, squeeze: false, boost: false, metal: 0, final: false };
@@ -1121,8 +1131,8 @@ const Sound = (() => {
     master = ctx.createGain(); master.gain.value = muted ? 0 : 0.85; master.connect(ctx.destination);
     comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     focusLp = ctx.createBiquadFilter(); focusLp.type = 'lowpass'; focusLp.frequency.value = 20000; comp.connect(focusLp); focusLp.connect(master);   // muffles in slow-mo
-    sfx = ctx.createGain(); sfx.gain.value = 0.9; sfx.connect(comp);
-    mus = ctx.createGain(); mus.gain.value = 0.3; mus.connect(comp);
+    sfx = ctx.createGain(); sfx.gain.value = 0.9 * vol.sfx; sfx.connect(comp);
+    mus = ctx.createGain(); mus.gain.value = 0.3 * vol.music; mus.connect(comp);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     // electric motor whine + low hum
@@ -1499,7 +1509,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, deny, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -2917,7 +2927,7 @@ window.addEventListener('mouseup', () => { input.mouseGas = false; input.mouseFo
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 ['touchstart', 'touchmove', 'touchend', 'gesturestart', 'gesturechange', 'dblclick'].forEach((ev) => document.addEventListener(ev, (e) => {
   if (e.target && e.target.closest && e.target.closest('.screen') && ev !== 'touchmove' && ev !== 'gesturestart' && ev !== 'gesturechange') return;
-  if (ev === 'touchmove' && e.target && e.target.closest && e.target.closest('.scroll')) return;   // scrollable lists scroll
+  if (ev === 'touchmove' && e.target && e.target.closest && e.target.closest('.scroll, input[type=range]')) return;   // scrollable lists scroll, sliders slide
   if (e.cancelable) e.preventDefault();
 }, { passive: false }));
 function holdButton(el, key) {
@@ -3149,7 +3159,8 @@ function cashInAll() {
 function updateMetal(dt) {
   const M = SC.metal || (SC.metal = { dist: 0, lvl: 0, grace: 0 });
   if (player.boost) {
-    M.grace = 0.2; M.dist += player.speed * dt;
+    M.grace = FOCUS.meter >= FOCUS_MIN ? FOCUS_GAP : 0.2;   // with FOCUS ready, wait long enough for a thumb to reach it
+    M.dist += player.speed * dt;
     const nl = Math.min(6, Math.floor(M.dist / 100));
     if (nl > M.lvl) {
       M.lvl = nl;
@@ -3280,7 +3291,17 @@ document.querySelectorAll('.voiceBtn').forEach((b) => bindButton(b, () => { Voic
 updateVoiceButtons();
 /* ---------- SETTINGS screen: resolution, sound, announcer (opened from the start and pause screens) ---------- */
 const SETTINGS_UI = { open: false, back: 'startScreen' };
-function updateSettingsUI() { $('soundSet').textContent = 'SOUND: ' + (Sound.muted ? 'OFF' : 'ON'); updateResButtons(); updateVoiceButtons(); }
+function updateSettingsUI() {
+  $('soundSet').textContent = 'SOUND: ' + (Sound.muted ? 'OFF' : 'ON'); updateResButtons(); updateVoiceButtons();
+  const v = Sound.volume;
+  $('musVol').value = Math.round(v.music * 100); $('musVal').textContent = Math.round(v.music * 100) + '%';
+  $('sfxVol').value = Math.round(v.sfx * 100); $('sfxVal').textContent = Math.round(v.sfx * 100) + '%';
+}
+for (const [id, kind, label] of [['musVol', 'music', 'musVal'], ['sfxVol', 'sfx', 'sfxVal']]) {
+  $(id).addEventListener('input', () => { const v = +$(id).value / 100; Sound.setVolume(kind, v); $(label).textContent = Math.round(v * 100) + '%'; });
+  $(id).addEventListener('change', () => { if (kind === 'sfx') Sound.blip(880, 0.08, 'square', 0.1); });   // a little test beep at the new level
+  $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+}
 function openSettings() {
   SETTINGS_UI.back = Game.state === 'paused' ? 'pauseScreen' : 'startScreen'; SETTINGS_UI.open = true;
   updateSettingsUI(); showScreen('settingsScreen');
@@ -3290,6 +3311,7 @@ function settingsKey(e) {
   if (!SETTINGS_UI.open) return false;
   if (['Escape', 'Backspace'].includes(e.code)) { e.preventDefault(); if (!e.repeat) closeSettings(); }
   else if (e.code === 'KeyM' && !e.repeat) { toggleMute(); }
+  else if (e.target && e.target.type === 'range') return true;   // arrow keys adjust a focused slider
   return true;
 }
 document.querySelectorAll('.setOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'paused') openSettings(); }));
@@ -3364,11 +3386,16 @@ document.querySelectorAll('.scoreOpen').forEach((b) => bindButton(b, () => { if 
 bindButton($('scoreBack'), closeScoring);
 /* ---------- FOCUS (bullet time): near misses fill it; hold the button to slow the world ---------- */
 const FOCUS = { meter: 0, on: false, k: 0, shown: -1, held: false, speed: 0, boost: false };
+const FOCUS_GAP = 0.4;   // seconds allowed between leaving GAS and pressing FOCUS without losing speed or Pedal to the Metal
 const FOCUS_SCALE = 0.50, FOCUS_DRAIN = 0.44, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
 function focusGain(a) { FOCUS.meter = Math.min(1, FOCUS.meter + a * (FOCUS.on ? 0.35 : 1)); }   // less while already in slow-mo
 function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time scale for the world
   const held = Game.state === 'play' && readFocus(), pressed = held && !FOCUS.held; FOCUS.held = held;
-  if (held && !FOCUS.on && FOCUS.meter >= FOCUS_MIN) { FOCUS.on = true; FOCUS.speed = player.speed; FOCUS.boost = player.boost; Sound.whoosh(0, 1.4); Sound.setFocus(true); }
+  if (held && !FOCUS.on && FOCUS.meter >= FOCUS_MIN) { FOCUS.on = true;
+    // a thumb moving from GAS to FOCUS: if you were on the gas within FOCUS_GAP, carry on as if you still were
+    const fromGas = !player.boost && performance.now() - (FOCUS.gasT || -1e9) < FOCUS_GAP * 1000;
+    FOCUS.speed = fromGas ? Math.max(player.speed, FOCUS.gasSpeed) : player.speed; FOCUS.boost = player.boost || fromGas;
+    Sound.whoosh(0, 1.4); Sound.setFocus(true); }
   else if (pressed && !FOCUS.on) {   // not enough saved: a buzz and a red flash on the meter (once per press)
     Sound.deny(); const b = $('focusBox'); b.classList.remove('empty'); void b.offsetWidth; b.classList.add('empty');
   }
@@ -3769,6 +3796,7 @@ function updatePlay(dt) {
   screamCd -= dt;
   const steer = readSteer(), gas = readGas();
   // in FOCUS your speed and gas are held as they were when it started (your thumb may have left GAS to press FOCUS)
+  if (gas) { FOCUS.gasT = performance.now(); FOCUS.gasSpeed = player.speed; }   // for the GAS -> FOCUS thumb move
   player.boost = FOCUS.on ? FOCUS.boost : gas;
   if (FOCUS.on) player.speed = FOCUS.speed;
   else player.speed += clamp((gas ? player.max : player.base) - player.speed, -12 * dt, 16 * dt);
@@ -4382,6 +4410,21 @@ function flushTrack() {
   if (!gc || typeof gc.count !== 'function') return;
   while (trackQueue.length) { try { gc.count(trackQueue.shift()); } catch (e) { /* ignore */ } }
 }
+// error reporting: each distinct JavaScript error (or failed promise) becomes a GoatCounter event, once per
+// session and at most 5 per session; errors from browser extensions are ignored. GoatCounter adds the browser and screen size.
+const errSeen = new Set();
+function reportError(msg, file, line) {
+  if (errSeen.size >= 5) return;
+  file = String(file || '');
+  if (/^(chrome|moz|safari|ms-browser)-extension:/.test(file)) return;
+  if (/^script error\.?$/i.test(String(msg || '').trim()) && !line) return;   // other sites' scripts: the browser hides the details, so it's never useful
+  const where = (file.split('/').pop() || 'page') + ':' + (line || 0), text = String(msg || 'unknown error').replace(/\s+/g, ' ').slice(0, 160);
+  const key = text + '@' + where; if (errSeen.has(key)) return; errSeen.add(key);
+  const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'error';
+  track('error/' + slug + '@' + where, 'JS error: ' + text + ' (' + where + ', state ' + (window.WhatDo ? WhatDo.state : '?') + ')');
+}
+window.addEventListener('error', (e) => reportError(e.message || (e.error && e.error.message), e.filename, e.lineno));
+window.addEventListener('unhandledrejection', (e) => { const r = e.reason; reportError('unhandled promise: ' + (r && (r.message || r)), r && r.fileName, r && r.lineNumber); });
 const trackTimer = setInterval(() => { flushTrack(); if (window.goatcounter && window.goatcounter.count) clearInterval(trackTimer); }, 1000);
 setTimeout(() => clearInterval(trackTimer), 30000);
 
