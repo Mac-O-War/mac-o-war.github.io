@@ -3184,6 +3184,8 @@ function resetWorld() {
   $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
 function showScreen(id) {
+  // a button that switches screens never sees its own pointerup, so it would stay pressed in (5px lower) when shown again
+  document.querySelectorAll('.btn.press').forEach((b) => b.classList.remove('press'));
   for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen', 'scoreScreen', 'settingsScreen']) $(s).classList.toggle('hidden', s !== id);
 }
 function setHudVisible(on) {
@@ -3221,7 +3223,7 @@ window.addEventListener('blur', () => pauseGame());
 
 function bindButton(el, fn) {
   el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); el.classList.add('press'); fn(); });
-  el.addEventListener('pointerup', () => el.classList.remove('press'));
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => el.classList.remove('press'));
   el.addEventListener('click', (e) => e.preventDefault());
 }
 bindButton($('playBtn'), () => { if (Game.state === 'menu') startFromMenu(); });
@@ -3624,7 +3626,10 @@ function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time sc
   return 1 + (FOCUS_SCALE - 1) * FOCUS.k;
 }
 function resetFocus() { FOCUS.meter = 0.5; FOCUS.k = 0;   // every new game starts with the FOCUS meter half full
-  if (FOCUS.on) Sound.setFocus(false); FOCUS.on = false; }
+  if (FOCUS.on) Sound.setFocus(false); FOCUS.on = false;
+  // draw it now: the meter only redraws during play, so the countdown would otherwise show the last game's value
+  FOCUS.shown = Math.round(FOCUS.meter * 100); $('focusBar').style.width = FOCUS.shown + '%';
+  const box = $('focusBox'); box.classList.remove('on', 'empty'); box.classList.toggle('ready', FOCUS.meter >= FOCUS_MIN); $('focusFx').style.opacity = 0; }
 /* ---------- near miss / collisions ---------- */
 function nearMiss(o, isStatic) {
   Game.near++; focusGain(0.12);
