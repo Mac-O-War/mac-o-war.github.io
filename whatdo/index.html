@@ -138,6 +138,8 @@ body.touch #touch.on{display:block}
 #unlockMsg{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(30px,7vw,60px);letter-spacing:2px;color:#3ddc84;-webkit-text-stroke:3px #000;text-shadow:5px 5px 0 #000;pointer-events:none;display:none;z-index:4}
 #unlockMsg.show{display:block;animation:unlockIn 2.6s ease-out forwards}
 #padToast{position:fixed;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:rgba(13,15,26,.85);border:3px solid #000;padding:8px 12px;pointer-events:none;opacity:0;z-index:20}
+.padFocus{outline:4px solid #fff;outline-offset:3px;box-shadow:0 0 0 7px rgba(255,210,63,.55),0 4px 0 #000 !important;animation:padFocus .8s ease-in-out infinite alternate}
+@keyframes padFocus{from{outline-color:#fff}to{outline-color:#ffd23f}}
 #padToast.show{animation:padToast 3s ease-out forwards}@keyframes padToast{0%,85%{opacity:1}100%{opacity:0}}
 #padDebug{position:fixed;left:6px;top:6px;z-index:30;margin:0;padding:6px 8px;background:rgba(0,0,0,.8);color:#7dffb0;font:11px/1.35 monospace;pointer-events:none;white-space:pre}
 @keyframes unlockIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}22%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
@@ -3163,12 +3165,80 @@ function pollPad() {
   // menu buttons fire once per press
   const now = gp.buttons.map((x, i) => b(i)), was = PAD.prev, down = (i) => now[i] && !was[i];
   PAD.prev = now;
-  if (now.some(Boolean)) Sound.init();   // wake the audio (browsers that count a controller press as a user gesture)
+  const t = performance.now();
+  if (now.some(Boolean) || Math.abs(gp.axes[0] || 0) > 0.6 || Math.abs(gp.axes[1] || 0) > 0.6) { NAV.used = t; Sound.init(); }   // wake the audio where a controller press counts as a gesture
   const playing = Game.state === 'play' || Game.state === 'countdown';
   if (down(9)) padKey(Game.state === 'play' || Game.state === 'paused' ? 'Escape' : 'Enter');   // START: pause / resume, or go
-  if (!playing && down(0)) padKey('Enter');
+  if (playing && NAV.screen !== null) { NAV.screen = null; navSet(null); }   // riding: no menu highlight
+  const pressed = !playing && navPad(gp, now, down, t);   // menus: move the highlight, A presses it
+  if (!playing && !pressed && down(0)) padKey('Enter');   // nothing highlighted (or the replay): A works like Enter
   if (down(1) && Game.state !== 'play') padKey('Escape');
 }
+/* ---------- controller menu navigation: the D-pad (or left stick) moves a highlight between the buttons and sliders
+   of the screen that's showing, A presses the highlighted one, left / right adjust a highlighted slider, and the right
+   stick scrolls a long list. Moves go to the nearest control in that direction, so every screen's layout just works. */
+const NAV = { el: null, screen: null, dir: '', next: 0, used: -1e9 };   // used: when the controller was last touched
+function navScreen() { return [...document.querySelectorAll('.screen')].find((s) => !s.classList.contains('hidden')) || null; }
+function navItems(scr) {
+  return [...scr.querySelectorAll('button, input[type=range]')].filter((el) => el.offsetParent !== null && !el.classList.contains('hidden')
+    && !el.classList.contains('dis') && getComputedStyle(el).visibility !== 'hidden');
+}
+function navSet(el) {
+  if (NAV.el) NAV.el.classList.remove('padFocus');
+  NAV.el = el || null;
+  if (el) { el.classList.add('padFocus'); try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { /* old browsers */ } }
+}
+const navDefault = (items) => items.find((el) => el.classList.contains('alt')) || items[0] || null;   // the green (main) button first
+function navMove(dx, dy) {
+  const scr = navScreen(); if (!scr) return;
+  const items = navItems(scr); if (!items.length) return;
+  if (!NAV.el || !items.includes(NAV.el)) { navSet(navDefault(items)); return; }
+  if (dx && NAV.el.type === 'range') {   // a highlighted slider: left / right change it
+    const r = NAV.el, step = +r.step || 1;
+    r.value = clamp(+r.value + dx * step, +r.min, +r.max);
+    r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true }));
+    return;
+  }
+  const a = NAV.el.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let best = null, bestScore = Infinity;
+  for (const el of items) {
+    if (el === NAV.el) continue;
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2 - ax, y = r.top + r.height / 2 - ay;
+    const along = dx ? x * dx : y * dy, across = dx ? Math.abs(y) : Math.abs(x);
+    if (along <= 4) continue;   // not in that direction
+    const score = along + across * 2.5;
+    if (score < bestScore) { bestScore = score; best = el; }
+  }
+  if (best) navSet(best);
+}
+function navPress(el) {   // buttons in this game act on pointer events, so press it the same way a tap does
+  const o = { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0, isPrimary: true };
+  el.dispatchEvent(new PointerEvent('pointerdown', o)); el.dispatchEvent(new PointerEvent('pointerup', o));
+}
+function navPad(gp, now, down, t) {
+  const scr = navScreen();
+  if (scr !== NAV.screen) {   // a new screen: start on its main button if the controller is in use
+    NAV.screen = scr; navSet(null);
+    if (scr && t - NAV.used < 30000) { const items = navItems(scr); if (items.length) navSet(navDefault(items)); }
+  }
+  if (!scr) return false;
+  if (NAV.el && !navItems(scr).includes(NAV.el)) navSet(null);   // it was hidden or disabled
+  // direction, with key-repeat while held
+  const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+  const dir = now[12] || ay < -0.6 ? 'u' : now[13] || ay > 0.6 ? 'd' : now[14] || ax < -0.6 ? 'l' : now[15] || ax > 0.6 ? 'r' : '';
+  if (dir && (dir !== NAV.dir || t >= NAV.next)) {
+    NAV.next = t + (dir !== NAV.dir ? 380 : 130);
+    navMove(dir === 'l' ? -1 : dir === 'r' ? 1 : 0, dir === 'u' ? -1 : dir === 'd' ? 1 : 0);
+  }
+  NAV.dir = dir;
+  // right stick scrolls a long list (the scoring table)
+  const ry = gp.axes[3] || 0, list = scr.querySelector('.scroll');
+  if (list && Math.abs(ry) > 0.25) list.scrollTop += ry * 14;
+  if (down(0) && NAV.el) { if (NAV.el.type !== 'range') navPress(NAV.el); return true; }   // A presses the highlight
+  return false;
+}
+// a real tap, click or key press hides the controller highlight
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, (e) => { if (e.isTrusted && NAV.el) navSet(null); }, true);
 function padToast(text) {
   const t = $('padToast'); t.textContent = text; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
 }
