@@ -480,8 +480,8 @@ scene.add(sun); scene.add(sun.target);
 let viewW = 1, viewH = 1;
 // Resolution setting. PIXEL = low internal resolution + pixelated upscaling (the crunchy voxel look).
 const RES = [{ name: 'PIXEL', h: 470 }, { name: 'MEDIUM', h: 720 }, { name: 'HIGH', h: 1080 }, { name: 'NATIVE', h: 0 }];
-// default: MEDIUM on desktop, PIXEL on phones (lighter on the GPU)
-const RES_DEFAULT = isTouch ? 0 : 1;
+// default: HIGH everywhere (players can drop to MEDIUM or PIXEL in Settings if a phone struggles)
+const RES_DEFAULT = 2;
 let resIdx = clamp(parseInt(store.get('whatdo_res2', String(RES_DEFAULT)), 10), 0, RES.length - 1);
 if (!(resIdx >= 0)) resIdx = RES_DEFAULT;
 function resize() {
