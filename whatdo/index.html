@@ -115,11 +115,6 @@ body.touch #touch.on{display:block}
 #tLeft{left:calc(16px + var(--sl))}#tRight{left:calc(30px + min(26vmin,120px) + var(--sl))}
 /* ---------- FX layers ---------- */
 #flash{background:#ff1a1a;opacity:0;transition:opacity .4s}
-#bloodFx{overflow:hidden}
-.blot{position:absolute;border-radius:50%;background:radial-gradient(circle at 40% 35%,#d10f0f 0,#9b0000 55%,#600000 100%);opacity:.92;filter:drop-shadow(2px 3px 0 rgba(0,0,0,.35));animation:blotIn .18s ease-out}
-.drip{position:absolute;width:14px;border-radius:0 0 8px 8px;background:linear-gradient(#9b0000,#c40d0d);animation:drip 2.6s ease-in forwards}
-@keyframes blotIn{from{transform:scale(.2)}to{transform:scale(1)}}
-@keyframes drip{from{height:0}to{height:var(--h)}}
 #comic{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%) rotate(-8deg);pointer-events:none;display:none;z-index:5}
 #comic.show{display:block;animation:comicIn .45s cubic-bezier(.2,1.6,.4,1)}
 #comic .burst{position:relative;padding:44px 64px;background:var(--y);clip-path:polygon(50% 0,61% 22%,85% 6%,78% 33%,100% 40%,80% 55%,96% 80%,68% 72%,58% 100%,45% 76%,20% 96%,25% 68%,0 62%,20% 47%,4% 22%,32% 28%);}
@@ -245,7 +240,6 @@ body:not(.touch) .card.tch{display:none}
 <canvas id="game" tabindex="0"></canvas>
 
 <div id="focusFx" class="layer"></div>
-<div id="bloodFx" class="layer"></div>
 <div id="flash" class="layer"></div>
 
 <div id="hud" class="layer">
@@ -2991,7 +2985,7 @@ function resetWorld() {
   for (let z = -70; z > -290; z -= rand(16, 30)) { const li = randi(0, 3); if (z > player.run.endZc + 30 && laneFree(player.run, li, z, 10)) spawnCar(player.run, li, z); }
   Game.elapsed = 0; Game.levelTime = LEVEL_TIME; Game.time = 0; resetScoring(); player.prevZ = 0; Game.shake = 0;
   camOff.set(0, 3.7, 7.4); skyAng = 0;
-  $('bloodFx').innerHTML = ''; $('comic').classList.remove('show'); $('flash').style.opacity = 0;
+  $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
 function showScreen(id) {
   for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen', 'scoreScreen', 'settingsScreen']) $(s).classList.toggle('hidden', s !== id);
@@ -3621,7 +3615,6 @@ function die(kind, ent) {
   explodeRig(info);
   Game.shake = 1.4;
   screenFlash(0.75);
-  bloodScreen();
   showComic();
   $('warnL').classList.add('hidden'); $('warnR').classList.add('hidden'); $('warnT').classList.add('hidden');
   orbitA = Math.atan2(camera.position.x - PW.x, camera.position.z - PW.z);
@@ -3701,22 +3694,6 @@ function updatePhotoPed(e, dt) {
     }
   }
   return false;
-}
-function bloodScreen() {
-  const fx = $('bloodFx'); fx.innerHTML = '';
-  const n = randi(7, 12);
-  for (let i = 0; i < n; i++) {
-    const b = document.createElement('div'); b.className = 'blot';
-    const s = rand(40, 190); b.style.width = s + 'px'; b.style.height = s * rand(0.7, 1.2) + 'px';
-    b.style.left = rand(-5, 92) + '%'; b.style.top = rand(-5, 80) + '%'; b.style.animationDelay = rand(0, 0.15) + 's';
-    fx.appendChild(b);
-    if (Math.random() < 0.7) {
-      const d = document.createElement('div'); d.className = 'drip';
-      d.style.left = 'calc(' + b.style.left + ' + ' + (s * rand(0.3, 0.6)) + 'px)'; d.style.top = 'calc(' + b.style.top + ' + ' + (s * 0.6) + 'px)';
-      d.style.setProperty('--h', rand(60, 240) + 'px'); d.style.width = rand(8, 18) + 'px';
-      fx.appendChild(d);
-    }
-  }
 }
 function updateFlying(dt) {
   for (const m of flying) {
@@ -3999,7 +3976,7 @@ function startReplay(auto) {
   for (const f of REC) for (const m of f.meshes) if (!RP.home.has(m)) RP.home.set(m, m.parent);
   RP.frames = REC.slice(); RP.i = 0; RP.t = RP.frames[0].t; RP.tEnd = RP.frames[RP.frames.length - 1].t; RP.phase = 'pre'; RP.post = 0;
   showScreen(null); setHudVisible(false);
-  $('comic').classList.remove('show'); $('bloodFx').innerHTML = '';
+  $('comic').classList.remove('show');
   $('replayUI').classList.remove('hidden');
   clearFlying(); splatMesh.visible = false; buildRig();   // the live crash's blood stays, just hidden until the replay's impact
   // film from the road side so parked cars and buildings don't block the shot
