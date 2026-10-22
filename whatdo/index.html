@@ -3803,7 +3803,7 @@ const COMIC = ['SPLAT!', 'SPLORCH!', 'KA-SPLAT!', 'SQUELCH!', 'BLAMMO!', 'WHAT D
 const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
-  Voice.say(pick(['Ouch!', 'What do?', 'Wipeout!', 'Oof!', 'Dead', 'Just a scratch', 'Walk it off', 'NPS']), 6);
+  Voice.say(pick(['Ouch!', 'What do?', 'Wipeout!', 'Oof!', 'Dead', 'Just a scratch', 'Walk it off']), 6);
   recordFrame();                       // final pose for the instant replay
   VID.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
