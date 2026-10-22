@@ -3135,7 +3135,7 @@ function updateGas(dt) {
   }
   GASC.held = g;
   // drains only while boosting (holding GAS, or the boost FOCUS carries on when your thumb moves to it)
-  if (GASC.t > 0 && player.boost) { GASC.t = Math.max(0, GASC.t - dt); if (GASC.t === 0) { popup('OUT OF JUICE', 'red'); Sound.deny(); } }
+  if (GASC.t > 0 && player.boost) { GASC.t = Math.max(0, GASC.t - dt); if (GASC.t === 0) { popup('OUT OF JUICE', 'red'); Sound.deny(); Voice.say('Out of juice!', 3); } }
   updateGasUI();
 }
 function bigMsg(text, color) {
@@ -3483,7 +3483,7 @@ const Voice = (() => {
   function set(v) { on = v; store.set('whatdo_voice', v ? '1' : '0'); if (!v && ok) speechSynthesis.cancel(); }
   return { say, unlock, set, get on() { return on; }, ok };
 })();
-// award popup -> what the announcer says, and how important it is (higher interrupts lower)
+// award popup -> what the announcer says, and how important it is (higher interrupts lower; hazard warnings use 4)
 const ANNOUNCE = [
   [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
   [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
@@ -3685,7 +3685,10 @@ function updateWarnings() {
       p = 2; t = dx < 0 ? '◀ CUT-IN' : 'CUT-IN ▶';   // changing lanes into your path
     } else if (e.dir < 0 && e.brakeT > 0 && ahead < 30 && Math.abs(dx) < 2) { p = 1; t = '! BRAKE CHECK !'; }   // erratic car braking hard in front of you
     if (!p) continue;
-    if (!e['warned' + p]) { e['warned' + p] = true; Sound.blip(p === 3 ? 880 : 990, 0.08, 'square', 0.09); Sound.blip(p === 3 ? 660 : 990, 0.08, 'square', 0.09, 0.1); }
+    if (!e['warned' + p]) {
+      e['warned' + p] = true; Sound.blip(p === 3 ? 880 : 990, 0.08, 'square', 0.09); Sound.blip(p === 3 ? 660 : 990, 0.08, 'square', 0.09, 0.1);
+      Voice.say(p === 3 ? 'Swerve!' : p === 2 ? 'Cut in!' : 'Brake check!', 4);   // warnings (priority 4) cut in over score callouts
+    }
     if (p > pri || (p === pri && ahead < near)) { pri = p; txt = t; near = ahead; }
   }
   if (txt !== warnTxt) { warnTxt = txt; if (txt) $('warnT').textContent = txt; }
@@ -3800,7 +3803,7 @@ const COMIC = ['SPLAT!', 'SPLORCH!', 'KA-SPLAT!', 'SQUELCH!', 'BLAMMO!', 'WHAT D
 const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
-  Voice.say(pick(['Ouch!', 'What do?', 'Wipeout!', 'Oof!']), 6);
+  Voice.say(pick(['Ouch!', 'What do?', 'Wipeout!', 'Oof!', 'Dead', 'Just a scratch', 'Walk it off', 'NPS']), 6);
   recordFrame();                       // final pose for the instant replay
   VID.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
@@ -4053,7 +4056,7 @@ function updatePlay(dt) {
     const dz = PL.z - e.z, dx = PL.x - e.x;
     if (dz > -2 && dz < 50 && Math.sign(e.vx) === Math.sign(dx) && Math.abs(dx) < 75) {
       if (e.x < PL.x) wl = true; else wr = true;
-      if (!e.warned) { e.warned = true; Sound.honk(clamp(-dx / 20, -1, 1), 1, true); }
+      if (!e.warned) { e.warned = true; Sound.honk(clamp(-dx / 20, -1, 1), 1, true); Voice.say(e.x < PL.x ? 'Cross traffic, left!' : 'Cross traffic, right!', 4); }
     }
   }
   $('warnL').classList.toggle('hidden', !wl); $('warnR').classList.toggle('hidden', !wr);
