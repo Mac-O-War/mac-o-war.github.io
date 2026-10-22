@@ -2852,7 +2852,7 @@ function updateEntities(dt) {
 const player = { run: null, x: 0, z: 0, y: 0, vx: 0, h: 0, speed: 0, base: 19, max: 34, lean: 0, alive: true, boost: false, yawRate: 0, turnPhase: null, finishing: false, hitWall: false };
 let rig = null;
 const shadowMesh = new THREE.Mesh(GEO.shadow, MAT.shadow);
-const RIDER_MAT = MAT.vox.clone();   // the rider's own copy, so it can fade (CAMERA DISTANCE at its closest) without fading the city
+const RIDER_MAT = MAT.vox.clone();   // the rider's own copy, so it can fade (CAMERA DISTANCE at 70% or less) without fading the city
 function buildRig() {
   if (rig) { for (const m of rig.parts) { if (m.parent) m.parent.remove(m); } if (rig.root.parent) rig.root.parent.remove(rig.root); }
   const root = new THREE.Group(), lean = new THREE.Group(); root.add(lean);
@@ -3309,11 +3309,13 @@ function updateSettingsUI() {
   const v = Sound.volume;
   $('musVol').value = Math.round(v.music * 100); $('musVal').textContent = Math.round(v.music * 100) + '%';
   $('sfxVol').value = Math.round(v.sfx * 100); $('sfxVal').textContent = Math.round(v.sfx * 100) + '%';
-  $('camDist').value = camDist; $('camVal').textContent = camDist + '%';
+  $('camDist').value = camDist; camLabel();
 }
+// e.g. "70% · Player transparent" (the rider fades at 70% or closer)
+function camLabel() { $('camVal').textContent = camDist + '%' + (camDist <= 70 ? ' · Player transparent' : ''); }
 $('camDist').addEventListener('input', () => {
   camDist = clamp(+$('camDist').value, 60, 150); CAM_ZOOM = CAM_ZOOM_BASE * camDist / 100;
-  $('camVal').textContent = camDist + '%'; store.set('whatdo_camdist', String(camDist));
+  camLabel(); store.set('whatdo_camdist', String(camDist));
 });
 $('camDist').addEventListener('pointerdown', (e) => e.stopPropagation());
 for (const [id, kind, label] of [['musVol', 'music', 'musVal'], ['sfxVol', 'sfx', 'sfxVal']]) {
@@ -3874,8 +3876,8 @@ function updateCamera(dt) {
   let fov;
   applyTOD(Game.state === 'menu' ? 0 : (Game.level - 1) + clamp(Game.elapsed / Game.levelTime, 0, 1));
   stars.position.copy(camera.position);
-  // with the camera all the way in (60%), the rider is see-through while riding so the road ahead stays visible
-  const ghost = camDist <= 60 && (Game.state === 'play' || Game.state === 'countdown');
+  // with the camera close in (70% or less), the rider is see-through while riding so the road ahead stays visible
+  const ghost = camDist <= 70 && (Game.state === 'play' || Game.state === 'countdown');
   if (RIDER_MAT.transparent !== ghost) { RIDER_MAT.transparent = ghost; RIDER_MAT.opacity = ghost ? 0.5 : 1; RIDER_MAT.needsUpdate = true; }
   if (Game.state === 'replay') {
     replayCamera(dt);
