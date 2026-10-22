@@ -1543,8 +1543,8 @@ const Sound = (() => {
     const n = noise(t, 0.9), f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(2500, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.8);
     const ng = ctx.createGain(); ng.gain.setValueAtTime(0.5, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
     n.connect(f); f.connect(ng); ng.connect(RM.bus);
-    for (const m of [33, 34, 40, 45]) rmTone(t, m, 3.6, 0.07, 'sawtooth', 700);
-    for (const m of [93, 94]) rmTone(t + 0.02, m, 2.4, 0.012, 'sine');   // a faint high ring
+    for (const m of [33, 34, 40, 45]) rmTone(t, m, 5.6, 0.07, 'sawtooth', 700);   // rings to the end of the replay
+    for (const m of [93, 94]) rmTone(t + 0.02, m, 3.6, 0.012, 'sine');   // a faint high ring
   }
   function replayStop(now) {
     if (!ctx) return;
@@ -4105,6 +4105,7 @@ function updateCrashPeds(dt) {
   shutterCd -= dt;
   for (const r of runs) { setPL(r); for (const e of r.ents) if (e.type === 'ped' && (e.mode === 'photo' || e.mode === 'fallen')) updPed(r, e, dt); }
 }
+const REPLAY_AFTER = 5.2;   // seconds the replay (and its video) keeps rolling after the impact
 function updateReplay(dt) {
   if (RP.phase === 'pre') {
     const left = RP.tEnd - RP.t;
@@ -4116,7 +4117,7 @@ function updateReplay(dt) {
     const ts = RP.post < 1.1 ? 0.3 : Math.min(1, 0.3 + (RP.post - 1.1) * 0.8);
     const sdt = dt * ts;
     updateFlying(sdt); updateParticles(sdt); updateCrashPeds(sdt);
-    if (RP.post > 3.2) endReplay();
+    if (RP.post > REPLAY_AFTER) endReplay();
   }
 }
 function replayCamera(dt) {
@@ -4142,7 +4143,7 @@ function replayCamera(dt) {
 }
 function endReplay() {
   if (Game.state !== 'replay') return;
-  const complete = RP.phase === 'post' && RP.post > 3.2;   // false when the player skipped
+  const complete = RP.phase === 'post' && RP.post > REPLAY_AFTER;   // false when the player skipped
   if (RP.phase === 'pre') { applyAt(RP.tEnd); replayImpact(true); }
   if (RP.home) { for (const [m, par] of RP.home) if (m.parent !== par) { if (par) par.add(m); else m.parent.remove(m); } RP.home = null; }
   $('replayUI').classList.add('hidden');
