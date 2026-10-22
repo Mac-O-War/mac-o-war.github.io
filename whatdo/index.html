@@ -198,6 +198,14 @@ body:not(.touch) .card.tch{display:none}
 #lbList .r,#lbList .l{color:#9fb4d8}
 #lbList .s,#lbList .l{text-align:right}
 #lbList li.empty{display:block;text-align:center;color:#9fb4d8;line-height:1.8}
+/* ---------- settings screen ---------- */
+#setList{width:min(520px,100%);margin:16px 0 20px;background:rgba(13,15,26,.78);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08)}
+.setRow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;text-align:left}
+.setRow+.setRow{border-top:2px solid rgba(255,255,255,.06)}
+.setRow .sl{font-size:10px;color:#fff;line-height:1.5}
+.setRow .sl small{display:block;font-size:8px;color:#9fb4d8;margin-top:3px}
+.setRow .btn{min-width:200px}
+@media (max-height:520px){#settingsScreen .big{font-size:clamp(28px,10vh,44px)}#setList{margin:8px 0 10px}.setRow{padding:7px 12px}#settingsScreen>.btn{padding:8px 22px}}
 /* ---------- scoring screen ---------- */
 #scoreList{background:rgba(13,15,26,.78);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08);width:min(620px,100%);max-height:calc(100vh - 210px - var(--st) - var(--sb));overflow-y:auto;margin:14px 0 18px;padding:0 4px;text-align:left;touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 #scoreList h4{font-size:10px;color:var(--y);margin:16px 0 6px;letter-spacing:1px}
@@ -225,6 +233,12 @@ body:not(.touch) .card.tch{display:none}
   .split .stats{gap:6px 20px;margin-bottom:8px;font-size:clamp(8px,2.6vh,11px)}
   .split #newBest{margin:0}
   .split .btn{padding:18px 30px}
+  /* start screen in short landscape: title + controls on the left, PLAY and the buttons on the right */
+  #startScreen.split .btn.sm{padding:10px 12px}
+  #startScreen .title{font-size:clamp(34px,13vh,72px)}
+  #startScreen .sub{margin:8px 0 10px}
+  #startScreen .tut{margin-bottom:0}
+  #startScreen .act .sub2{max-width:44vw}
 }
 @media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:min(14px,calc((100vw - 64px) / 17.5));padding:8px 10px}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
 @media (max-height:520px){.title{font-size:clamp(40px,14vh,90px)}.goal{font-size:8px;line-height:1.7}.btn{padding:12px 28px}.sub{margin:8px 0 10px}.tut{margin-bottom:8px}.card{padding:8px 10px}.row{margin:5px 0}.goal{margin-bottom:10px}}
@@ -276,7 +290,8 @@ body:not(.touch) .card.tch{display:none}
 <div id="replayUI" class="layer hidden"><div class="lb top"></div><div class="lb bot"></div><div id="rpLabel"><i></i>INSTANT REPLAY</div><div id="rpSkip">TAP TO SKIP</div></div>
 <div id="comic"><div class="burst"><span id="comicTxt">SPLAT!</span></div></div>
 
-<section id="startScreen" class="screen">
+<section id="startScreen" class="screen split">
+  <div class="info">
   <h1 class="title">WHAT DO?</h1>
   <p class="sub">ONE ELECTRIC UNICYCLE. ONE GIANT CITY. ZERO BRAKES.</p>
   <div class="tut">
@@ -294,12 +309,15 @@ body:not(.touch) .card.tch{display:none}
       <div class="row">NEAR MISSES FILL <b>FOCUS</b> &middot; HOLD IT FOR SLOW-MO</div>
     </div>
   </div>
+  </div>
+  <div class="act">
   <!-- <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p> -->
   <button class="btn alt" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
-  <div class="sub2" style="margin-top:12px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm voiceBtn">ANNOUNCER: OFF</button><button class="btn sm scoreOpen">SCORING</button><button class="btn sm lbOpen hidden">TOP 10</button></div>
-  <div id="pwaBox"><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
+  <div class="sub2" style="margin-top:12px"><button class="btn sm scoreOpen">SCORING</button><button class="btn sm lbOpen hidden">TOP 10</button><button class="btn sm setOpen">SETTINGS</button><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button></div>
+  <div id="pwaBox"><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
   <div id="rotateTip">TIP: TURN YOUR PHONE SIDEWAYS FOR THE BEST VIEW</div>
+  </div>
 </section>
 
 <section id="overScreen" class="screen split hidden">
@@ -339,6 +357,16 @@ body:not(.touch) .card.tch{display:none}
   <div class="small" id="nmHint">TYPE YOUR NAME &middot; ENTER TO POST &middot; ESC TO SKIP</div>
 </section>
 
+<section id="settingsScreen" class="screen hidden">
+  <h2 class="big g">SETTINGS</h2>
+  <div id="setList">
+    <div class="setRow"><div class="sl">RESOLUTION<small>Lower is faster on phones</small></div><button class="btn sm resBtn">RESOLUTION: PIXEL</button></div>
+    <div class="setRow"><div class="sl">SOUND<small>Music and sound effects</small></div><button class="btn sm" id="soundSet">SOUND: ON</button></div>
+    <div class="setRow"><div class="sl">ANNOUNCER<small>A voice that calls out big moves</small></div><button class="btn sm voiceBtn">ANNOUNCER: OFF</button></div>
+  </div>
+  <button class="btn" id="setBack">BACK</button>
+</section>
+
 <section id="scoreScreen" class="screen hidden">
   <h2 class="big g">SCORING</h2>
   <div id="scoreList" class="scroll"></div>
@@ -350,7 +378,7 @@ body:not(.touch) .card.tch{display:none}
   <div class="sub2 lbTabs"><button class="btn sm" data-b="day">TODAY</button><button class="btn sm" data-b="all">ALL-TIME</button></div>
   <ol id="lbList"></ol>
   <button class="btn" id="lbBack">BACK</button>
-  <div class="small">THE DAILY BOARD RESETS AT MIDNIGHT UTC</div>
+  <div class="small">THE DAILY BOARD RESETS AT MIDNIGHT EASTERN TIME</div>
 </section>
 
 <section id="winScreen" class="screen split hidden">
@@ -374,7 +402,7 @@ body:not(.touch) .card.tch{display:none}
   <h2 class="big g">PAUSED</h2>
   <p class="cause">TAKE A BREATH. THE CITY WILL WAIT.</p>
   <button class="btn alt" id="resumeBtn">RESUME</button>
-  <div class="sub2" style="margin-top:18px"><button class="btn sm resBtn">RESOLUTION: PIXEL</button><button class="btn sm voiceBtn">ANNOUNCER: OFF</button><button class="btn sm scoreOpen">SCORING</button></div>
+  <div class="sub2" style="margin-top:18px"><button class="btn sm scoreOpen">SCORING</button><button class="btn sm setOpen">SETTINGS</button></div>
   <div class="small">PRESS P / ESC OR TAP</div>
 </section>
 
@@ -2849,7 +2877,7 @@ function doTurn() {
 const input = { left: false, right: false, up: false, mouseGas: false, mouseX: null, mouseSteer: false, lastMouseMove: 0, tL: false, tR: false, tGas: false, canvasTouchGas: false };
 const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', Space: 'up', ArrowDown: 'focus', KeyS: 'focus', ShiftLeft: 'focus', ShiftRight: 'focus' };
 window.addEventListener('keydown', (e) => {
-  if (scoringKey(e)) return;   // the scoring screen takes the keyboard while open
+  if (scoringKey(e) || settingsKey(e)) return;   // the scoring and settings screens take the keyboard while open
   if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
   const k = KEYMAP[e.code];
   if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') { input.mouseSteer = false; input.mouseTravel = 0; } e.preventDefault(); }
@@ -2942,7 +2970,7 @@ function resetWorld() {
   $('bloodFx').innerHTML = ''; $('comic').classList.remove('show'); $('flash').style.opacity = 0;
 }
 function showScreen(id) {
-  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen', 'scoreScreen']) $(s).classList.toggle('hidden', s !== id);
+  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen', 'scoreScreen', 'settingsScreen']) $(s).classList.toggle('hidden', s !== id);
 }
 function setHudVisible(on) {
   $('hud').classList.toggle('on', on);
@@ -2972,7 +3000,7 @@ function restart() {
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 function pauseGame() { if (Game.state !== 'play') return; if (FOCUS.on) { FOCUS.on = false; Sound.setFocus(false); } Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend(); }
 function resumeGame() { if (Game.state !== 'paused') return; Game.state = 'play'; showScreen(null); Sound.resume(); lastT = performance.now(); }
-function toggleMute() { Sound.setMuted(!Sound.muted); $('muteBtn').classList.toggle('off', Sound.muted); }
+function toggleMute() { Sound.setMuted(!Sound.muted); $('muteBtn').classList.toggle('off', Sound.muted); const ss = $('soundSet'); if (ss) ss.textContent = 'SOUND: ' + (Sound.muted ? 'OFF' : 'ON'); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); else if (Game.state !== 'menu') keepAwake(); });
 window.addEventListener('blur', () => pauseGame());
 
@@ -3250,6 +3278,23 @@ function announce(label) {
 function updateVoiceButtons() { document.querySelectorAll('.voiceBtn').forEach((b) => { b.textContent = 'ANNOUNCER: ' + (Voice.on ? 'ON' : 'OFF'); b.classList.toggle('hidden', !Voice.ok); }); }
 document.querySelectorAll('.voiceBtn').forEach((b) => bindButton(b, () => { Voice.set(!Voice.on); updateVoiceButtons(); if (Voice.on) { Voice.unlock(); Voice.say('Announcer on!', 5); } }));
 updateVoiceButtons();
+/* ---------- SETTINGS screen: resolution, sound, announcer (opened from the start and pause screens) ---------- */
+const SETTINGS_UI = { open: false, back: 'startScreen' };
+function updateSettingsUI() { $('soundSet').textContent = 'SOUND: ' + (Sound.muted ? 'OFF' : 'ON'); updateResButtons(); updateVoiceButtons(); }
+function openSettings() {
+  SETTINGS_UI.back = Game.state === 'paused' ? 'pauseScreen' : 'startScreen'; SETTINGS_UI.open = true;
+  updateSettingsUI(); showScreen('settingsScreen');
+}
+function closeSettings() { SETTINGS_UI.open = false; showScreen(SETTINGS_UI.back); }
+function settingsKey(e) {
+  if (!SETTINGS_UI.open) return false;
+  if (['Escape', 'Backspace'].includes(e.code)) { e.preventDefault(); if (!e.repeat) closeSettings(); }
+  else if (e.code === 'KeyM' && !e.repeat) { toggleMute(); }
+  return true;
+}
+document.querySelectorAll('.setOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'paused') openSettings(); }));
+bindButton($('setBack'), closeSettings);
+bindButton($('soundSet'), () => toggleMute());
 /* ---------- SCORING screen: every award, built from the live point values so it never goes stale ---------- */
 const SCORING_UI = { open: false, back: 'startScreen' };
 function fmtPts(a, b) { const f = (n) => Math.round(n).toLocaleString(); return b === undefined || Math.round(a) === Math.round(b) ? f(a) : f(a) + '–' + f(b); }
@@ -3319,7 +3364,7 @@ document.querySelectorAll('.scoreOpen').forEach((b) => bindButton(b, () => { if 
 bindButton($('scoreBack'), closeScoring);
 /* ---------- FOCUS (bullet time): near misses fill it; hold the button to slow the world ---------- */
 const FOCUS = { meter: 0, on: false, k: 0, shown: -1, held: false, speed: 0, boost: false };
-const FOCUS_SCALE = 0.50, FOCUS_DRAIN = 0.50, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
+const FOCUS_SCALE = 0.50, FOCUS_DRAIN = 0.44, FOCUS_MIN = 0.2;   // world speed in slow-mo; meter used per real second (full = ~2.2 s); minimum to start
 function focusGain(a) { FOCUS.meter = Math.min(1, FOCUS.meter + a * (FOCUS.on ? 0.35 : 1)); }   // less while already in slow-mo
 function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time scale for the world
   const held = Game.state === 'play' && readFocus(), pressed = held && !FOCUS.held; FOCUS.held = held;
