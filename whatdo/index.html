@@ -248,6 +248,8 @@ body:not(.touch) .card.tch{display:none}
   .split .stats{gap:6px 20px;margin-bottom:8px;font-size:clamp(8px,2.6vh,11px)}
   .split #newBest{margin:0}
   .split .btn{padding:18px 30px}
+  .split .btn.sm{padding:10px 12px}   /* the small buttons stay small, so REPLAY and the video button share a row */
+  #overScreen .sub2{flex-wrap:nowrap}#overScreen .sub2 .btn{white-space:nowrap}   /* REPLAY + VIDEO, then TOP 10 + INSTALL: always two rows of two */
 }
 @media (max-height:520px){#boardScreen .big{font-size:clamp(28px,10vh,44px)}#boardScreen .sub2{margin-top:6px}#boardScreen .small{display:none}#boardScreen>.btn{padding:8px 22px}#lbList{margin:8px 0 10px;font-size:9px}#lbList li{padding:3px 10px}#nameScreen .big{font-size:clamp(30px,11vh,52px)}#nameScreen .cause{margin:6px 0 6px}#nmScore{margin-bottom:8px;font-size:20px}.lbRow{margin-top:4px}#lbName{font-size:min(14px,calc((100vw - 64px) / 17.5));padding:8px 10px}#lbSkip{margin-top:10px}#nameScreen .small{margin-top:8px}#lbMsg{margin-bottom:6px}}
 @media (max-height:520px){.title{font-size:clamp(40px,14vh,90px)}.goal{font-size:8px;line-height:1.7}.btn{padding:12px 28px}.sub{margin:8px 0 10px}.tut{margin-bottom:8px}.card{padding:8px 10px}.row{margin:5px 0}.goal{margin-bottom:10px}}
@@ -320,7 +322,7 @@ body:not(.touch) .card.tch{display:none}
   <!-- <p class="goal">YOU CAN'T STOP. DODGE CARS, PEOPLE, BIKES &amp; STREET JUNK.<br>SURVIVE 1:00 TO CLEAR EACH LEVEL &mdash; IT GETS HARDER EVERY TIME.<br>ROADS GET CLOSED &mdash; FOLLOW THE DETOUR AND <b style="color:#fff">TURN</b> AT THE INTERSECTION!</p> -->
   <button class="btn alt" id="playBtn">PLAY</button>
   <div class="small" id="startBest">BEST: 0</div>
-  <div class="sub2" style="margin-top:12px"><button class="btn sm setOpen">SETTINGS</button><button class="btn sm alt hidden" id="installBtn">&#11015; INSTALL APP</button></div>
+  <div class="sub2" style="margin-top:12px"><button class="btn sm setOpen">SETTINGS</button><button class="btn sm alt hidden installBtn" id="installBtn">&#11015; INSTALL APP</button></div>
   <div id="pwaBox"><div id="iosHint" class="hidden">INSTALL: TAP <b>SHARE</b> &#11014;&#xFE0E; THEN <b>ADD TO HOME SCREEN</b></div></div>
   <div id="rotateTip">TIP: TURN YOUR PHONE SIDEWAYS FOR THE BEST VIEW</div>
 </section>
@@ -343,7 +345,8 @@ body:not(.touch) .card.tch{display:none}
   <div class="act">
   <div id="lbMsg"></div>
   <button class="btn alt" id="restartBtn">RESTART</button>
-  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm dis" id="vidBtn"><span data-s="wait">VIDEO...</span><span data-s="make">MAKE VIDEO</span><span data-s="enc">SAVING VIDEO...</span><span data-s="ready">SHARE VIDEO</span><span data-s="none">NO VIDEO</span></button><button class="btn sm lbOpen hidden">TOP 10</button></div>
+  <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm dis" id="vidBtn"><span data-s="wait">VIDEO...</span><span data-s="make">MAKE VIDEO</span><span data-s="enc">SAVING...</span><span data-s="ready">SHARE VIDEO</span><span data-s="none">NO VIDEO</span></button></div>
+  <div class="sub2" style="margin-top:10px"><button class="btn sm lbOpen hidden">TOP 10</button><button class="btn sm alt hidden installBtn">&#11015; INSTALL APP</button></div>
   <div class="small">PRESS ENTER / SPACE OR TAP</div>
   </div>
 </section>
@@ -4702,17 +4705,21 @@ async function keepAwake() {
     wakeLock.addEventListener('release', () => { wakeLock = null; });
   } catch (e) { wakeLock = null; }
 }
+// INSTALL APP buttons (start screen and Game Over): shown only while the browser offers to install, gone once installed
 let deferredInstall = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; $('installBtn').classList.remove('hidden'); });
+const showInstall = (on) => document.querySelectorAll('.installBtn').forEach((b) => b.classList.toggle('hidden', !on || isInstalled()));
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; showInstall(true); });
 window.addEventListener('appinstalled', () => {
-  track('pwa-installed', 'Installed the app'); deferredInstall = null; $('installBtn').classList.add('hidden'); $('iosHint').classList.add('hidden'); });
-$('installBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
-$('installBtn').addEventListener('pointerup', (e) => {
-  e.preventDefault(); e.stopPropagation();
-  if (!deferredInstall) return;
-  track('install-button', 'Tapped INSTALL APP');
-  deferredInstall.prompt();
-  deferredInstall.userChoice.finally(() => { deferredInstall = null; $('installBtn').classList.add('hidden'); });
+  track('pwa-installed', 'Installed the app'); deferredInstall = null; showInstall(false); $('iosHint').classList.add('hidden'); });
+document.querySelectorAll('.installBtn').forEach((b) => {
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+  b.addEventListener('pointerup', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!deferredInstall) return;
+    track(b.id ? 'install-button' : 'install-button-gameover', b.id ? 'Tapped INSTALL APP' : 'Tapped INSTALL APP on Game Over');
+    deferredInstall.prompt();
+    deferredInstall.userChoice.finally(() => { deferredInstall = null; showInstall(false); });
+  });
 });
 if (IS_IOS_DEVICE && !isInstalled()) $('iosHint').classList.remove('hidden');
 if (isInstalled()) track('launch-installed-app', 'Opened the installed app');
