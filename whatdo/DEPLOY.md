@@ -5,7 +5,7 @@
 | File / folder | What it does |
 |---|---|
 | `index.html` | The game. It still works if you just double-click it. |
-| `manifest.webmanifest` | App name, icons, colours, full-screen landscape mode |
+| `manifest.webmanifest` | App name, icons, colours, full screen, opens in portrait |
 | `sw.js` | Service worker: lets the game install, play offline and update |
 | `icons/` | App icons (Android, iPhone, desktop) |
 | `screenshots/` | Pictures shown on Android's install sheet |
@@ -38,7 +38,7 @@ Most sites ignore relative image paths. To check the result, paste your link int
 - **iPhone / iPad:** the start screen shows a hint. Tap **Share ⬆ → Add to Home Screen**.
 - **Desktop (Chrome / Edge):** the install icon in the address bar, or the **INSTALL APP** button.
 
-Once installed, it opens full screen in landscape with its own icon and works offline.
+Once installed, it opens full screen in portrait (the title screen) with its own icon and works offline. Pressing PLAY turns it to landscape for the game. iPhones can't rotate a web app themselves, so there the title screen asks the player to turn the phone sideways.
 
 ## Releasing an update
 
