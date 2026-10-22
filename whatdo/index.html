@@ -90,6 +90,13 @@ body{position:fixed;inset:0}
 #focusBox.empty .cbar{animation:focusEmpty .45s ease-out}
 @keyframes focusEmpty{0%,60%{border-color:#ff3b3b;box-shadow:0 0 0 2px #ff3b3b}100%{border-color:#000;box-shadow:none}}
 body.touch #focusBox{bottom:calc(min(26vmin,120px) + 40px + var(--sb))}
+#gasBox{position:absolute;left:calc(14px + var(--sl));bottom:calc(64px + var(--sb));width:150px}
+body.touch #gasBox{bottom:calc(min(26vmin,120px) + 74px + var(--sb))}
+#gasTxt{font-size:9px;color:#3ddc84;text-shadow:2px 2px 0 #000;letter-spacing:1px}
+#gasBar{display:block;height:100%;width:0;background:linear-gradient(90deg,#2bb36a,#7dffb0)}
+#gasBox.low #gasTxt{color:#ff4a3b;animation:blink .2s infinite alternate}
+#gasBox.dead #gasTxt{color:#7d8a92}#gasBox.empty .cbar{animation:focusEmpty .45s ease-out}
+
 #focusFx{background:radial-gradient(ellipse at center,rgba(40,70,150,0) 45%,rgba(40,70,150,.55) 100%);opacity:0;pointer-events:none}
 #tFocus{right:calc(30px + var(--sr));bottom:calc(29px + min(30vmin,140px) + var(--sb));width:min(24vmin,112px);height:min(24vmin,112px);font-size:clamp(11px,3.3vmin,16px);background:rgba(120,90,255,.3);border-color:rgba(20,10,60,.7)}
 #tFocus.down{background:rgba(150,110,255,.65)}
@@ -123,6 +130,13 @@ body.touch #touch.on{display:block}
 @keyframes comicIn{from{transform:translate(-50%,-50%) rotate(-30deg) scale(.1)}to{transform:translate(-50%,-50%) rotate(-8deg) scale(1)}}
 #countdown{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);font-family:var(--comic);font-size:clamp(80px,22vw,180px);color:var(--y);-webkit-text-stroke:4px #000;text-shadow:7px 7px 0 #000;pointer-events:none;display:none}
 #countdown.go{color:#3ddc84}
+/* level 1 unlocks: locked controls are hidden; the big message and a pulse on the newly unlocked button */
+.tb.locked,#focusBox.locked{visibility:hidden}
+.tb.justUnlocked{animation:unlockPulse .35s ease-in-out 6 alternate}
+@keyframes unlockPulse{from{transform:scale(1)}to{transform:scale(1.18);box-shadow:0 0 0 6px rgba(255,210,63,.8),0 6px 0 rgba(0,0,0,.35)}}
+#unlockMsg{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(30px,7vw,60px);letter-spacing:2px;color:#3ddc84;-webkit-text-stroke:3px #000;text-shadow:5px 5px 0 #000;pointer-events:none;display:none;z-index:4}
+#unlockMsg.show{display:block;animation:unlockIn 2.6s ease-out forwards}
+@keyframes unlockIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}22%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
 #countdown.tick{animation:cd .9s ease-out}
 @keyframes cd{0%{transform:translate(-50%,-50%) scale(1.8);opacity:0}20%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(.9);opacity:.9}}
 @keyframes fadeUp{from{opacity:0;transform:translate(-50%,20px)}to{opacity:1;transform:translate(-50%,0)}}
@@ -141,7 +155,7 @@ body:not(.touch) .card.tch{display:none}
 .key.wide{min-width:64px;font-size:8px}
 .mouse{display:inline-block;width:18px;height:26px;border:2px solid #fff;border-radius:9px 9px 10px 10px;position:relative}
 .mouse::after{content:"";position:absolute;left:50%;top:4px;width:2px;height:6px;background:#3ddc84;transform:translateX(-50%)}
-.gasdemo{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;background:rgba(61,220,132,.35);border:3px solid #0a3;font-size:8px;animation:press 1.2s infinite}
+.gasdemo{display:inline-flex;align-items:center;justify-content:center;width:50px;height:50px;border-radius:50%;background:rgba(61,220,132,.35);border:3px solid #0a3;font-size:8px;animation:press 1.2s infinite}
 @keyframes press{0%,60%,100%{transform:scale(1)}30%{transform:scale(.86);background:rgba(61,220,132,.7)}}
 .goal{font-size:clamp(8px,2vw,10px);color:#ffd23f;line-height:1.9;max-width:600px;margin:0 0 18px}
 .btn{font-family:var(--hud);font-size:clamp(14px,3.6vw,20px);color:#111;background:var(--y);border:4px solid #000;padding:16px 34px;box-shadow:0 7px 0 #000,inset 0 -5px 0 rgba(0,0,0,.18);cursor:pointer;letter-spacing:2px;touch-action:none;animation:bob 1.4s ease-in-out infinite}
@@ -259,6 +273,7 @@ body:not(.touch) .card.tch{display:none}
   <div id="tricks"></div>
   <div id="popups"></div>
   <div id="warnT" class="hidden">! ONCOMING SWERVE !</div>
+  <div id="gasBox" class="dead"><div id="gasTxt">VOLTS</div><div class="cbar"><i id="gasBar"></i></div></div>
   <div id="focusBox"><div id="focusTxt">FOCUS</div><div class="cbar"><i id="focusBar"></i></div></div>
   <div id="metalBox" class="hidden"><div id="metalTxt">PEDAL TO THE METAL</div><div class="cbar"><i id="metalBar"></i></div></div>
   <div id="speedo"><div id="mph">0<small>MPH</small></div><div id="segs"></div></div>
@@ -273,11 +288,12 @@ body:not(.touch) .card.tch{display:none}
 <div id="touch">
   <div class="tb" id="tLeft">&#9664;</div>
   <div class="tb" id="tRight">&#9654;</div>
-  <div class="tb" id="tGas">GAS</div>
+  <div class="tb" id="tGas">VOLTS</div>
   <div class="tb" id="tFocus">FOCUS</div>
 </div>
 
 <div id="countdown"></div>
+<div id="unlockMsg"></div>
 <div id="updToast" class="hidden">NEW VERSION &mdash; TAP TO UPDATE</div>
 <div id="replayUI" class="layer hidden"><div class="lb top"></div><div class="lb bot"></div><div id="rpLabel"><i></i>INSTANT REPLAY</div><div id="rpSkip">TAP TO SKIP</div></div>
 <div id="comic"><div class="burst"><span id="comicTxt">SPLAT!</span></div></div>
@@ -289,14 +305,14 @@ body:not(.touch) .card.tch{display:none}
     <div class="card kbd">
       <h3>KEYBOARD / MOUSE</h3>
       <div class="row"><span class="key">&#9664;</span><span class="key">&#9654;</span>or<span class="key">A</span><span class="key">D</span><b>STEER</b></div>
-      <div class="row"><span class="key">&#9650;</span><span class="key">W</span><span class="key wide">SPACE</span><b>BOOST</b></div>
+      <div class="row"><span class="key">&#9650;</span><span class="key">W</span><span class="key wide">SPACE</span><b>BOOST</b> &middot; GRAB BATTERIES FOR VOLTS</div>
       <div class="row"><span class="mouse"></span>MOVE = <b>STEER</b> &middot; HOLD = <b>BOOST</b></div>
       <div class="row"><span class="key wide">SHIFT</span><span class="key">&#9660;</span>or RIGHT CLICK <b>FOCUS</b> (SLOW-MO)</div>
     </div>
     <div class="card tch">
       <h3>PHONE / TABLET</h3>
       <div class="row"><span class="key">&#9664;</span><span class="key">&#9654;</span> LEFT THUMB TO <b>STEER</b></div>
-      <div class="row"><span class="gasdemo">GAS</span>HOLD TO <b>BOOST</b></div>
+      <div class="row"><span class="gasdemo">VOLTS</span>HOLD TO <b>BOOST</b> &middot; GRAB BATTERIES</div>
       <div class="row">NEAR MISSES FILL <b>FOCUS</b> &middot; HOLD IT FOR SLOW-MO</div>
     </div>
   </div>
@@ -2536,6 +2552,61 @@ function genChunk(run, z0, idx) {
   run.chunks.push(ch);
   populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst);
   decorPopulate(run, ch, isEnd, isFirst, plazaSide);
+  if (run.turnIn || idx >= 2) placeItems(ch); else ch.items = [];   // the first two blocks of a level have no pickups
+}
+/* ---------- PICKUPS: glowing batteries (10 s of VOLTS, the boost), floating in the lanes ---------- */
+const ITEM_GEO = {
+  battery: vox([
+    [0, 0, 0, 0.52, 0.62, 0.52, 0x2ee86f], [0, 0.62, 0, 0.52, 0.2, 0.52, 0x1e1e1e], [0, 0.82, 0, 0.18, 0.1, 0.18, 0xd8d8d8],
+    // a lightning bolt on the front and back
+    ...[0.265, -0.265].flatMap((z) => [[0.05, 0.4, z, 0.1, 0.16, 0.02, 0xffe14a], [0, 0.33, z, 0.22, 0.06, 0.02, 0xffe14a], [-0.05, 0.19, z, 0.1, 0.16, 0.02, 0xffe14a]])
+  ])
+};
+const ITEM_BODY = new THREE.MeshBasicMaterial({ vertexColors: true });   // unlit, so they glow in any light
+const glowMat = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false });
+const ITEM_HALO = { battery: glowMat(0x3dff8a, 0.3) };
+const ITEM_POOL = { battery: glowMat(0x3dff8a, 0.35) };
+const ITEM_HALO_GEO = new THREE.BoxGeometry(1, 1.25, 1), ITEM_POOL_GEO = new THREE.CircleGeometry(1.1, 20).rotateX(-Math.PI / 2);
+const ITEM_R = { x: 1.3, z: 1.6 };   // pickup reach around the rider
+function addItem(ch, type, x, z) {   // x, z in the run's coordinates
+  const grp = new THREE.Group(), spin = new THREE.Group();
+  grp.position.set(x, 0, z - ch.z0); ch.g.add(grp); grp.add(spin);
+  const body = new THREE.Mesh(ITEM_GEO[type], ITEM_BODY); body.scale.setScalar(1.25); body.position.y = -0.55; spin.add(body);
+  const halo = new THREE.Mesh(ITEM_HALO_GEO, ITEM_HALO[type]); halo.renderOrder = 3; spin.add(halo);
+  const pool = new THREE.Mesh(ITEM_POOL_GEO, ITEM_POOL[type]); pool.position.y = 0.04; pool.renderOrder = 2; grp.add(pool);
+  ch.items.push({ type, x, z, grp, spin, taken: -1, ph: rand(0, 6) });
+}
+function placeItems(ch) {
+  ch.items = [];
+  const put = (type, lz, x) => {
+    for (let k = 0; k < 6; k++) {
+      const px = x !== undefined ? x : pick(LANES), z = ch.z0 + lz;
+      if (!ch.statics.some((o) => Math.abs(o.x - px) < o.hw + 2 && Math.abs(o.z - z) < o.hd + 4)) { addItem(ch, type, px, z); return; }
+      lz = rand(-72, -8); x = undefined;
+    }
+  };
+  if (Math.random() < 0.75) put('battery', rand(-72, -8));
+}
+function checkItems() {
+  const r = player.run; if (!r) return;
+  for (const ch of r.chunks) for (const it of ch.items || []) {
+    if (it.taken >= 0 || Math.abs(it.x - player.x) > ITEM_R.x || Math.abs(it.z - player.z) > ITEM_R.z) continue;
+    it.taken = 0;
+    gotBattery();
+  }
+}
+function updateItems(dt) {   // spin, bob and pulse; a taken item shoots up and shrinks away
+  const pulse = 0.22 + 0.14 * Math.sin(animT * 5);
+  for (const k in ITEM_HALO) { ITEM_HALO[k].opacity = pulse; ITEM_POOL[k].opacity = pulse + 0.08; }
+  for (const r of runs) for (const ch of r.chunks) for (const it of ch.items || []) {
+    if (!it.grp.visible) continue;
+    it.spin.rotation.y += dt * 2.2;
+    if (it.taken < 0) { it.spin.position.y = 1.2 + Math.sin(animT * 3 + it.ph) * 0.15; continue; }
+    it.taken += dt;
+    const k = it.taken / 0.35;
+    if (k >= 1) { it.grp.visible = false; continue; }
+    it.spin.position.y = 1.2 + k * 2.2; it.spin.scale.setScalar(1 - k * 0.9); it.spin.rotation.y += dt * 12;
+  }
 }
 function removeChunk(run, i) {
   const ch = run.chunks[i];
@@ -3037,8 +3108,49 @@ function readSteer() {
   }
   return clamp(s, -1, 1);
 }
-const readGas = () => input.up || input.mouseGas || input.tGas || input.canvasTouchGas;
-const readFocus = () => !!(input.focus || input.mouseFocus || input.tFocus);
+// GAS runs on batteries: every level starts with none, and each battery you ride through gives BATTERY_SECS of GAS,
+// used up only while you're actually boosting.
+// FOCUS is always available and is earned by riding well (near misses and the like).
+const BATTERY_SECS = 10, GAS_MAX = 30;
+const GASC = { t: 0, held: true, got: 0, shown: -1, pct: -1 };
+const rawGas = () => !!(input.up || input.mouseGas || input.tGas || input.canvasTouchGas);
+const rawFocus = () => !!(input.focus || input.mouseFocus || input.tFocus);
+const readGas = () => GASC.t > 0 && rawGas();
+const readFocus = () => rawFocus();
+function updateGasUI() {
+  const on = GASC.t > 0;
+  $('tGas').classList.toggle('locked', !on); $('gasBox').classList.toggle('dead', !on);   // the meter stays up (empty) so a denied press can flash it
+  const sec = Math.ceil(GASC.t), pct = Math.round(Math.min(1, GASC.t / BATTERY_SECS) * 100);
+  if (sec !== GASC.shown) { GASC.shown = sec; $('gasBox').classList.toggle('low', on && sec <= 3); }   // the label blinks red near empty
+  if (pct !== GASC.pct) { GASC.pct = pct; $('gasBar').style.width = pct + '%'; }
+}
+// 'held' starts true so a press carried over from the menu doesn't buzz
+function resetGas() { GASC.t = 0; GASC.got = 0; GASC.held = true; GASC.shown = GASC.pct = -1; updateGasUI(); }
+function updateGas(dt) {
+  const g = rawGas();
+  if (GASC.t <= 0 && g && !GASC.held) {   // GAS with no battery: the FOCUS-empty buzz and red flash, once per press
+    Sound.deny(); const b = $('gasBox'); b.classList.remove('empty'); void b.offsetWidth; b.classList.add('empty');
+  }
+  GASC.held = g;
+  // drains only while boosting (holding GAS, or the boost FOCUS carries on when your thumb moves to it)
+  if (GASC.t > 0 && player.boost) { GASC.t = Math.max(0, GASC.t - dt); if (GASC.t === 0) { popup('OUT OF JUICE', 'red'); Sound.deny(); } }
+  updateGasUI();
+}
+function bigMsg(text, color) {
+  const m = $('unlockMsg'); m.textContent = text; m.style.color = color;
+  m.classList.remove('show'); void m.offsetWidth; m.classList.add('show');
+}
+function pulseBtn(id) {
+  const b = $(id); b.classList.remove('justUnlocked'); void b.offsetWidth; b.classList.add('justUnlocked');
+  setTimeout(() => b.classList.remove('justUnlocked'), 2200);
+}
+function pickupChime(f) { Sound.blip(f, 0.12, 'square', 0.14); setTimeout(() => Sound.blip(f * 1.5, 0.25, 'square', 0.14), 110); }
+function gotBattery() {
+  GASC.t = Math.min(GAS_MAX, GASC.t + BATTERY_SECS); GASC.got++;
+  if (GASC.got === 1) { bigMsg('ACCELERATOR UNLOCKED!', '#3ddc84'); Voice.say('Accelerator unlocked!', 5); }
+  else popup('+' + BATTERY_SECS + 's VOLTS', 'good');
+  pulseBtn('tGas'); pickupChime(660); buzz([30, 40, 60]); updateGasUI();
+}
 
 /* =====================================================================
    GAME STATE
@@ -3091,6 +3203,7 @@ function beginLevel() {
   $('bestBox').style.outline = '';
   showScreen(null); setHudVisible(true);
   Game.state = 'countdown'; Game.cd = 3.2; Game.lastCd = -1;
+  resetGas(); $('unlockMsg').classList.remove('show');
   Sound.startMusic(Game.level);
   updateHud(true);
 }
@@ -3261,7 +3374,7 @@ function updateMetal(dt) {
     }
   } else if (M.dist > 0) {
     M.grace -= dt;
-    if (M.grace <= 1e-4) { if (M.lvl > 0) popup('LET OFF THE GAS', 'red'); M.dist = 0; M.lvl = 0; }
+    if (M.grace <= 1e-4) { if (M.lvl > 0) popup('VOLTS OFF', 'red'); M.dist = 0; M.lvl = 0; }
   }
 }
 function updateScoring(dt) {
@@ -3451,7 +3564,7 @@ function buildScoring() {
       ['RIDING', 'Just keep moving', '~5 / SEC']]],
     ['MULTIPLIERS', '', [
       ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
-      ['PEDAL TO THE METAL', 'Every 100 m without letting off the gas', 'UP TO ×2.5']]]
+      ['PEDAL TO THE METAL', 'Every 100 m without letting off the volts', 'UP TO ×2.5']]]
   ];
   const box = $('scoreList'); box.textContent = '';
   for (const [title, sub, rows] of sections) {
@@ -3875,11 +3988,12 @@ function movePlayer(dt, steer, yawCtl) {
 }
 function updatePlay(dt) {
   Game.time += dt; Game.elapsed += dt; Game.runT += dt;
+  updateGas(dt); checkItems();
   screamCd -= dt;
   const steer = readSteer(), gas = readGas();
   // in FOCUS your speed and gas are held as they were when it started (your thumb may have left GAS to press FOCUS)
   if (gas) { FOCUS.gasT = performance.now(); FOCUS.gasSpeed = player.speed; }   // for the GAS -> FOCUS thumb move
-  player.boost = FOCUS.on ? FOCUS.boost : gas;
+  player.boost = FOCUS.on ? FOCUS.boost && GASC.t > 0 : gas;
   if (FOCUS.on) player.speed = FOCUS.speed;
   else player.speed += clamp((gas ? player.max : player.base) - player.speed, -12 * dt, 16 * dt);
   // turning at the road closure: near the intersection, steering yaws the rider along a real arc (no autopilot).
@@ -4366,7 +4480,7 @@ function frame(now) {
   if (st === 'play' || st === 'countdown') updateHud(false);
   Sound.setEngine(player.speed, st === 'play', player.boost);
   if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
-  updateDecor(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
+  updateDecor(dt); updateItems(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
   if (Game.state === 'replay' && VID.cap) VID.capture();   // the tall video frame first: the normal frame then covers it
   renderer.render(scene, camera);
 }
