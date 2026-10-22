@@ -3108,10 +3108,10 @@ function readSteer() {
   }
   return clamp(s, -1, 1);
 }
-// GAS runs on batteries: every level starts with none, and each battery you ride through gives BATTERY_SECS of GAS,
+// GAS runs on batteries: every level starts with GAS_START seconds, and each battery you ride through gives BATTERY_SECS of GAS,
 // used up only while you're actually boosting.
 // FOCUS is always available and is earned by riding well (near misses and the like).
-const BATTERY_SECS = 10, GAS_MAX = 30;
+const BATTERY_SECS = 7, GAS_MAX = 30, GAS_START = 2;   // seconds of boost per battery, the most you can hold, and what each level starts with
 const GASC = { t: 0, held: true, got: 0, shown: -1, pct: -1 };
 const rawGas = () => !!(input.up || input.mouseGas || input.tGas || input.canvasTouchGas);
 const rawFocus = () => !!(input.focus || input.mouseFocus || input.tFocus);
@@ -3125,7 +3125,7 @@ function updateGasUI() {
   if (pct !== GASC.pct) { GASC.pct = pct; $('gasBar').style.width = pct + '%'; }
 }
 // 'held' starts true so a press carried over from the menu doesn't buzz
-function resetGas() { GASC.t = 0; GASC.got = 0; GASC.held = true; GASC.shown = GASC.pct = -1; updateGasUI(); }
+function resetGas() { GASC.t = GAS_START; GASC.got = 0; GASC.held = true; GASC.shown = GASC.pct = -1; updateGasUI(); }
 function updateGas(dt) {
   const g = rawGas();
   if (GASC.t <= 0 && g && !GASC.held) {   // GAS with no battery: the FOCUS-empty buzz and red flash, once per press
@@ -3620,7 +3620,8 @@ function updateFocus(dt) {   // real (unscaled) dt; returns this frame's time sc
   const box = $('focusBox'); box.classList.toggle('on', FOCUS.on); box.classList.toggle('ready', !FOCUS.on && FOCUS.meter >= FOCUS_MIN);
   return 1 + (FOCUS_SCALE - 1) * FOCUS.k;
 }
-function resetFocus() { FOCUS.meter = 0; FOCUS.k = 0; if (FOCUS.on) Sound.setFocus(false); FOCUS.on = false; }
+function resetFocus() { FOCUS.meter = 1; FOCUS.k = 0;   // every new game starts with a full FOCUS meter
+  if (FOCUS.on) Sound.setFocus(false); FOCUS.on = false; }
 /* ---------- near miss / collisions ---------- */
 function nearMiss(o, isStatic) {
   Game.near++; focusGain(0.12);
