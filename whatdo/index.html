@@ -137,8 +137,8 @@ body.touch #touch.on{display:block}
 .tb.justUnlocked{animation:unlockPulse .35s ease-in-out 6 alternate}
 @keyframes unlockPulse{from{transform:scale(1)}to{transform:scale(1.18);box-shadow:0 0 0 6px rgba(255,210,63,.8),0 6px 0 rgba(0,0,0,.35)}}
 #unlockMsg{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(30px,7vw,60px);letter-spacing:2px;color:#3ddc84;-webkit-text-stroke:3px #000;text-shadow:5px 5px 0 #000;pointer-events:none;display:none;z-index:4}
-.bubble{position:absolute;transform:translate(-50%,-100%);background:#fff;color:#111;font-family:var(--comic);font-size:clamp(28px,6.8vmin,40px);letter-spacing:2px;padding:6px 18px;border:5px solid #000;border-radius:24px;white-space:nowrap;box-shadow:5px 5px 0 rgba(0,0,0,.35);animation:bubbleIn .18s ease-out}
-.bubble::after{content:'';position:absolute;left:50%;bottom:-21px;transform:translateX(-50%);border:15px solid transparent;border-top:17px solid #000}
+.bubble{position:absolute;transform:translate(-50%,-100%);background:#fff;color:#111;font-family:var(--comic);font-size:clamp(56px,13.6vmin,80px);letter-spacing:3px;padding:10px 32px;border:8px solid #000;border-radius:44px;white-space:nowrap;box-shadow:8px 8px 0 rgba(0,0,0,.35);animation:bubbleIn .18s ease-out}
+.bubble::after{content:'';position:absolute;left:50%;bottom:-40px;transform:translateX(-50%);border:28px solid transparent;border-bottom:0;border-top:32px solid #000}   /* hangs just below the 8px outline */
 @keyframes bubbleIn{from{transform:translate(-50%,-100%) scale(.3)}to{transform:translate(-50%,-100%) scale(1)}}
 .feather{position:absolute;top:-60px;width:46px;height:46px;animation:featherFall var(--d,3.4s) linear forwards}
 .feather svg{width:100%;height:100%;animation:featherSway 1.1s ease-in-out infinite alternate}
@@ -156,7 +156,10 @@ body.touch #touch.on{display:block}
 @keyframes fadeUp{from{opacity:0;transform:translate(-50%,20px)}to{opacity:1;transform:translate(-50%,0)}}
 /* ---------- Screens ---------- */
 .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;padding:calc(16px + var(--st)) 16px calc(16px + var(--sb));background:radial-gradient(ellipse at center,rgba(13,15,26,.55) 0,rgba(13,15,26,.88) 75%);pointer-events:auto;overflow-y:auto;z-index:10}
-.title{font-family:var(--comic);font-size:clamp(64px,16vw,150px);line-height:.9;margin:0 0 6px;color:var(--y);-webkit-text-stroke:4px #000;text-shadow:6px 6px 0 #ff3b3b,12px 12px 0 #000;transform:rotate(-4deg);letter-spacing:4px}
+.title{font-family:var(--comic);font-size:clamp(64px,16vw,150px);line-height:.9;margin:0 0 6px;color:var(--y);-webkit-text-stroke:4px #000;text-shadow:6px 6px 0 #ff3b3b,12px 12px 0 #000;transform:rotate(-4deg);letter-spacing:4px;position:relative}
+/* a Minecraft-style splash line on the logo, a different one each time the game opens */
+#splash{display:block;margin:.9em -.15em 0 0;text-align:right;transform-origin:100% 50%;font-family:var(--hud);font-size:min(max(7px,.09em),15px);line-height:1.2;letter-spacing:0;color:#fff36b;-webkit-text-stroke:0;text-shadow:2px 2px 0 #000,-1px -1px 0 #000;white-space:nowrap;transform:rotate(5deg);animation:splash .45s ease-in-out infinite alternate;pointer-events:none}
+@keyframes splash{from{transform:rotate(5deg) scale(1)}to{transform:rotate(5deg) scale(1.08)}}
 .sub{font-size:clamp(8px,2.2vw,11px);color:#cfe0ff;margin:14px 0 18px;line-height:1.8;max-width:620px}
 .tut{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:0 0 16px;max-width:680px}
 .card{background:rgba(255,255,255,.07);border:3px solid #000;box-shadow:inset 0 0 0 2px rgba(255,255,255,.12),5px 5px 0 rgba(0,0,0,.5);padding:12px 14px;min-width:250px;flex:1;text-align:left}
@@ -318,7 +321,7 @@ body:not(.touch) .card.tch{display:none}
 <div id="comic"><div class="burst"><span id="comicTxt">SPLAT!</span></div></div>
 
 <section id="startScreen" class="screen">
-  <h1 class="title">WHAT DO?</h1>
+  <h1 class="title">WHAT DO?<span id="splash">NOW WITH 12% MORE TAXIS!</span></h1>
   <p class="sub">ONE ELECTRIC UNICYCLE. ONE GIANT CITY. ZERO BRAKES.</p>
   <div class="tut">
     <div class="card kbd">
@@ -2893,8 +2896,8 @@ function spawnPed(run, kind, x, z, mode, opts) {
   return e;
 }
 /* ---------- speech bubbles: what a pedestrian shouts when you nearly hit them (an HTML label kept over their head) ---------- */
-const PED_BUBBLES = ['HEY!', 'WATCH IT!', 'MY LATTE!', 'IS THAT LEGAL?!', "I'M WALKING HERE!", 'WHOA!', 'SERIOUSLY?!', 'GET A CAR!', 'RUDE!', 'MY SHOES!', 'NOT COOL!', 'WHAT WAS THAT?!'];
-const HOTDOG_BUBBLES = ['MUSTARD?!', 'NOT THE BUN!', 'I RELISH MY LIFE!', 'WATCH THE WIENER!', "I'M ON BREAK!"];
+const PED_BUBBLES = ['HEY!', 'WATCH IT!', 'MY LATTE!', "I'M WALKING HERE!", 'WHOA!', 'SERIOUSLY?!', 'GET A CAR!', 'RUDE!', 'MY SHOES!', 'NOT COOL!', 'WHAT WAS THAT?!'];
+const HOTDOG_BUBBLES = ['I RELISH MY LIFE!', 'WATCH THE WIENER!', "I'M ON BREAK!"];
 const BUBBLES = [];
 const _bw = { x: 0, z: 0 }, _bv = new THREE.Vector3();
 function pedBubble(e, text) {
@@ -5314,6 +5317,14 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
 /* ---------- boot ---------- */
 $('startBest').textContent = 'BEST: ' + Game.best.toLocaleString();
+$('splash').textContent = pick([
+  'NOW WITH 12% MORE TAXIS!', 'NO BRAKES INCLUDED!', 'HELMET RECOMMENDED!', 'BATTERY SOLD SEPARATELY!', 'AS SEEN ON THE NEWS!',
+  'PIGEON APPROVED!', 'CONTAINS HOT DOGS!', 'NOT A DRIVING SIMULATOR!', 'TAXI DRIVERS HATE HIM!', '100% STREET ILLEGAL!',
+  'NO REFUNDS!', 'PHYSICS OPTIONAL!', 'SPONSORED BY GRAVITY!', 'ONE WHEEL. MANY REGRETS.', 'BRAKES ARE FOR QUITTERS!',
+  'CERTIFIED HOOD ORNAMENT!', 'NOW IN 3D!', 'FREE-RANGE TRAFFIC!', 'THE PIGEONS KNOW.', 'ALSO TRY WALKING!',
+  'MADE IN RESTON!', 'TILTBACK IS A MYTH!', 'PADS ARE CHEAPER THAN SURGERY!', 'EAGLE CERTIFIED!', 'ZERO STARS FROM PEDESTRIANS!',
+  'MOM SAYS IT IS FINE!', 'NOT LEGAL ADVICE!', 'JAYWALKING ENCOURAGED!', 'SIDEWALKS ARE A SUGGESTION!', 'WHAT DO?!'
+]);
 $('playBtn').textContent = isTouch ? 'TAP TO START' : 'PLAY';
 resetWorld();
 camera.position.set(0, 3.2, 9);
