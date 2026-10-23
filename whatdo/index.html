@@ -455,6 +455,9 @@ const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
 const randi = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
+// text lines: random start, then step through in order so nothing repeats until the whole list has been said
+const LINE_IX = new Map();
+const nextLine = (a) => { const k = a.join('\n'), i = LINE_IX.has(k) ? (LINE_IX.get(k) + 1) % a.length : Math.floor(Math.random() * a.length); LINE_IX.set(k, i); return a[i]; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 const damp = (a, b, k, dt) => lerp(a, b, 1 - Math.exp(-k * dt));
@@ -1085,8 +1088,8 @@ const COP_LINES = [
   'Officer, I can explain.', 'Is that for me?', 'Keep it casual.', 'Cheese it!', 'Totally street legal.',
   'I have a permit for this wheel.', 'Smile and wave.', 'Not today, officer!', 'Was I speeding?'
 ];
-let copJokeAt = 0, lastCop = -1;
-function copLine() { let i; do { i = Math.floor(Math.random() * COP_LINES.length); } while (i === lastCop); lastCop = i; return COP_LINES[i]; }
+let copJokeAt = 0;
+function copLine() { return nextLine(COP_LINES); }
 function updateSiren() {
   let best = 0, pan = 0;
   for (const r of runs) {
@@ -3630,50 +3633,158 @@ function startFromMenu() {
 }
 // said at the start of every 3rd attempt (never the same line twice in a row)
 const AGAIN_LINES = [
-  'Here we go again.', 'Back for more?', "Let's try that again.", 'Third time is the charm.', 'This time for sure.',
-  'Deep breath.', 'Okay. Focus.', 'You got this. Probably.', 'Again? Respect.', 'Practice makes perfect.',
-  'The taxis missed you.', 'The city remembers you.', 'Just one more run.', 'Insert coin.',
-  'Another day, another crash.', 'Same city. New you.', 'Try not to die this time.', 'Wheel up. Eyes open.', 'Round two. Or is it ten?',
-  // EUC
-  'Pads on. Ego off.', 'Lean forward.', 'Fully charged.', 'No brakes. No problem.', 'One wheel. Zero regrets.',  
-  // the city
-  'Pedestrians fear you.', 'The Cyclists are angry.', 'The pigeons are ready.',
-  'Rush hour never ends.', 'The city wants a rematch.', 'The potholes are waiting.',
-  // encouragement, sort of
-  'Persistence. I like it.', 'You are stubborn.', 'Fortune favours the bold.', 'Last time was a warm-up',
-  'Okay, champ. Again.', 'Fresh run, fresh mistakes.', 'Your therapist would be proud.',
-  'Respawn complete.', 'Loading confidence.', "You're about to crashout", 'that was cringe', 'You owe fanum back taxes',
-  'entering your flop era', 'entering flow state', 'locked in', 'Lowkenuinely, this is slop', 'nothing ever happens',
+  'Practice makes perfect.',
+  "You're about to crashout", 
+  'Deep breath.', 
+  "It's just a matter of waiting to see who cracks first; me, the case, or your sanity.",
+  'Loading confidence.', 
+  'Back for more?', 
+  'Plus one thousand aura if you survive.', 
+  'Respawn complete.', 
+  'The audacity. I love it.', 
+  "Let's try that again.", 
+  'The Cyclists are angry.', 
+  "This isn't even your final form",
+  'Round two. Or is it ten?',
+  'Get in the Sigma grindset.', 
+  "I have a collection of heartbreaks. I'll just add this one to the pile.",
+  'Delulu is the solulu.', 
+  "Side quest: don't hit the hot dog.", 
+  "Find the street performer",
+  'Pads on. Ego off.', 
+  'nothing ever happens',
+  'Unc is still trying.', 
+  'Rizzler on one wheel.', 
+  'Chat, is this real?', 
+  'Ate last time? No. Eat this time.', 
+  'Pedestrians fear you.', 
+  'Bet.',
+  'Same city. New you.', 
+  'Understood the assignment? Prove it.', 
+  'No thoughts, just wheel.', 
+  'No brakes. No problem.', 
+  'entering your flop era', 
+  'Last time was a big Yikes', 
+  'Lowkenuinely, this is slop', 
+  'Era: not crashing.',
+  'Lowkey nervous. Highkey ready.', 
+  "Rice is great when you're hungry and you want 1000 of something.",
+  'Say less.', 
+  'Last time was a warm-up',
+  'This time for sure.',
+  'You are stubborn.', 
   "don't get salty", "six seven",
-  // more gen z
-  'No cap, this run hits different.', 'Main character energy.', "It's giving comeback.", 'Delulu is the solulu.', 'Bet.',
-  'Say less.', 'We move.', 'Let him cook.', 'Respectfully, lock in.',
-  'This is your villain arc.', 'Your redemption arc starts now.', 'POV: you try again.', 'Sheesh.', 'Bussin or bust.',
-  "It's the persistence for me.", 'The audacity. I love it.', 'Slay, but carefully.', 'Big yikes last time.', 'Glow up time.',
-  'Vibe check. Passed.', 'Plus one thousand aura if you survive.', 'Aura farming.', 'Get in the Sigma grindset.', 'NPCs, move.',
-  'Lowkey nervous. Highkey ready.', 'Main quest: survive.', "Side quest: don't hit the hot dog.", 'Any percent speedrun.',
-  'Brainrot mode activated.', 'Chat, is this real?', "Chat, we're so back.", "It's so over. Just kidding, we're back.", 'Hear me out.',
-  'No thoughts, just wheel.', 'Rizzler on one wheel.', 'Understood the assignment? Prove it.', 'Caught lacking? Not today.', 'Ratio the traffic.',
-  'Ate last time? No. Eat this time.', 'Touch grass after this one.', 'It is giving determination.', 'Living rent free in the taxis heads.', 'Era: not crashing.',
-  'Mid run incoming? Prove me wrong.', 'Real ones try again.', 'Unc is still trying.', 'Clock it. Then dodge it.'
+  "A cat’s greatest weapon is a keen eye, and her greatest ally is the dark",
+  'Another day, another crash.', 
+  "It's giving comeback.", 
+  'locked in', 
+  'Have you considered a uni?', 
+  'Wheel up. Eyes open.', 
+  'Your therapist would be proud.',
+  'Touch grass after this one.', 
+  'Any percent speedrun.',
+  'Okay. Focus.', 
+  'Why ride when you can charge', 
+  'Real ones try again.', 
+  "Have you seen the hive five guy?", 
+  'entering flow state', 
+  'Glow up time.',
+  'One wheel. Zero regrets.',  
+  'No cap, this run hits different.', 
+  "It takes two shots to kill a man. First, a shot of liquor to numb the pain. Then you shoot him.",
+  'Respectfully, lock in.',
+  "You came back from the dead to play one more time",
+  'Mid run incoming? Prove me wrong.', 
+  "Monorails make for good one-liners",
+  'You got this. Probably.', 
+  'Let him cook.', 
+  'The city remembers you.', 
+  'Vibe check. Passed.', 
+  'Living rent free in the taxis heads.', 
+  "It's the persistence for me.", 
+  'Okay, champ. Again.', 
+  "Life is what you make of it- plenty of people breathing without living",
+  'Lean forward.', 
+  'Main quest: survive.', 
+  'Insert coin.',
+  'We move.', 
+  "It’s never too late to apologize. And man, I’m really sorry for all the apologies you’re about to make.",
+  'The potholes are waiting.',
+  'Try not to die this time.', 
+  'that was cringe', 
+  'Sheesh.', 
+  "Sometimes you have to go backwards to go forward",
+  'Third time is the charm.', 
+  'Aura farming.', 
+  'Fresh run, fresh mistakes.', 
+  'The city wants a rematch.', 
+  "It's so over. Just kidding, we're back.", 
+  'Brainrot mode activated.', 
+  'Bussin or bust.',
+  'Ratio the traffic.',
+  "I'll stop wearing black when they invent a darker color.",
+  "You need to develop some patience — immediately",
+  "Chat, we're so back.", 
+  "I like to listen to jazz and pretend I’m a detective. You don’t happen to play the sax, do you?",
+  'Slay, but carefully.', 
+  "How fast does a zebra have to run before it looks gray",
+  'NPCs, move.',
+  'Rush hour never ends.', 
+  'The taxis missed you.', 
+  'You owe fanum back taxes',
+  'Again? Respect.', 
+  'Caught lacking? Not today.', 
+  'Just one more run.', 
+  'This is your villain arc.', 'Your redemption arc starts now.', 'POV: you try again.', 
+  "The grave cannot contain you",
+  'Here we go again.', 
+  'Clock it. Then dodge it.',
+  'The pigeons are ready.',
+  'Persistence. I like it.', 
+  'Fortune favours the bold.', 
+  "I’d say I’m thirsting for blood, but really I’m thirsting for whiskey. I guess blood works too.",
+  'Hear me out.',
+  "You've made a mistake. That's okay. I clean up mistakes.",
+  'Fully charged.', 
+  'Main character energy.', 
+  "There are no sour patch adults because we keep eating their kids",
+  'It is giving determination.',
+  'Fortune favours the bold or sometimes the italics',
 ];
 // said when a level is cleared (any announcer level from JOKES up; never the same line twice in a row)
 const CLEAR_LINES = [
-  'Level clear!', 'Made it!', 'Still alive!', 'Nailed it.', 'Not a scratch!', 'Who taught you to ride like that?',
-  'Smooth operator.', 'The city survived you.', 'Somebody call the news!', 'Legend behaviour.',
+  'Not a scratch!', 
+  'You make it look easy.', 
+  'That is level {n}. Keep going.',
+  'Still alive!', 
+  'The city survived you.', 
+  'Big wheel energy.', 
   'That was almost graceful.', 
-  'And not one ticket!', 'Freedom!', 'Battery says thank you.', 'Major Win', 'Like you planned it.',
-  'Flawless', 'Ride of the year!', 'You make it look easy.', 'Big wheel energy.', 'Clean run!',
-  'Level {n} done. Feeling brave?', 'Level {n}! Who are you?', 'That is level {n}. Keep going.',
-  'Pull over. Take a bow.', 'The pigeons salute you.', 'Insurance company is relieved.'
+  'Insurance company is relieved.',
+  'Level {n} done. Feeling brave?', 
+  'Pull over. Take a bow.', 
+  'Major Win', 
+  'Clean run!',
+  'Flawless', 
+  'Somebody call the news!', 
+  'The pigeons salute you.', 
+  'And not one ticket!', 
+  'Made it!', 
+  'Like you planned it.',
+  'Nailed it.', 
+  'Level clear!', 
+  'Who taught you to ride like that?',
+  'Smooth operator.', 
+  'Legend behaviour.',
+  'Level {n}! Who are you?', 
+  'Freedom!', 
+  'Ride of the year!', 
+  'Battery says thank you.' 
 ];
-let lastClear = -1;
 function clearLine() {
-  let i; do { i = Math.floor(Math.random() * CLEAR_LINES.length); } while (i === lastClear); lastClear = i;
-  return CLEAR_LINES[i].replace('{n}', Game.level);
+  return nextLine(CLEAR_LINES).replace('{n}', Game.level);
 }
-let lastAgain = -1;
-function againLine() { let i; do { i = Math.floor(Math.random() * AGAIN_LINES.length); } while (i === lastAgain); lastAgain = i; return AGAIN_LINES[i]; }
+function againLine() { return nextLine(AGAIN_LINES); }
 function beginLevel() {
   keepAwake();
   resetWorld();
@@ -3691,15 +3802,23 @@ function restart() {
   track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 const PAUSE_LINES = [
-  'TAKE A BREATH. THE CITY WILL WAIT.', 'THE TAXIS ARE GETTING IMPATIENT.', 'YOUR WHEEL IS JUDGING YOU.', 'THE PIGEONS ARE REGROUPING.',
-  'HYDRATE. THEN DODGE.', 'TRAFFIC HAS FROZEN IN FEAR.', 'NOBODY SAW THAT. PROBABLY.', 'GO ON, STRETCH YOUR THUMBS.',
-  'THE BATTERY APPRECIATES THE REST.', 'EVEN THE COPS ARE ON A DONUT BREAK.', 'THE CITY NEVER SLEEPS. BUT IT CAN PAUSE.',
+  'TAKE A BREATH. THE CITY WILL WAIT.', 
+  'THE TAXIS ARE GETTING IMPATIENT.', 
+  'YOUR WHEEL IS JUDGING YOU.', 
+  'THE PIGEONS ARE REGROUPING.',
+  'HYDRATE. THEN DODGE.', 
+  'TRAFFIC HAS FROZEN IN FEAR.', 
+  'NOBODY SAW THAT. PROBABLY.', 
+  'GO ON, STRETCH YOUR THUMBS.',
+  'THE BATTERY APPRECIATES THE REST.', 
+  'EVEN THE COPS ARE ON A DONUT BREAK.', 
+  'THE CITY NEVER SLEEPS. BUT IT CAN PAUSE.',
   'SOMEWHERE A HORN IS STILL HONKING.'
 ];
 function pauseGame() {
   if (Game.state !== 'play') return;
-  $('pauseLine').textContent = pick(PAUSE_LINES); if (FOCUS.on) { FOCUS.on = false; Sound.setFocus(false); } Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend();
-  if (!document.hidden && document.hasFocus()) Voice.say(pick(['Bathroom break?', 'Take your time.']), 2, 'joke');   // you paused it (not the app going to the background)
+  $('pauseLine').textContent = nextLine(PAUSE_LINES); if (FOCUS.on) { FOCUS.on = false; Sound.setFocus(false); } Game.state = 'paused'; showScreen('pauseScreen'); Sound.suspend();
+  if (!document.hidden && document.hasFocus()) Voice.say(nextLine(['Bathroom break?', 'Take your time.']), 2, 'joke');   // you paused it (not the app going to the background)
 }
 function resumeGame() { if (Game.state !== 'paused') return; Game.state = 'play'; showScreen(null); Sound.resume(); lastT = performance.now(); }
 function toggleMute() { Sound.setMuted(!Sound.muted); $('muteBtn').classList.toggle('off', Sound.muted); const ss = $('soundSet'); if (ss) ss.textContent = Sound.muted ? 'OFF' : 'ON'; }
@@ -3897,7 +4016,7 @@ function updateScoring(dt) {
   trick('side', side, 60 + 180 * sr * sr, dt);
   const sw = SC.tricks.side;   // a long ride on the sidewalk gets a telling-off (once per stretch)
   // 2.5 s: most of a block (the sidewalk breaks at every intersection)
-  if (sw && sw.on && sw.dur > 2.5 && !sw.joked) { sw.joked = true; Voice.say(pick(['Sidewalks are for walking!', 'Excuse you!']), 2, 'joke'); }
+  if (sw && sw.on && sw.dur > 2.5 && !sw.joked) { sw.joked = true; Voice.say(nextLine(['Sidewalks are for walking!', 'Excuse you!']), 2, 'joke'); }
   trick('speed', fast, 45, dt);
   // TIGHTROPE: ride the double yellow line (within 0.4 m of it; wrong way starts beyond that), x2 with oncoming cars close
   const rope = straight && Math.abs(player.x) <= 0.4 && player.speed > player.base * 0.7;
@@ -4173,8 +4292,8 @@ function nearMissScore(o, isStatic) {
     award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? 800 : 500) * sf * (1 + t * 2), 'nm');
   } else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
   else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
-  else if (o.type === 'ped' && o.kind === 'hotdog') { award('RELISH THE MOMENT!', 400 * sf * (1 + tight), 'good'); pedBubble(o, pick(HOTDOG_BUBBLES)); }
-  else if (o.type === 'ped') { award('EXCUSE ME!', 150 * sf * (1 + tight), 'nm'); pedBubble(o, pick(PED_BUBBLES)); }
+  else if (o.type === 'ped' && o.kind === 'hotdog') { award('RELISH THE MOMENT!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(HOTDOG_BUBBLES)); }
+  else if (o.type === 'ped') { award('EXCUSE ME!', 150 * sf * (1 + tight), 'nm'); pedBubble(o, nextLine(PED_BUBBLES)); }
   else if (o.kind === 'closed' || o.kind === 'building') award('TIGHT TURN!', 150 * sf, 'nm');
   else if (alarmed) award('CAR ALARM!', CAR_ALARM_PTS * sf * (1 + tight), 'nm');
   else award('CLOSE SHAVE!', 60 * sf * (1 + tight), 'nm');
@@ -4337,72 +4456,108 @@ const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
   var sayings = [
-    'Ouch!',
-    'What do?',
-    'Wipeout!',
-    'Oof!',
-    'You are Dead',
-    'Just a scratch',
-    'Walk it off',
-    'Skills issue',
-    'You are cooked',
-    'Skibidy Ohio',
-    'Yikes!',
-    'Splat!',
-    "That's gonna leave a mark",
-    'Pancake!',
-    'Faceplant!',
-    'Gravity wins',
-    'Pedal dip!',
-    'Cut-out!',
-    'Overlean!',
-    "Insurance won't cover that",
-    "That's a warranty claim",
-    'Nailed it',
-    'Ten out of ten',
-    'Physics: one. You: zero',
-    'Bold strategy',
-    'Character development',
-    'You stole my brain rot!',
-    'Rider.exe has stopped working',
-    'The wheel chose violence',
-    'Achievement unlocked: Floor Inspector',
-    'The beeps were a suggestion',
     'Absolute cinema',
-    'No photos please',
-    'Your dignity took fall damage',
-    'Canon event unlocked',
-    'Bruh',
-    'Not very sigma',
-    'Caught in 4K',
-    "It's giving pavement",
+    'What do?',
+    'Delete this run', 
     'Emotional damage',
-    'Touch grass. Literally',
+    'Respectfully, no', 
+    'smooth brained move',
+    'Pancake!',
+    "That's a warranty claim",
+    'Oof!',
+    'Skills issue',
+    'Wipeout!',
+    'Mom, come pick me up', 
+    "That's gonna leave a mark",
+    "Ratio'd by a taxi", "Mission failed. We'll get 'em next time", 
+    'L plus ratio', 
+    "Insurance won't cover that",
+    'Controller disconnected. Allegedly', 
+    'Back to the tutorial', 
+    'Who taught you to ride?', 
+    'Peak Energy',
+    'Pads would have helped', 
+    'a whole bunch of turbulence',
+    'Clip it and Post it', 
+    'Insert another coin', 
+    'Ouch!',
+    'You are cooked',
+    'The pigeons saw that', 
+    'top keke',
+    'Skill issue confirmed', 
+    'Rest in pieces',
+    'Built different. Built wrong', 
+    'Major yikes', 
+    'Gravity wins',
+    'Not the vibe',
+    'Plot twist: you are dead', 
+    'Canon event unlocked',
+    'Speedran the hospital', 
+    'You stole my brain rot!',
+    'Zero stars', 
+    'Physics: one. You: zero',
+    'Rider.exe has stopped working',
+    'The hot dog is laughing at you', 
+    'That was so mid', 
+    'Faceplant!',
+    'Overlean!',
+    'Cooked. Well done', 
+    'Not very sigma',
+    'That was a choice', 
+    'The driver is filing a complaint', 
+    'Just a scratch',
+    'Bold strategy',
+    'You are Dead',
+    'Achievement unlocked: Floor Inspector',
+    "It's so over", 
+    'Yikes!',
+    'Pedal dip!',
+    'The beeps were a suggestion',
+    'The wheel chose violence',
+    'Your ancestors felt that', 
+    'Bruh',
+    'Down bad', 
+    'Cut-out!',
+    'Crashout complete', 
+    'You got clapped',
+    'Splat!',
+    'Lag! It was lag!',
+    'Even the drone looked away',
+    'Minus a thousand aura', 
+    'The NPCs won', 
+    'Ten out of ten',
+    'Your dignity took fall damage',
+    'Character development',
+    'Brain buffering', 
+    'Good game. Not really',
+    'Walk it off',
+    'Fell off. Literally', 
+    'Chat, did you see that?',
+    'Nailed it',
     'No cap, that hurt',
     'Big L',
-    'Unalive speedrun',
-    'Post that to instagram',
     'That hits different',
-    'Peak Energy',
-    'top keke',
-    'a whole bunch of turbulence',
-    "Ratio'd by a taxi", "Mission failed. We'll get 'em next time", "It's so over", 'L plus ratio', 'Down bad', 'Not the vibe',
-    'Respawn when?', 'Minus a thousand aura', 'Fell off. Literally', 'Rest in pieces',
-    'Crashout complete', 'The NPCs won', 'Skill issue confirmed', 'Delete this run', 'smooth brained move',
-    'Bro forgot how to wheel', 'Built different. Built wrong', 'Speedran the hospital', 'The driver is filing a complaint', 'Pads would have helped', 'Good game. Not really',
-    'Unlucky', 'Who taught you to ride?', 'Respectfully, no', 'Clip it and Post it', 'Major yikes', 'You got clapped',
-    'Plot twist: you are dead', 'That was a choice', 'Mom, come pick me up', 'The pigeons saw that', 'The hot dog is laughing at you', 'Lag! It was lag!',
-    'Controller disconnected. Allegedly', 'Pain. Just pain', 'Insert another coin', 'Zero stars', 'Back to the tutorial', 'Even the drone looked away',
-    'Your ancestors felt that', 'Cooked. Well done', 'Not your main character moment', 'Brain buffering', 'That was so mid', 'Chat, did you see that?'
+    'Pain. Just pain', 
+    'Not your main character moment', 
+    'Respawn when?', 
+    'Unalive speedrun',
+    "It's giving pavement",
+    'Skibidy Ohio',
+    'Unlucky', 
+    'Caught in 4K',
+    'Post that to instagram',
+    'Bro forgot how to wheel', 
+    'No photos please',
+    'Touch grass. Literally'
   ];
-  setTimeout(() => Voice.say(pick(sayings), 6, 'joke'), 1100);
+  setTimeout(() => Voice.say(nextLine(sayings), 6, 'joke'), 1100);
   recordFrame();                       // final pose for the instant replay
   VID.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
   if (SC.chainN > 1) popup('CHAIN LOST!', 'red');
   resetScoring(); $('chainBox').classList.add('hidden'); $('tricks').innerHTML = '';
-  Game.cause = pick(DEATH[kind] || ['Splattered across the avenue.']);
-  if (ent && ent.kind === 'hotdog') Game.cause = pick(['Took out a hot dog. Hold the mustard.', 'Ran over the wiener.', 'Bun voyage.']);
+  Game.cause = nextLine(DEATH[kind] || ['Splattered across the avenue.']);
+  if (ent && ent.kind === 'hotdog') Game.cause = nextLine(['Took out a hot dog. Hold the mustard.', 'Ran over the wiener.', 'Bun voyage.']);
   track('crash/' + (kind || 'unknown'), 'Crashed: ' + (kind || 'unknown') + ' (level ' + Game.level + ')');
   track('died-on-level/' + Game.level, 'Died on level ' + Game.level);
   Sound.splat(); Sound.scream(0, 1.1, 1.05);
@@ -4436,7 +4591,7 @@ function screenFlash(a) {
   $('flash').style.transition = 'none'; $('flash').style.opacity = a;
   requestAnimationFrame(() => { $('flash').style.transition = 'opacity .6s'; $('flash').style.opacity = 0; });
 }
-function showComic() { $('comicTxt').textContent = pick(COMIC); $('comic').classList.remove('show'); void $('comic').offsetWidth; $('comic').classList.add('show'); }
+function showComic() { $('comicTxt').textContent = nextLine(COMIC); $('comic').classList.remove('show'); void $('comic').offsetWidth; $('comic').classList.add('show'); }
 // shatter the rider into limbs + blood burst (used live and again in the replay)
 function explodeRig(info) {
   rig.root.updateMatrixWorld(true);
@@ -4559,7 +4714,7 @@ function winLevel() {
 function showWin() {
   Game.state = 'win'; setHudVisible(false);
   $('winTitle').textContent = 'LEVEL ' + Game.level + ' CLEAR!';
-  $('winMsg').textContent = pick(['You survived the city. For now.', 'Not a single scratch. Suspicious.', 'The pigeons respect you now.', 'Taxi drivers are writing songs about you.']);
+  $('winMsg').textContent = nextLine(['You survived the city. For now.', 'Not a single scratch. Suspicious.', 'The pigeons respect you now.', 'Taxi drivers are writing songs about you.']);
   $('wScore').textContent = Math.floor(Game.score).toLocaleString();
   $('wBonus').textContent = '+' + Game.bonus.toLocaleString();
   $('wNear').textContent = Game.near;
@@ -5344,7 +5499,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
 /* ---------- boot ---------- */
 $('startBest').textContent = 'BEST: ' + Game.best.toLocaleString();
-$('splash').textContent = pick([
+$('splash').textContent = nextLine([
   'NOW WITH 12% MORE TAXIS!', 'MADE BY CLANKERS', 'GLUTEN FREE', 'NO BRAKES INCLUDED!', 'HELMET RECOMMENDED!', 'BATTERY SOLD SEPARATELY!', 'AS SEEN ON THE NEWS!',
   'PIGEON APPROVED!', 'CONTAINS HOT DOGS!', 'NOT A DRIVING SIMULATOR!', 'TAXI DRIVERS HATE HIM!', '100% STREET ILLEGAL!',
   'NO REFUNDS!', 'PHYSICS OPTIONAL!', 'SPONSORED BY GRAVITY!', 'ONE WHEEL. MANY REGRETS.', 'BRAKES ARE FOR QUITTERS!',
