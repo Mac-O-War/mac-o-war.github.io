@@ -3642,7 +3642,20 @@ const AGAIN_LINES = [
   // encouragement, sort of
   'Persistence. I like it.', 'You are stubborn.', 'Fortune favours the bold.', 'Last time was a warm-up',
   'Okay, champ. Again.', 'Fresh run, fresh mistakes.', 'Your therapist would be proud.',
-  'Respawn complete.', 'Loading confidence.'
+  'Respawn complete.', 'Loading confidence.', "You're about to crashout", 'that was cringe', 'You owe fanum back taxes',
+  'entering your flop era', 'entering flow state', 'locked in', 'Lowkenuinely, this is slop', 'nothing ever happens',
+  "don't get salty", "six seven",
+  // more gen z
+  'No cap, this run hits different.', 'Main character energy.', "It's giving comeback.", 'Delulu is the solulu.', 'Bet.',
+  'Say less.', 'We move.', 'Let him cook.', 'Respectfully, lock in.',
+  'This is your villain arc.', 'Your redemption arc starts now.', 'POV: you try again.', 'Sheesh.', 'Bussin or bust.',
+  "It's the persistence for me.", 'The audacity. I love it.', 'Slay, but carefully.', 'Big yikes last time.', 'Glow up time.',
+  'Vibe check. Passed.', 'Plus one thousand aura if you survive.', 'Aura farming.', 'Get in the Sigma grindset.', 'NPCs, move.',
+  'Lowkey nervous. Highkey ready.', 'Main quest: survive.', "Side quest: don't hit the hot dog.", 'Any percent speedrun.',
+  'Brainrot mode activated.', 'Chat, is this real?', "Chat, we're so back.", "It's so over. Just kidding, we're back.", 'Hear me out.',
+  'No thoughts, just wheel.', 'Rizzler on one wheel.', 'Understood the assignment? Prove it.', 'Caught lacking? Not today.', 'Ratio the traffic.',
+  'Ate last time? No. Eat this time.', 'Touch grass after this one.', 'It is giving determination.', 'Living rent free in the taxis heads.', 'Era: not crashing.',
+  'Mid run incoming? Prove me wrong.', 'Real ones try again.', 'Unc is still trying.', 'Clock it. Then dodge it.'
 ];
 // said when a level is cleared (any announcer level from JOKES up; never the same line twice in a row)
 const CLEAR_LINES = [
@@ -3669,7 +3682,7 @@ function beginLevel() {
   showScreen(null); setHudVisible(true);
   Game.state = 'countdown'; Game.cd = 3.2; Game.lastCd = -1;
   resetGas(); $('unlockMsg').classList.remove('show'); Game.redJoke = false; Game.mericaJoke = false;
-  if (Game.level === 1 && Game.attempts % 3 === 0) Voice.say(againLine(), 2, 'joke');   // every 3rd attempt this session
+  if ((Game.level === 1) && (Game.attempts > 1)) { Voice.say(againLine(), 2, 'joke');  }
   Sound.startMusic(Game.level);
   updateHud(true);
 }
@@ -4332,6 +4345,7 @@ function die(kind, ent) {
     'Just a scratch',
     'Walk it off',
     'Skills issue',
+    'You are cooked',
     'Skibidy Ohio',
     'Yikes!',
     'Splat!',
@@ -4367,7 +4381,19 @@ function die(kind, ent) {
     'No cap, that hurt',
     'Big L',
     'Unalive speedrun',
-    'Post that to instagram'
+    'Post that to instagram',
+    'That hits different',
+    'Peak Energy',
+    'top keke',
+    'a whole bunch of turbulence',
+    "Ratio'd by a taxi", "Mission failed. We'll get 'em next time", "It's so over", 'L plus ratio', 'Down bad', 'Not the vibe',
+    'Respawn when?', 'Minus a thousand aura', 'Fell off. Literally', 'Rest in pieces',
+    'Crashout complete', 'The NPCs won', 'Skill issue confirmed', 'Delete this run', 'smooth brained move',
+    'Bro forgot how to wheel', 'Built different. Built wrong', 'Speedran the hospital', 'The driver is filing a complaint', 'Pads would have helped', 'Good game. Not really',
+    'Unlucky', 'Who taught you to ride?', 'Respectfully, no', 'Clip it and Post it', 'Major yikes', 'You got clapped',
+    'Plot twist: you are dead', 'That was a choice', 'Mom, come pick me up', 'The pigeons saw that', 'The hot dog is laughing at you', 'Lag! It was lag!',
+    'Controller disconnected. Allegedly', 'Pain. Just pain', 'Insert another coin', 'Zero stars', 'Back to the tutorial', 'Even the drone looked away',
+    'Your ancestors felt that', 'Cooked. Well done', 'Not your main character moment', 'Brain buffering', 'That was so mid', 'Chat, did you see that?'
   ];
   setTimeout(() => Voice.say(pick(sayings), 6, 'joke'), 1100);
   recordFrame();                       // final pose for the instant replay
@@ -5319,7 +5345,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 /* ---------- boot ---------- */
 $('startBest').textContent = 'BEST: ' + Game.best.toLocaleString();
 $('splash').textContent = pick([
-  'NOW WITH 12% MORE TAXIS!', 'GLUTEN FREE', 'NO BRAKES INCLUDED!', 'HELMET RECOMMENDED!', 'BATTERY SOLD SEPARATELY!', 'AS SEEN ON THE NEWS!',
+  'NOW WITH 12% MORE TAXIS!', 'MADE BY CLANKERS', 'GLUTEN FREE', 'NO BRAKES INCLUDED!', 'HELMET RECOMMENDED!', 'BATTERY SOLD SEPARATELY!', 'AS SEEN ON THE NEWS!',
   'PIGEON APPROVED!', 'CONTAINS HOT DOGS!', 'NOT A DRIVING SIMULATOR!', 'TAXI DRIVERS HATE HIM!', '100% STREET ILLEGAL!',
   'NO REFUNDS!', 'PHYSICS OPTIONAL!', 'SPONSORED BY GRAVITY!', 'ONE WHEEL. MANY REGRETS.', 'BRAKES ARE FOR QUITTERS!',
   'CERTIFIED HOOD ORNAMENT!', 'NOW IN 3D!', 'FREE-RANGE TRAFFIC!', 'THE PIGEONS KNOW.', 'ALSO TRY WALKING!',
