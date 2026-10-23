@@ -3465,8 +3465,8 @@ const deathPos = new THREE.Vector3();
 const camOff = new THREE.Vector3(0, 3.7, 7.4);
 let orbitA = 0, skyAng = 0, animT = 0;
 
-/* ---------- NEWS DRONE: scatter 4 flocks of pigeons and a camera drone swoops in to film you for a few seconds ("ON THE NEWS!") ---------- */
-const NEWS_PTS = 750, NEWS_PIGEONS = 4;   // bonus x level; pigeon flocks to scatter to call the drone in
+/* ---------- NEWS DRONE: scatter 5 flocks of pigeons and a camera drone swoops in to film you for a few seconds ("ON THE NEWS!") ---------- */
+const NEWS_PTS = 750, NEWS_PIGEONS = 5;   // bonus x level; pigeon flocks to scatter to call the drone in
 const DRONE = { state: 'off', t: 0, cd: 0, pigeons: 0, paid: false, prev: new THREE.Vector3(), vel: new THREE.Vector3(), pos: new THREE.Vector3(), off: { a: 0, s: 0, u: 0 }, side: 1, mesh: null, rotors: [], rec: null };
 (function buildDrone() {
   const g = new THREE.Group();
@@ -4063,7 +4063,7 @@ function buildScoring() {
       ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)]]],
     ['BONUSES', '', [
       ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
-      ['ON THE NEWS!', 'Scatter 4 flocks of pigeons and a news drone flies in to film you', '750 × LEVEL'],
+      ['ON THE NEWS!', 'Scatter 5 flocks of pigeons and a news drone flies in to film you', '750 × LEVEL'],
       ['RIDING', 'Just keep moving', '~5 / SEC']]],
     ['MULTIPLIERS', '', [
       ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
@@ -4520,7 +4520,8 @@ function winLevel() {
   cashInAll();
   const bonus = 1000 * Game.level; Game.bonus = bonus; Game.score += bonus;
   const sc = Math.floor(Game.score); if (sc > Game.best) { Game.best = sc; store.set('whatdo_best', sc); }
-  Voice.say(clearLine(), 5, 'joke');
+  setTimeout(() => Voice.say(clearLine(), 5, 'joke'), 1100);
+
   Sound.jingle(); Sound.stopMusic(); buzz([40, 60, 40, 60, 120]);
   if (TOD.night > 0.5) Sky.fireworks();
   popup('LEVEL CLEAR!', 'good');
@@ -5318,7 +5319,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 /* ---------- boot ---------- */
 $('startBest').textContent = 'BEST: ' + Game.best.toLocaleString();
 $('splash').textContent = pick([
-  'NOW WITH 12% MORE TAXIS!', 'NO BRAKES INCLUDED!', 'HELMET RECOMMENDED!', 'BATTERY SOLD SEPARATELY!', 'AS SEEN ON THE NEWS!',
+  'NOW WITH 12% MORE TAXIS!', 'GLUTEN FREE', 'NO BRAKES INCLUDED!', 'HELMET RECOMMENDED!', 'BATTERY SOLD SEPARATELY!', 'AS SEEN ON THE NEWS!',
   'PIGEON APPROVED!', 'CONTAINS HOT DOGS!', 'NOT A DRIVING SIMULATOR!', 'TAXI DRIVERS HATE HIM!', '100% STREET ILLEGAL!',
   'NO REFUNDS!', 'PHYSICS OPTIONAL!', 'SPONSORED BY GRAVITY!', 'ONE WHEEL. MANY REGRETS.', 'BRAKES ARE FOR QUITTERS!',
   'CERTIFIED HOOD ORNAMENT!', 'NOW IN 3D!', 'FREE-RANGE TRAFFIC!', 'THE PIGEONS KNOW.', 'ALSO TRY WALKING!',
