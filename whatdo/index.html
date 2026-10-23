@@ -139,10 +139,22 @@ body.touch #touch.on{display:block}
 #unlockMsg{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(30px,7vw,60px);letter-spacing:2px;color:#3ddc84;-webkit-text-stroke:3px #000;text-shadow:5px 5px 0 #000;pointer-events:none;display:none;z-index:4}
 .bubble{position:absolute;transform:translate(-50%,-100%);background:#fff;color:#111;font-family:var(--comic);font-size:clamp(56px,13.6vmin,80px);letter-spacing:3px;padding:10px 32px;border:8px solid #000;border-radius:44px;white-space:nowrap;box-shadow:8px 8px 0 rgba(0,0,0,.35);animation:bubbleIn .18s ease-out}
 .bubble::after{content:'';position:absolute;left:50%;bottom:-40px;transform:translateX(-50%);border:28px solid transparent;border-bottom:0;border-top:32px solid #000}   /* hangs just below the 8px outline */
+.bubble.small{font-size:clamp(28px,6.8vmin,40px);letter-spacing:1.5px;padding:5px 16px;border-width:4px;border-radius:22px;box-shadow:4px 4px 0 rgba(0,0,0,.35)}   /* the rival's taunts: half size */
+.bubble.small::after{bottom:-20px;border-width:16px 14px 0;border-top-width:16px}
 @keyframes bubbleIn{from{transform:translate(-50%,-100%) scale(.3)}to{transform:translate(-50%,-100%) scale(1)}}
 .feather{position:absolute;top:-60px;width:46px;height:46px;animation:featherFall var(--d,3.4s) linear forwards}
 .feather svg{width:100%;height:100%;animation:featherSway 1.1s ease-in-out infinite alternate}
 @keyframes featherFall{to{transform:translate(var(--dx,40px),calc(100vh + 120px)) rotate(var(--rot,200deg))}}
+/* breaking-news ticker (after the news drone films you) and water drops on the screen (riding through an open hydrant) */
+#ticker{position:absolute;left:0;right:0;bottom:calc(150px + var(--sb));display:flex;height:34px;background:rgba(10,12,30,.9);border-top:3px solid #000;border-bottom:3px solid #000;font-family:var(--hud);font-size:12px;overflow:hidden;pointer-events:none}
+#ticker b{background:#d32f2f;color:#fff;padding:0 12px;display:flex;align-items:center;white-space:nowrap;font-weight:normal;z-index:1;box-shadow:4px 0 0 #000}
+#ticker .tk{flex:1;position:relative;overflow:hidden}
+#tickTxt{position:absolute;left:100%;top:50%;margin-top:-.5em;line-height:1;white-space:nowrap;color:#ffd23f;animation:tick var(--d,14s) linear forwards}
+@keyframes tick{to{transform:translateX(calc(-100% - 100vw))}}
+#wet{opacity:0;background:rgba(140,200,255,.12)}
+#wet.show{animation:wetFade 1.9s ease-out forwards}
+#wet i{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.8),rgba(170,215,255,.3) 45%,rgba(120,180,255,.12) 70%);box-shadow:inset 0 0 6px rgba(255,255,255,.55)}
+@keyframes wetFade{0%{opacity:1}55%{opacity:.85}100%{opacity:0}}
 @keyframes featherSway{from{transform:translateX(-22px) rotate(-25deg)}to{transform:translateX(22px) rotate(25deg)}}
 #unlockMsg.show{display:block;animation:unlockIn 2.6s ease-out forwards}
 #padToast{position:fixed;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:rgba(13,15,26,.85);border:3px solid #000;padding:8px 12px;pointer-events:none;opacity:0;z-index:20}
@@ -292,6 +304,7 @@ body:not(.touch) .card.tch{display:none}
   <div id="tricks"></div>
   <div id="popups"></div>
   <div id="warnT" class="hidden">! ONCOMING SWERVE !</div>
+  <div id="ticker" class="hidden"><b>BREAKING NEWS</b><div class="tk"><span id="tickTxt"></span></div></div>
   <div id="gasBox" class="dead"><div id="gasTxt">VOLTS <b id="gasSecs">0</b>s</div><div class="cbar"><i id="gasBar"></i></div></div>
   <div id="focusBox"><div id="focusTxt">FOCUS</div><div class="cbar"><i id="focusBar"></i></div></div>
   <div id="metalBox" class="hidden"><div id="metalTxt">PEDAL TO THE METAL</div><div class="cbar"><i id="metalBar"></i></div></div>
@@ -315,6 +328,7 @@ body:not(.touch) .card.tch{display:none}
 <div id="unlockMsg"></div>
 <div id="bubbles" class="layer"></div>
 <div id="feathers" class="layer"></div>
+<div id="wet" class="layer"></div>
 <div id="padToast"></div>
 <div id="updToast" class="hidden">NEW VERSION! NOW WITH 12% MORE TAXIS &mdash; TAP TO UPDATE</div>
 <div id="replayUI" class="layer hidden"><div class="lb top"></div><div class="lb bot"></div><div id="rpLabel"><i></i>INSTANT REPLAY</div><div id="rpSkip">TAP TO SKIP</div></div>
@@ -851,7 +865,7 @@ function pedParts(v, ph) {
   if (v.briefcase) p.push([0.4, 0.4, 0, 0.1, 0.38, 0.5, 0x3e2723]);
   return p;
 }
-const PEDS = { ped: [], tourist: [], business: [], hotdog: [] };
+const PEDS = { ped: [], tourist: [], business: [], hotdog: [], liberty: [], rat: [], preacher: [], spidey: [] };
 // a person in a giant hot-dog costume: a sausage with mustard in a bun, a face hole, red tights
 function hotdogParts(ph) {
   const p = [], lz = ph === 1 ? -0.14 : ph === 2 ? 0.14 : 0;
@@ -865,9 +879,56 @@ function hotdogParts(ph) {
   for (const s of [-1, 1]) p.push([s * 0.53, 1.05, 0, 0.16, 0.5, 0.18, BUN], [s * 0.53, 0.95, 0, 0.14, 0.12, 0.14, 0xffffff]);   // arms in white gloves
   return p;
 }
+// a street performer painted copper-green as the Statue of Liberty: robe, spiked crown, tablet, torch held high
+function libertyParts(ph) {
+  const p = [], lz = ph === 1 ? -0.1 : ph === 2 ? 0.1 : 0;
+  const G = 0x6fae96, DK = 0x4f8a74, FL = 0xffb300;
+  for (const s of [-1, 1]) p.push([s * 0.13, 0, (s < 0 ? lz : -lz) - 0.06, 0.22, 0.1, 0.32, G]);   // sandals peeking out
+  p.push([0, 0.06, 0, 0.66, 1.5, 0.42, G]);   // the robe
+  p.push([0, 1.12, -0.005, 0.68, 0.4, 0.43, DK], [-0.12, 0.3, -0.215, 0.08, 0.8, 0.02, DK], [0.12, 0.3, -0.215, 0.08, 0.8, 0.02, DK]);   // shoulder drape and folds
+  p.push([-0.4, 0.86, 0, 0.17, 0.6, 0.21, G], [-0.3, 0.86, -0.24, 0.32, 0.46, 0.1, DK]);   // arm hugging the tablet
+  p.push([0.4, 1.4, 0, 0.17, 0.76, 0.21, G], [0.4, 2.14, 0, 0.12, 0.3, 0.12, DK], [0.4, 2.42, 0, 0.26, 0.12, 0.26, DK]);   // raised arm and torch
+  p.push([0.4, 2.54, 0, 0.18, 0.22, 0.18, FL], [0.4, 2.62, 0, 0.1, 0.2, 0.1, 0xff6f00]);   // the flame
+  p.push([0, 1.56, 0, 0.4, 0.4, 0.38, G], [-0.09, 1.73, -0.195, 0.07, 0.07, 0.02, 0x111111], [0.09, 1.73, -0.195, 0.07, 0.07, 0.02, 0x111111]);
+  p.push([0, 1.9, 0, 0.46, 0.1, 0.44, DK]);   // crown band
+  for (let i = -3; i <= 3; i++) { const a = i * 0.42; p.push([Math.sin(a) * 0.2, 1.98, -Math.cos(a) * 0.2, 0.06, 0.24, 0.06, G]); }   // seven spikes
+  return p;
+}
+// Pizza Rat: a grey rat hauling a slice of pepperoni pizza across the street (front faces -Z, scaled up when spawned)
+function ratParts(ph) {
+  const p = [], G = 0x6b6b70, PK = 0xe8a0a8, a = ph === 1 ? 0.06 : ph === 2 ? -0.06 : 0;
+  for (const s of [-1, 1]) p.push([s * 0.09, 0, -0.12 + s * a, 0.06, 0.08, 0.08, PK], [s * 0.09, 0, 0.14 - s * a, 0.06, 0.08, 0.08, PK]);   // scurrying feet
+  p.push([0, 0.06, 0.02, 0.24, 0.18, 0.42, G], [0, 0.08, -0.24, 0.16, 0.13, 0.16, G], [0, 0.1, -0.34, 0.07, 0.06, 0.06, PK]);   // body, head, nose
+  for (const s of [-1, 1]) p.push([s * 0.07, 0.2, -0.22, 0.07, 0.07, 0.03, PK], [s * 0.05, 0.15, -0.325, 0.03, 0.03, 0.02, 0x111111]);   // ears, eyes
+  p.push([0, 0.08, 0.36, 0.04, 0.04, 0.3, PK], [0.03, 0.06, 0.55, 0.04, 0.04, 0.12, PK]);   // tail
+  for (let i = 0; i < 5; i++) p.push([0, 0.01, -0.44 - i * 0.11, 0.08 + i * 0.11, 0.04, 0.12, 0xffc93c]);   // the slice, tip in its mouth
+  p.push([0, 0.01, -0.99, 0.6, 0.08, 0.1, 0xc9832f], [-0.1, 0.05, -0.78, 0.1, 0.02, 0.1, 0xb3261e], [0.09, 0.05, -0.88, 0.1, 0.02, 0.1, 0xb3261e], [0.02, 0.05, -0.62, 0.08, 0.02, 0.08, 0xb3261e]);   // crust, pepperoni
+  return p;
+}
+// the subway preacher: on a milk crate, megaphone to his mouth, cardboard sign at his feet
+function preacherParts() {
+  const C = 0x5a4632, up = 0.55;
+  const p = pedParts({ skin: 0x8d5524, hair: 0x9a9a9a, shirt: C, sleeve: C, pants: 0x333333, shoe: 0x111111 }, 0).map((q) => [q[0], q[1] + up, q[2], q[3], q[4], q[5], q[6]]);
+  p.push([0, 0, 0, 0.9, 0.55, 0.7, 0x2e6fd6], [0, 0.1, -0.351, 0.8, 0.06, 0.02, 0x1d4fa3], [0, 0.3, -0.351, 0.8, 0.06, 0.02, 0x1d4fa3]);   // milk crate
+  p.push([0.3, 1.95, -0.2, 0.15, 0.15, 0.45, C], [0.12, 2.12, -0.34, 0.16, 0.16, 0.2, 0xf2f2f2], [0.12, 2.06, -0.52, 0.28, 0.28, 0.16, 0xe53935]);   // arm up, megaphone
+  p.push([0, 0, -0.5, 0.8, 0.5, 0.03, 0xd9b77e], [0, 0.32, -0.52, 0.6, 0.05, 0.01, 0x222222], [0, 0.18, -0.52, 0.5, 0.05, 0.01, 0x222222]);   // THE END IS NEAR (scribbled)
+  return p;
+}
+// Spider-Man (a costumed performer): red and blue suit, big white eyes, a black spider on the chest
+function spideyParts(ph) {
+  const R = 0xd32f2f, B = 0x1f4fc4;
+  return pedParts({ skin: R, hair: R, shirt: R, sleeve: B, pants: B, shoe: R }, ph).concat([
+    [-0.1, 1.66, -0.2, 0.14, 0.12, 0.03, 0xffffff], [0.1, 1.66, -0.2, 0.14, 0.12, 0.03, 0xffffff],
+    [0, 1.14, -0.177, 0.07, 0.18, 0.02, 0x111111], [0, 1.24, -0.178, 0.24, 0.03, 0.02, 0x111111], [0, 1.16, -0.178, 0.2, 0.03, 0.02, 0x111111],
+    [-0.31, 0.86, 0, 0.02, 0.7, 0.36, B], [0.31, 0.86, 0, 0.02, 0.7, 0.36, B]]);   // blue sides
+}
 (function buildPeds() {
   const mk = (kind, v) => PEDS[kind].push({ kind, geo: [vox(pedParts(v, 0)), vox(pedParts(v, 1)), vox(pedParts(v, 2))] });
   PEDS.hotdog.push({ kind: 'hotdog', geo: [vox(hotdogParts(0)), vox(hotdogParts(1)), vox(hotdogParts(2))] });
+  PEDS.liberty.push({ kind: 'liberty', geo: [vox(libertyParts(0)), vox(libertyParts(1)), vox(libertyParts(2))] });
+  PEDS.rat.push({ kind: 'rat', geo: [vox(ratParts(0)), vox(ratParts(1)), vox(ratParts(2))] });
+  const pr = vox(preacherParts()); PEDS.preacher.push({ kind: 'preacher', geo: [pr, pr, pr] });
+  PEDS.spidey.push({ kind: 'spidey', geo: [vox(spideyParts(0)), vox(spideyParts(1)), vox(spideyParts(2))] });
   for (let i = 0; i < 14; i++) {
     const shirt = pick(SHIRTS);
     mk('ped', { skin: pick(SKINS), hair: pick(HAIRS), shirt, sleeve: Math.random() < 0.5 ? shirt : pick(SKINS), pants: pick(PANTS), shoe: pick([0x111111, 0xffffff, 0x8b4513]), phone: Math.random() < 0.4, bag: Math.random() < 0.3 ? pick([0x222222, 0x8b0000, 0x2f4f4f]) : 0, cap: Math.random() < 0.25 ? pick(SHIRTS) : 0 });
@@ -1335,6 +1396,26 @@ const Sound = (() => {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.04); g.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
     n.connect(f); f.connect(g); g.connect(o);
   }
+  // horse hooves: a hollow double knock (clip-clop)
+  function clop(pan, vol) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
+    for (const [d, f] of [[0, 900], [0.09, 760]]) {
+      const os = ctx.createOscillator(), g = ctx.createGain(); os.type = 'triangle';
+      os.frequency.setValueAtTime(f, t + d); os.frequency.exponentialRampToValueAtTime(f * 0.4, t + d + 0.04);
+      g.gain.setValueAtTime(0.0001, t + d); g.gain.linearRampToValueAtTime(0.16 * vol, t + d + 0.003); g.gain.exponentialRampToValueAtTime(0.0005, t + d + 0.07);
+      os.connect(g); g.connect(o); os.start(t + d); os.stop(t + d + 0.08);
+    }
+  }
+  // horse whinny: a shaky, falling neigh
+  function neigh(pan, vol) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
+    const os = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain(), vib = ctx.createOscillator(), vd = ctx.createGain();
+    os.type = 'sawtooth'; os.frequency.setValueAtTime(700, t); os.frequency.linearRampToValueAtTime(1150, t + 0.15); os.frequency.exponentialRampToValueAtTime(380, t + 0.95);
+    vib.frequency.value = 18; vd.gain.value = 70; vib.connect(vd); vd.connect(os.frequency);
+    bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 1.2;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.18 * vol, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0005, t + 1);
+    os.connect(bp); bp.connect(g); g.connect(o); os.start(t); vib.start(t); os.stop(t + 1.05); vib.stop(t + 1.05);
+  }
   // bicycle bell: ding-ding
   function bell(pan, vol) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
@@ -1698,7 +1779,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, clop, neigh, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -2011,6 +2092,37 @@ function bannerMat(text) {
   m = new THREE.MeshLambertMaterial({ map: tex }); bannerMats.set(text, m); return m;
 }
 GEO.banner = new THREE.BoxGeometry(12, 2, 0.06).translate(0, -1, 0);
+// Times Square: giant glowing billboards (unlit, so they shine), one material per ad
+const TS_ADS = ['WHAT DO?', 'I \u2665 NY', 'COLA', 'BROADWAY', 'EUC 4 LIFE', 'NOW SHOWING', 'TAXI!', 'HOT DOGS $2', 'PIGEON: THE MUSICAL', 'ONE WHEEL. NO FEAR.',
+  'SALE 50% OFF', 'TKTS', 'BIG APPLE', 'NO CAP', 'MAIN CHARACTER', 'PIZZA RAT LIVE', 'SKYLINE', 'HELMETS ARE COOL', 'OPEN 24 HRS', 'RIZZ COLA'];
+const TS_COLS = [['#ff1f6b', '#ffd23f'], ['#00c2ff', '#ffffff'], ['#ffd23f', '#111111'], ['#7c3aed', '#3ddc84'], ['#ff6a00', '#ffffff'], ['#111111', '#ff2a2a'], ['#3ddc84', '#111111'], ['#e8e8e8', '#d32f2f']];
+const tsMats = new Map();
+function billboardMat(text) {
+  let m = tsMats.get(text); if (m) return m;
+  const [bg, fg] = pick(TS_COLS);
+  const tex = canvasTex(512, 256, (x, w, h) => {
+    const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, bg); gr.addColorStop(1, '#000'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    x.globalAlpha = 0.18; x.fillStyle = fg; for (let i = 0; i < 6; i++) x.fillRect(rand(0, w), 0, rand(10, 60), h); x.globalAlpha = 1;
+    x.strokeStyle = fg; x.lineWidth = 10; x.strokeRect(8, 8, w - 16, h - 16);
+    let fs = 110; x.font = 'bold ' + fs + 'px Impact, "Arial Black", sans-serif'; while (x.measureText(text).width > w - 50 && fs > 30) { fs -= 6; x.font = 'bold ' + fs + 'px Impact, "Arial Black", sans-serif'; }
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = fg; x.shadowBlur = 24; x.fillStyle = fg; x.fillText(text, w / 2, h / 2 + 4);
+  });
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  m = new THREE.MeshBasicMaterial({ map: tex }); tsMats.set(text, m); return m;
+}
+GEO.board = new THREE.PlaneGeometry(1, 1);
+function timesSquare(g, sx) {
+  // billboards stacked up the facades, facing the street
+  for (let z = -4; z > -76;) {
+    const w = randi(8, 13), h = w * rand(0.45, 0.6);
+    for (let y = rand(5, 6.5); y < 30; y += h + rand(0.6, 3)) {
+      if (Math.random() < 0.2) continue;
+      const m = addMesh(g, GEO.board, billboardMat(nextLine(TS_ADS)), sx * 16.75, y + h / 2, z - w / 2);
+      m.rotation.y = -sx * Math.PI / 2; m.scale.set(w, h, 1);
+    }
+    z -= w + rand(0.5, 2);
+  }
+}
 function decorBanner(g, p, ch) {
   const bz = rand(-62, -22), y = 8.4;
   p.push([0, y, bz, 33.8, 0.05, 0.05, 0x333333]);
@@ -2249,6 +2361,12 @@ function updateLeaves(dt) {
   leafMesh.instanceMatrix.needsUpdate = true; lfAny = any;
 }
 const STEAM_PTS = 150;   // riding through a steaming manhole
+const SPRAY_PTS = 150;   // riding through an open hydrant's spray
+function wetScreen() {   // water drops all over the lens, fading out
+  const w = $('wet'); w.innerHTML = '';
+  for (let i = 0; i < 16; i++) { const d = document.createElement('i'), sz = rand(18, 70); d.style.cssText = 'left:' + rand(0, 96) + '%;top:' + rand(0, 92) + '%;width:' + sz + 'px;height:' + sz * rand(0.85, 1.15) + 'px'; w.appendChild(d); }
+  w.classList.remove('show'); void w.offsetWidth; w.classList.add('show');
+}
 const _sv = { x: 0, z: 0 };
 // the hiss of the nearest steaming manhole (within 30 m), panned to its side
 function updateCitySound() {
@@ -2296,6 +2414,22 @@ function updateDecor(dt) {
           }
         }
       }
+      for (const s of ch.sprays) {   // an open hydrant: a fan of water out over the bike lane
+        const ax = s.x - PL.x, az = s.z - PL.z;
+        if (az > 30 || az < -110) continue;
+        toWorld(r, s.x, s.z, _t);
+        s.acc += dt * 45;
+        while (s.acc >= 1) {
+          s.acc -= 1; const lvx = -s.sx * rand(4.5, 8), lvz = rand(-0.9, 0.9);
+          steamPuff(_t.x, 0.75, _t.z, lvx * r.cos + lvz * r.sin, rand(2.5, 4.5), -lvx * r.sin + lvz * r.cos, pick([0xbfe6ff, 0x9fd4f5, 0xe6f6ff]), rand(0.12, 0.22), -9, rand(0.8, 1));
+        }
+        s.cd -= dt;
+        if (playing && s.cd <= 0 && Math.sign(PL.x) === s.sx && Math.abs(PL.x) > 6.8 && Math.abs(PL.x) < 11.6 && Math.abs(az) < 1.6) {
+          s.cd = 2; Sound.steamBurst(clamp(ax / 6, -1, 1)); wetScreen();
+          award('COOL OFF!', SPRAY_PTS * (player.speed / player.base), 'trick', false);
+        }
+      }
+      if (ch.times && !ch.timesSaid && playing && PL.z < ch.z0 - 2 && PL.z > ch.z0 - 40) { ch.timesSaid = true; bigMsg('TIMES SQUARE!', '#ffd23f'); }
       for (const a of ch.anims) {
         if (a.kind === 'flag') { a.m.rotation.x = Math.sin(animT * 3.1 + a.ph) * 0.28 + Math.sin(animT * 7.7 + a.ph * 2) * 0.08; continue; }
         const near = playing && Math.abs(a.z - PL.z) < (a.kind === 'banner' ? 4 : 5) && (a.kind === 'banner' || Math.abs(a.x - PL.x) < 4);
@@ -2441,7 +2575,7 @@ function genChunk(run, z0, idx) {
   const isEnd = idx === run.length - 1, isFirst = idx === 0 && !!run.turnIn, isStart = idx === 0 && !run.turnIn;
   const td = run.turnDir, cs = run.turnIn;
   const g = new THREE.Group(); g.position.z = z0; run.root.add(g);
-  const ch = { z0, idx, g, statics: [], detail: null, glow: [], steam: [], anims: [], perches: [], trees: [], leavesDone: false };
+  const ch = { z0, idx, g, statics: [], detail: null, glow: [], steam: [], sprays: [], anims: [], perches: [], trees: [], leavesDone: false };
   const p = [], glowP = [], pools = [];
   // ground surfaces
   addMesh(g, GEO.road, MAT.road, 0, 0, -40, true);
@@ -2474,6 +2608,8 @@ function genChunk(run, z0, idx) {
   let plazaSide = 0;
   if (!isEnd && !isFirst && idx > 1 && idx % 4 === 2) plazaSide = Math.random() < 0.5 ? -1 : 1;
   const landmarkType = (idx + runs.length) % 4;
+  // Times Square: at most one block a level, billboards up both sides and crowds of tourists
+  if (!plazaSide && !isEnd && !isFirst && idx > 1 && !Game.timesDone && Math.random() < 0.3) { Game.timesDone = true; ch.times = true; }
 
   for (const sx of [-1, 1]) {
     // ---------- buildings ----------
@@ -2505,7 +2641,7 @@ function genChunk(run, z0, idx) {
           decorAwning(g, ch, sx, cz, aw, ac);   // the front flap flutters
           ch.perches.push({ x: sx * 16.3, y: 3.42, z: z0 + cz, len: aw });
         }
-        if (h >= 16 && Math.random() < 0.22) decorFlag(g, p, ch, sx, cz, h);
+        if (h >= 16 && !ch.times && Math.random() < 0.22) decorFlag(g, p, ch, sx, cz, h);
         if (h <= 28) ch.perches.push({ x: sx * 16.85, y: h + 0.6, z: z0 + cz, len: bw * 0.8 });   // low rooftops, visible from the street
         if (h < 70 && Math.random() < 0.3) {
           const wx = sx * (17 + depth / 2 + rand(-2, 2)), wz = cz + rand(-bw / 4, bw / 4);
@@ -2517,6 +2653,7 @@ function genChunk(run, z0, idx) {
         }
         z -= bw;
       }
+      if (ch.times) timesSquare(g, sx);
       // second row (depth when looking down cross streets)
       if (!isEnd && !isFirst && Math.random() < 0.18 && idx > 1) spireTower(p, sx * 64, -40);
       else for (const zc2 of [-20, -60]) {
@@ -2540,7 +2677,7 @@ function genChunk(run, z0, idx) {
       if (isEnd && ((sx === td && z < -20 && z > -34) || (sx === -td && z < -12 && z > -26))) continue; // keep sign spots clear
       const r = Math.random();
       if (r < 0.24 && sx !== plazaSide) { treeParts(p, sx * 12.4, z); addStatic(ch, sx * 12.4, z0 + z, 0.25, 0.25, 'tree'); ch.trees.push({ x: sx * 12.4, z: z0 + z, acc: rand(0, 1) }); }
-      else if (r < 0.34) { const x = sx * 11.9; p.push([x, 0.25, z, 0.3, 0.55, 0.3, 0xc8202a], [x, 0.8, z, 0.22, 0.12, 0.22, 0xd8d8d8], [x, 0.55, z, 0.46, 0.1, 0.1, 0xc8202a]); addStatic(ch, x, z0 + z, 0.22, 0.2, 'hydrant'); }
+      else if (r < 0.34) { const x = sx * 11.9; p.push([x, 0.25, z, 0.3, 0.55, 0.3, 0xc8202a], [x, 0.8, z, 0.22, 0.12, 0.22, 0xd8d8d8], [x, 0.55, z, 0.46, 0.1, 0.1, 0xc8202a]); addStatic(ch, x, z0 + z, 0.22, 0.2, 'hydrant'); if (!isFirst && Math.random() < 0.2) ch.sprays.push({ x, z: z0 + z, sx, acc: 0, cd: 0 }); }   // some are opened up, spraying the street
       else if (r < 0.45) { const x = sx * 12.0; p.push([x, 0.25, z, 0.56, 0.92, 0.56, 0x2e5e33], [x, 1.1, z, 0.6, 0.06, 0.6, 0x1f3f22], [x, 0.4, z, 0.58, 0.04, 0.58, 0x1f3f22]); addStatic(ch, x, z0 + z, 0.3, 0.3, 'trash'); }
       const r2 = Math.random();
       if (sx === plazaSide) continue;
@@ -2901,11 +3038,14 @@ function spawnPed(run, kind, x, z, mode, opts) {
 /* ---------- speech bubbles: what a pedestrian shouts when you nearly hit them (an HTML label kept over their head) ---------- */
 const PED_BUBBLES = ['HEY!', 'WATCH IT!', 'MY LATTE!', "I'M WALKING HERE!", 'WHOA!', 'SERIOUSLY?!', 'GET A CAR!', 'RUDE!', 'MY SHOES!', 'NOT COOL!', 'WHAT WAS THAT?!'];
 const HOTDOG_BUBBLES = ['I RELISH MY LIFE!', 'WATCH THE WIENER!', "I'M ON BREAK!"];
+const RAT_BUBBLES = ['SQUEAK!', 'MY SLICE!', 'DOLLAR SLICE, BABY!', 'NOT THE PIZZA!'];
+const PREACHER_LINES = ['THE END IS NEAR!', 'REPENT!', 'THE L TRAIN IS NEVER COMING!', 'TURN BACK NOW!', 'ONE WHEEL TO DOOM!', 'BLESSED ARE THE PEDESTRIANS!', 'THE RENT IS TOO HIGH!', 'BIKE LANES ARE A SIGN!', 'I SEE YOU, WHEEL BOY!', 'GET A SECOND WHEEL!'];
+const LIBERTY_BUBBLES = ['GIVE ME YOUR TIRED!', 'LET FREEDOM RIDE!', 'TIPS APPRECIATED!', 'WATCH THE TORCH!', "I'M A NATIONAL MONUMENT!"];
 const BUBBLES = [];
 const _bw = { x: 0, z: 0 }, _bv = new THREE.Vector3();
 function pedBubble(e, text) {
   if (!e.run || e.bubble || BUBBLES.length >= 3) return;   // one at a time each, three on screen at most
-  const el = document.createElement('div'); el.className = 'bubble'; el.textContent = text; $('bubbles').appendChild(el);
+  const el = document.createElement('div'); el.className = e.type === 'rival' ? 'bubble small' : 'bubble'; el.textContent = text; $('bubbles').appendChild(el);
   const b = { e, el, t: 0 }; e.bubble = b; BUBBLES.push(b);
 }
 function updateBubbles(dt) {
@@ -2913,7 +3053,7 @@ function updateBubbles(dt) {
     const b = BUBBLES[i], e = b.e; b.t += dt;
     if (b.t > 1.4 || !e.run || !e.mesh.parent) { b.el.remove(); e.bubble = null; BUBBLES.splice(i, 1); continue; }
     toWorld(e.run, e.mesh.position.x, e.mesh.position.z, _bw);
-    _bv.set(_bw.x, (e.kind === 'hotdog' ? 2.9 : 2.3) + b.t * 0.3, _bw.z).project(camera);
+    _bv.set(_bw.x, (e.bubbleY || (e.kind === 'hotdog' || e.kind === 'liberty' ? 2.9 : 2.3)) + b.t * 0.3, _bw.z).project(camera);
     const vis = _bv.z < 1 && Math.abs(_bv.x) < 1.1 && Math.abs(_bv.y) < 1.1;
     b.el.style.display = vis ? 'block' : 'none';
     if (vis) { b.el.style.left = ((_bv.x + 1) / 2 * viewW) + 'px'; b.el.style.top = ((1 - _bv.y) / 2 * viewH) + 'px'; }
@@ -2924,6 +3064,7 @@ function clearBubbles() { for (const b of BUBBLES) { b.el.remove(); b.e.bubble =
 function updPed(run, e, dt) {
   e.t += dt;
   if (e.mode === 'hifive') { updHiFive(e, dt); return; }
+  if (e.mode === 'hang') { updSpidey(e, dt); return; }
   if (e.mode === 'fallen') {
     e.fall = Math.min(1, e.fall + dt * 3); e.mesh.rotation.x = -e.fall * Math.PI / 2; e.mesh.position.y = groundY(run, e.x, e.z) + 0.15 * e.fall; return;
   }
@@ -2997,6 +3138,161 @@ function updBike(run, e, dt) {
   e.mesh.position.set(e.x, Math.abs(Math.sin(e.t * 7)) * 0.03, e.z);
   e.mesh.rotation.y = (e.dir > 0 ? Math.PI : 0) + e.turnYaw;
   e.mesh.rotation.z = Math.sin(e.t * 3.5) * 0.05;
+}
+// ---------- horse-drawn carriage: a slow 'car' in the right lane (no lane changes, no honking), legs trotting ----------
+const CARRIAGE_GEO = [0, 1].map((ph) => {
+  const p = [], HB = 0x7b4a2a, DK = 0x2a1a10, WD = 0x5a3a1a, a = ph ? 0.14 : -0.14;
+  // the horse (in front, toward -z)
+  for (const [x, z, s] of [[-0.17, -2.75, 1], [0.17, -2.75, -1], [-0.17, -1.6, -1], [0.17, -1.6, 1]]) p.push([x, 0.1, z + s * a, 0.14, 0.9, 0.16, HB], [x, 0, z + s * a, 0.16, 0.12, 0.18, DK]);
+  p.push([0, 0.95, -2.18, 0.56, 0.6, 1.5, HB], [0, 1.35, -2.95, 0.3, 0.62, 0.36, HB], [0, 1.78, -3.2, 0.28, 0.3, 0.62, HB], [0, 1.6, -2.85, 0.1, 0.55, 0.32, DK]);   // body, neck, head, mane
+  for (const s of [-1, 1]) p.push([s * 0.08, 2.08, -3.0, 0.07, 0.14, 0.07, HB], [s * 0.145, 1.92, -3.3, 0.02, 0.05, 0.05, 0x111111]);   // ears, eyes
+  p.push([0, 0.75, -1.38, 0.1, 0.5, 0.12, DK], [0, 0.95, -2.18, 0.58, 0.1, 0.5, 0xb22222]);   // tail, red saddle blanket
+  for (const s of [-1, 1]) p.push([s * 0.42, 0.95, -1.4, 0.06, 0.06, 1.7, WD]);   // shafts
+  // the carriage: black with red trim, folded hood, the driver in a top hat, two tourists
+  p.push([0, 0.65, 0.55, 1.5, 0.85, 2.1, 0x1a1a1a], [0, 1.5, 0.55, 1.56, 0.08, 2.14, 0x9e1b1b], [0, 1.55, 1.4, 1.5, 0.75, 0.45, 0x222222]);
+  p.push([0, 1.3, -0.65, 0.9, 0.25, 0.5, 0x1a1a1a], [0, 1.55, -0.65, 0.5, 0.6, 0.32, 0x222222], [0, 2.15, -0.65, 0.32, 0.32, 0.3, 0xe0ac69], [0, 2.47, -0.65, 0.4, 0.04, 0.4, 0x111111], [0, 2.51, -0.65, 0.26, 0.32, 0.26, 0x111111]);
+  for (const s of [-1, 1]) p.push([s * 0.35, 1.5, 0.75, 0.42, 0.5, 0.32, s < 0 ? 0xff6f61 : 0x29b6f6], [s * 0.35, 2.0, 0.75, 0.3, 0.3, 0.3, s < 0 ? 0xf1c27d : 0xc68642]);
+  for (const s of [-1, 1]) p.push([s * 0.8, 0, 1.15, 0.08, 1.15, 1.15, WD], [s * 0.82, 0.5, 1.15, 0.06, 0.14, 0.14, 0x999999], [s * 0.8, 0, -0.1, 0.08, 0.75, 0.75, WD]);   // wheels
+  return vox(p.map((q) => [q[0], q[1], q[2] + 0.62, q[3], q[4], q[5], q[6]]));   // centred on the hitbox
+});
+function spawnCarriage(run, z) {
+  const m = new THREE.Mesh(CARRIAGE_GEO[0], MAT.vox); m.position.set(LANES[3], 0, z);
+  return addEnt(run, { type: 'car', kind: 'carriage', horse: true, mesh: m, x: LANES[3], z, hw: 0.85, hd: 2.5, lane: 3, dir: -1, v: 4.5, vBase: 4.5, vx: 0,
+    erratic: false, runsRed: false, t: rand(0, 5), brakeT: 0, swerveT: 0, swervePre: 0, steer: 0, signalT: 0, signalLane: 0, nextAct: 1e9, honkT: 1e9, nm: false, lethal: true, fr: 0 });
+}
+function updHorse(e) {   // trot: swap leg frames in step with its speed, clip-clop when the rider is close
+  const fr = Math.floor(e.t * 3.2) % 2;
+  if (fr !== e.fr) {
+    e.fr = fr; e.mesh.geometry = CARRIAGE_GEO[fr];
+    const d = Math.hypot(e.x - PL.x, e.z - PL.z);
+    if (Game.state === 'play' && d < 35) Sound.clop(clamp((e.x - PL.x) / 8, -1, 1), clamp(1.2 - d / 30, 0.15, 1));
+  }
+}
+// ---------- the rival: another EUC rider who passes you and dares you to catch him ----------
+const RIVAL_PTS = 1000, RIVAL_X = [2.25, 6.75, 10];   // our two lanes and the bike lane
+const RIVAL_GEO = (() => {   // legs, torso, two arms, head: separate pieces, so a crash can throw them apart
+  const J = 0x111111, L = 0x39ff14, SK = 0xc68642;
+  return [
+    [[-0.26, 0.24, 0, 0.2, 0.92, 0.26, 0x222831], [0.26, 0.24, 0, 0.2, 0.92, 0.26, 0x222831], [-0.26, 0.18, -0.06, 0.22, 0.12, 0.36, L], [0.26, 0.18, -0.06, 0.22, 0.12, 0.36, L]],
+    [[0, 1.16, 0.02, 0.62, 0.72, 0.36, J], [0, 1.52, -0.185, 0.62, 0.06, 0.02, L], [0, 1.2, 0.26, 0.48, 0.56, 0.14, 0x333333], [-0.24, 1.2, -0.185, 0.04, 0.6, 0.02, L], [0.24, 1.2, -0.185, 0.04, 0.6, 0.02, L]],
+    [[-0.4, 1.2, 0, 0.17, 0.62, 0.2, J], [-0.4, 1.08, 0, 0.16, 0.14, 0.18, L]],
+    [[0.4, 1.2, 0, 0.17, 0.62, 0.2, J], [0.4, 1.08, 0, 0.16, 0.14, 0.18, L]],
+    [[0, 1.88, 0, 0.42, 0.4, 0.4, SK], [0, 2.16, 0.02, 0.5, 0.22, 0.5, L], [0, 2.1, -0.25, 0.46, 0.08, 0.1, 0x111111], [-0.1, 2.06, -0.205, 0.07, 0.07, 0.02, 0x111111], [0.1, 2.06, -0.205, 0.07, 0.07, 0.02, 0x111111]]
+  ].map(vox);
+})();
+const RIVAL_TAUNTS = ['CATCH ME IF YOU CAN!', 'TOO SLOW!', 'EAT MY DUST!', 'KEEP UP!', 'IS THAT ALL YOU GOT?', 'NICE WHEEL. IS IT A RENTAL?'];
+const RIVAL_LOSE = ['NO WAY!', 'REMATCH!', 'LAG!', 'I LET YOU WIN!', 'MY BATTERY DIED!'];
+function spawnRival() {
+  const r = player.run, root = new THREE.Group();
+  const tire = new THREE.Mesh(RIG_GEO.tire, MAT.vox); tire.position.y = 0.45; root.add(tire);
+  const shell = new THREE.Mesh(RIG_GEO.shell, MAT.vox); shell.position.y = 0.45; root.add(shell);
+  for (const g of RIVAL_GEO) root.add(new THREE.Mesh(g, MAT.vox));
+  for (const c of root.children) c.castShadow = true;
+  const x = player.x > 4.5 ? 2.25 : 6.75, z = player.z + 16;
+  root.position.set(x, 0.02, z);
+  const e = addEnt(r, { type: 'rival', kind: 'rival', mesh: root, tire, x, z, tx: x, hw: 0.3, hd: 0.5, dir: -1, v: player.speed + 7, t: 0, laneT: 3, tauntT: 2, phase: 'pass', nm: true, lethal: true, bubbleY: 2.8 });
+  Voice.say('A rival appears!', 3, 'joke'); popup('RIVAL! CATCH HIM!', 'good');
+  return e;
+}
+// you rode into the rival: he goes flying in pieces, in a burst of blood, and you ride on.
+// The pieces are copies (his own model just disappears), so the instant replay can show him whole before the hit;
+// the pieces are recorded like traffic, and each crash is logged so the replay can throw the blood again.
+const RIVAL_DEBRIS = [], RIVAL_CRASHES = [];
+function rivalBlood(c) {   // the blood burst and the pool (world space), plus the sounds
+  for (let i = 0; i < 420; i++) {
+    rotXZ(rand(-7, 7), rand(-9, 5) - c.push * 0.25, c.theta, _o);
+    emit(c.x + rand(-0.3, 0.3), rand(0.5, 1.9), c.z + rand(-0.3, 0.3), _o.x, rand(1, 12), _o.z, bloodColor(), rand(0.07, 0.22));
+  }
+  for (let i = 0; i < 60; i++) { const a = rand(0, 6.28), rr = rand(0, 2.4); emit(c.x + Math.cos(a) * rr, 0.4, c.z + Math.sin(a) * rr, 0, -1, 0, bloodColor(), rand(0.3, 0.6)); }
+  Sound.splat(); Sound.crunch(); Sound.scream(c.pan, 1, 1.1); setTimeout(() => Sound.scream(c.pan, 0.5, 1.4), 260);
+}
+function crashRival(run, e) {
+  e.lethal = false; e.crashed = true;
+  const m = e.mesh; m.updateMatrixWorld(true);
+  toWorld(run, e.x, e.z, _t);
+  const push = player.speed * 0.6 + e.v * 0.4;   // thrown on ahead of you
+  for (const c of m.children) {
+    const d = new THREE.Mesh(c.geometry, c.material); d.castShadow = true; d.userData.rivalDebris = true;
+    c.getWorldPosition(d.position); c.getWorldQuaternion(d.quaternion); scene.add(d);
+    rotXZ(rand(-5, 5) + player.vx * 0.4, -push * rand(0.4, 0.9) + rand(-3, 3), run.theta, _o);
+    const isBody = c !== e.tire && c.geometry !== RIG_GEO.shell;
+    RIVAL_DEBRIS.push({ m: d, v: new THREE.Vector3(_o.x, rand(5, 12), _o.z), av: new THREE.Vector3(rand(-14, 14), rand(-14, 14), rand(-14, 14)), bleed: isBody ? rand(0.8, 2) : 0, life: 8 });
+  }
+  m.visible = false;
+  const c = { t: Game.time, x: _t.x, z: _t.z, theta: run.theta, push, pan: clamp((e.x - PL.x) / 4, -1, 1) };
+  RIVAL_CRASHES.push(c); if (RIVAL_CRASHES.length > 4) RIVAL_CRASHES.shift();
+  rivalBlood(c);
+  Game.shake = Math.max(Game.shake, 0.6); buzz([60, 40, 120]);
+  if (e.phase !== 'beaten') { e.phase = 'beaten'; award('RIVAL WIPED OUT!', RIVAL_PTS * (player.speed / player.base), 'good'); }
+}
+function updateRivalDebris(dt) {   // same tumbling and bleeding as the rider's own crash
+  for (let i = RIVAL_DEBRIS.length - 1; i >= 0; i--) {
+    const d = RIVAL_DEBRIS[i], m = d.m;
+    d.life -= dt; if (d.life <= 0) { scene.remove(m); RIVAL_DEBRIS.splice(i, 1); continue; }
+    d.v.y -= 26 * dt; m.position.addScaledVector(d.v, dt);
+    m.rotation.x += d.av.x * dt; m.rotation.y += d.av.y * dt; m.rotation.z += d.av.z * dt;
+    const gy = groundYW(m.position.x, m.position.z) + 0.18;
+    if (m.position.y < gy) {
+      m.position.y = gy; d.v.y *= -0.32; d.v.x *= 0.62; d.v.z *= 0.62; d.av.multiplyScalar(0.6);
+      if (Math.abs(d.v.y) < 0.8) d.v.y = 0;
+      if (d.bleed > 0 && Math.random() < 0.5) emit(m.position.x, gy, m.position.z, 0, -1, 0, bloodColor(), rand(0.25, 0.5));
+    }
+    if (d.bleed > 0) { d.bleed -= dt; for (let k = 0; k < 2; k++) emit(m.position.x, m.position.y, m.position.z, d.v.x * 0.3 + rand(-1.5, 1.5), rand(2, 6.5), d.v.z * 0.3 + rand(-1.5, 1.5), bloodColor(), rand(0.05, 0.14)); }
+  }
+}
+function clearRivalDebris() { for (const d of RIVAL_DEBRIS) scene.remove(d.m); RIVAL_DEBRIS.length = 0; RIVAL_CRASHES.length = 0; }
+function updRival(run, e, dt) {
+  if (e.crashed) return;
+  e.t += dt;
+  const ahead = PL.z - e.z, playing = Game.state === 'play';   // > 0: he's in front of you
+  let target = e.v;
+  if (e.phase === 'pass') {   // coming past you
+    target = player.speed + 7;
+    if (ahead > 6) { e.phase = 'race'; e.t = 0; pedBubble(e, nextLine(RIVAL_TAUNTS)); }
+  } else if (e.phase === 'race') {   // stays 10-20 m ahead, but he tires after 25 s
+    target = e.t < 25 ? clamp(player.speed + (15 - ahead) * 0.5, player.base * 0.7, player.base + 7) : player.base * 0.8;
+    e.tauntT -= dt;
+    if (playing && e.tauntT <= 0 && ahead > 0 && ahead < 30) { e.tauntT = rand(5, 8); pedBubble(e, nextLine(RIVAL_TAUNTS)); }
+    if (playing && ahead < -2) {   // you got past him
+      e.phase = 'beaten'; pedBubble(e, nextLine(RIVAL_LOSE));
+      award('RIVAL SMOKED!', RIVAL_PTS * (player.speed / player.base), 'good'); Sound.slap(0.4);
+    }
+  } else target = player.base * 0.55;   // beaten: drops back
+  // weave between our lanes and the bike lane, around slower traffic and closures
+  e.laneT -= dt;
+  const blocked = (x) => run.ents.some((o) => o.type === 'car' && o.dir < 0 && Math.abs(o.x - x) < 1.8 && e.z - o.z > -2 && e.z - o.z < 14) ||
+    run.closures.some((c) => c.lane === (x > 9 ? 4 : x > 4.5 ? 3 : 2) && e.z > c.zTop - 4 && e.z - 12 < c.zBot);
+  if (blocked(e.tx) || e.laneT <= 0) {
+    const free = RIVAL_X.filter((x) => x !== e.tx && !blocked(x));
+    if (free.length) e.tx = pick(free); else if (blocked(e.tx)) target = Math.min(target, 6);
+    e.laneT = rand(2, 4);
+  }
+  e.v += clamp(target - e.v, -10 * dt, 8 * dt);
+  const vx = clamp((e.tx - e.x) * 1.8, -4, 4);
+  e.x += vx * dt; e.z -= e.v * dt;
+  if (e.turnYaw !== 0) { const s = Math.sign(e.turnYaw); e.turnYaw = s * Math.max(0, Math.abs(e.turnYaw) - 3 * dt); }
+  e.mesh.position.set(e.x, 0.02 + Math.abs(Math.sin(e.t * 5)) * 0.02, e.z);
+  e.mesh.rotation.y = e.turnYaw - vx * 0.04; e.mesh.rotation.z = -vx * 0.06; e.mesh.rotation.x = -clamp((target - e.v) * 0.02, -0.15, 0.15);
+  e.tire.rotation.x -= e.v * dt / 0.45;
+}
+// ---------- Spider-Man hangs upside down on a web from a street light over the bike lane; ride under him ----------
+const SPIDEY_PTS = 600, SPIDEY_BUBBLES = ['WITH GREAT POWER...', 'NICE MOVES!', 'MY SPIDEY SENSE IS TINGLING!', 'PHOTOS ARE $5!', 'THWIP!'];
+const WEB_GEO = vox([[0, -1.0, 0, 0.04, 1.0, 0.04, 0xf2f2f2]]);
+function spawnSpidey(run, z) {
+  const pivot = new THREE.Group(), flip = new THREE.Group(), body = new THREE.Mesh(PEDS.spidey[0].geo[0], MAT.vox);
+  pivot.position.set(10.1, 5.8, z); pivot.add(new THREE.Mesh(WEB_GEO, MAT.vox));
+  flip.position.y = -1.0; flip.rotation.z = Math.PI; pivot.add(flip);   // upside down: feet at the web, head at 2.8 m
+  body.rotation.y = Math.PI; body.castShadow = true; flip.add(body);    // facing the oncoming rider
+  return addEnt(run, { type: 'ped', kind: 'spidey', mode: 'hang', mesh: pivot, flip, x: 10.1, z, hw: 0.3, hd: 0.3, t: rand(0, 6), nm: true, lethal: false, done: false, bubbleY: 6.2 });
+}
+function updSpidey(e, dt) {
+  e.mesh.rotation.x = Math.sin(e.t * 1.3) * 0.12; e.mesh.rotation.z = Math.sin(e.t * 0.9) * 0.08;
+  if (e.done) e.flip.rotation.y += dt * 6 * Math.max(0, 1 - e.t / 2);   // a happy spin
+  const side = PL.z > e.z ? 1 : -1, was = e.pSide; e.pSide = side;
+  if (!e.done && was !== undefined && was !== side && Game.state === 'play' && Math.abs(PL.x - e.x) < 1.4) {
+    e.done = true; e.t = 0; pedBubble(e, nextLine(SPIDEY_BUBBLES));
+    award('SPIDEY SENSE!', SPIDEY_PTS * (player.speed / player.base), 'good'); Sound.whoosh(clamp((e.x - PL.x) / 3, -1, 1), 0.9);
+  }
 }
 // a single grey pigeon feather tumbling down in front of the camera
 const FEATHER_SVG = '<svg viewBox="0 0 40 40"><path d="M33 4C20 6 9 15 6 30l-2 6 3-2C9 26 15 18 24 12 15 19 10 27 8 33c10-2 20-9 25-19 1-3 1-7 0-10z" fill="#d5d9df" stroke="#6b7480" stroke-width="1.5"/><path d="M31 6L6 35" stroke="#8a929c" stroke-width="1.3"/></svg>';
@@ -3079,6 +3375,35 @@ function populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst) {
     const e = spawnPed(run, pick(['ped', 'business', 'tourist']), rand(-14, 14), cwz() + rand(-0.8, 0.8), 'cross', { xLim: 15 });
     e.vx = (Math.random() < 0.5 ? -1 : 1) * rand(1.2, 1.8);
   }
+  // once a level, a few blocks in, a Statue of Liberty performer poses at the curb with a tourist snapping her (PHOTOBOMB!)
+  if (!isStart && !Game.libertyDone && ++Game.libertyN >= Game.libertyAt) {
+    Game.libertyDone = true;
+    const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1), z = z0 + rand(-60, -25), px = sx * 12.1, cx = sx * 15.6;
+    const lib = spawnPed(run, 'liberty', px, z, 'stand'); lib.mesh.rotation.y = sx * Math.PI * 0.75;   // turned toward the street and the oncoming rider
+    const cam = spawnPed(run, 'tourist', cx, z, 'stand'); cam.subject = lib; cam.mesh.rotation.y = sx * Math.PI / 2;
+    (run.photoOps || (run.photoOps = [])).push({ z, x0: Math.min(px, cx), x1: Math.max(px, cx), cam, done: false });
+  }
+  // Pizza Rat scurries across a crosswalk, dragging its slice
+  if (!isStart && Math.random() < 0.1) {
+    const e = spawnPed(run, 'rat', rand(-10, 10), cwz(), 'cross', { xLim: 12, hw: 0.3, hd: 0.6, bubbleY: 1.2 });
+    e.vx = (Math.random() < 0.5 ? -1 : 1) * rand(1.6, 2.2); e.mesh.scale.setScalar(1.4);
+  }
+  // a subway preacher on a milk crate, preaching through a megaphone
+  if (!isStart && !isEnd && Math.random() < 0.14) {
+    const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1);
+    let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4;
+    const e = spawnPed(run, 'preacher', sx * 13.6, z0 + z, 'stand', { hw: 0.45, hd: 0.4, bubbleY: 3, shout: PREACHER_LINES, shoutT: rand(0, 1) });
+    e.mesh.rotation.y = sx * Math.PI * 0.75;
+  }
+  // a horse-drawn carriage clip-clopping along the right lane
+  if (roadHazards && !isEnd && Math.random() < 0.1) { const z = z0 + rand(-60, -20); if (laneFree(run, 3, z, 14)) spawnCarriage(run, z); }
+  // Spider-Man hanging upside down from a street light over the bike lane
+  if (!isStart && !isEnd && Math.random() < 0.1) spawnSpidey(run, z0 + pick([-12, -40, -68]));
+  // Times Square: crowds of tourists on both sidewalks
+  if (ch.times) for (const sx of [-1, 1]) for (let i = 0; i < randi(7, 11); i++) {
+    if (Math.random() < 0.5) { const e = spawnPed(run, 'tourist', sx * rand(12.6, 16), z0 + rand(-76, -4), 'stand'); e.mesh.rotation.y = rand(0, 6.28); }
+    else { const e = spawnPed(run, 'tourist', sx * rand(12.9, 15.5), z0 + rand(-75, -4), 'walk', { zMax: z0 - 2, zMin: z0 - 78 }); e.vz = (Math.random() < 0.5 ? -1 : 1) * rand(0.8, 1.4); }
+  }
   // now and then, a guy in a hot-dog costume waddles across
   if (!isStart && Math.random() < 0.06) { const e = spawnPed(run, 'hotdog', rand(-12, 12), cwz(), 'cross', { xLim: 15, hw: 0.5 }); e.vx = (Math.random() < 0.5 ? -1 : 1) * rand(0.9, 1.3); }
   if (!isStart && Math.random() < 0.35 + 0.08 * diff) {
@@ -3141,7 +3466,8 @@ function updateRunEntities(run, dt) {
     if (i >= run.ents.length) continue;
     const e = run.ents[i];
     switch (e.type) {
-      case 'car': updCar(run, e, dt); break;
+      case 'car': updCar(run, e, dt); if (e.horse) updHorse(e); break;
+      case 'rival': updRival(run, e, dt); break;
       case 'xcar': updCross(e, dt); break;
       case 'ped': updPed(run, e, dt); break;
       case 'bike': updBike(run, e, dt); break;
@@ -3149,7 +3475,7 @@ function updateRunEntities(run, dt) {
       case 'busker': updBusker(e, dt); break;
     }
     // traffic turns at the closure into the next run (and oncoming traffic comes back out)
-    if (e.type === 'car' || e.type === 'bike') {
+    if (e.type === 'car' || e.type === 'bike' || e.type === 'rival') {
       if (e.dir < 0 && e.z < run.endZc + 2) { if (run.next) transferEnt(run, i, run.next); else killEnt(run, i); continue; }
       if (e.dir > 0 && run.turnIn && e.z > -2) { if (run.prev && runs.includes(run.prev)) transferEnt(run, i, run.prev); else killEnt(run, i); continue; }
     }
@@ -3227,6 +3553,9 @@ window.addEventListener('keydown', (e) => {
   if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') { input.mouseSteer = false; input.mouseTravel = 0; } e.preventDefault(); }
   // secret: '@' skips straight to the next level
   if (e.key === '@' && !e.repeat && ['play', 'countdown', 'winning', 'win', 'paused'].includes(Game.state)) { e.preventDefault(); showScreen(null); Sound.resume(); nextLevel(); return; }
+  // cheats: '#' fills the boost to the max (unlocking it if need be), '$' locks you at 20 mph until pressed again
+  if (e.key === '#' && !e.repeat && Game.state === 'play') { e.preventDefault(); if (!GASC.got) gotBattery(); GASC.t = GAS_MAX; updateGasUI(); popup('MAX BOOST', 'good'); return; }
+  if (e.key === '$' && !e.repeat && Game.state === 'play') { e.preventDefault(); Game.slow20 = !Game.slow20; popup(Game.slow20 ? '20 MPH LOCK ON' : '20 MPH LOCK OFF', 'good'); return; }
   if (Game.state === 'replay' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) { e.preventDefault(); endReplay(); return; }
   if (e.code === 'KeyP' || e.code === 'Escape') { if (Game.state === 'play') pauseGame(); else if (Game.state === 'paused') resumeGame(); }
   if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) {
@@ -3457,6 +3786,63 @@ function gotBattery() {
   pulseBtn('tGas'); pickupChime(660); buzz([30, 40, 60]); updateGasUI();
 }
 
+/* ---------- street preacher: shouts through his megaphone while you're within 35 m ---------- */
+function updateShouts(dt) {
+  setPL(player.run);
+  for (const e of player.run.ents) {
+    if (!e.shout) continue;
+    e.shoutT -= dt;
+    if (e.shoutT <= 0 && Math.hypot(e.x - PL.x, e.z - PL.z) < 35) { e.shoutT = rand(3.5, 5); pedBubble(e, nextLine(e.shout)); }
+  }
+}
+/* ---------- a dollar bill blowing down the street on the wind: grab it ---------- */
+const BILL_PTS = 250;
+const BILL = { on: false, run: null, mesh: null, x: 0, y: 1, z: 0, vx: 0, vz: 0, t: 0 };
+(function buildBill() {
+  BILL.mesh = new THREE.Mesh(vox([[0, 0, 0, 0.62, 0.02, 0.28, 0x86b97a], [0, 0.005, 0, 0.5, 0.02, 0.2, 0x5f9452], [0, 0.01, 0, 0.14, 0.02, 0.14, 0xb9dcae], [-0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33], [0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33]]), MAT.vox);
+  BILL.mesh.scale.setScalar(1.7); BILL.mesh.castShadow = true;
+})();
+function endBill() { BILL.on = false; if (BILL.mesh.parent) BILL.mesh.parent.remove(BILL.mesh); Game.billAt = Game.elapsed + rand(12, 22); }
+function updateBill(dt) {
+  if (!BILL.on) {
+    if (Game.elapsed < Game.billAt || player.turnPhase || player.finishing) return;
+    const r = player.run; BILL.on = true; BILL.run = r; BILL.t = 0;
+    BILL.x = rand(-8, 9); BILL.z = player.z - rand(70, 100); BILL.vx = 0; BILL.vz = 0;
+    r.root.add(BILL.mesh);
+  }
+  const r = BILL.run;
+  if (r !== player.run || !runs.includes(r)) { endBill(); return; }
+  BILL.t += dt;
+  // the wind in this street's frame, plus a flutter
+  const wx = WIND.x * r.cos - WIND.z * r.sin, wz = WIND.x * r.sin + WIND.z * r.cos;
+  BILL.vx += (wx * 1.5 + Math.sin(BILL.t * 1.9) * 1.2 - BILL.vx) * 1.2 * dt; BILL.vz += (wz * 1.5 - BILL.vz) * 1.2 * dt;
+  BILL.x += BILL.vx * dt; BILL.z += BILL.vz * dt;
+  if (BILL.x > 10.5) { BILL.x = 10.5; BILL.vx = -Math.abs(BILL.vx); } else if (BILL.x < -10) { BILL.x = -10; BILL.vx = Math.abs(BILL.vx); }
+  BILL.y = 1.1 + Math.sin(BILL.t * 1.7) * 0.45;
+  BILL.mesh.position.set(BILL.x, BILL.y, BILL.z); BILL.mesh.rotation.set(Math.sin(BILL.t * 3.1) * 0.9, BILL.t * 1.3, Math.sin(BILL.t * 2.3) * 0.6);
+  if (Math.abs(BILL.x - player.x) < 1.4 && Math.abs(BILL.z - player.z) < 1.6) {
+    award('COLD HARD CASH!', BILL_PTS * (player.speed / player.base), 'good'); pickupChime(880); endBill();
+  } else if (BILL.z > player.z + 20) endBill();   // it got away
+}
+function updateExtras(dt) {
+  setPL(player.run);
+  if (!Game.rivalDone && Game.elapsed > Game.rivalAt && !player.turnPhase && !player.finishing) { Game.rivalDone = true; spawnRival(); }
+  updateBill(dt);
+}
+/* ---------- BREAKING NEWS ticker: runs along the bottom after the news drone films you ---------- */
+const NEWS_LINES = ['LOCAL RIDER CONTINUES TO RIDE', 'ONE-WHEELED MENACE SPOTTED IN MIDTOWN', 'PIGEONS DEMAND ANSWERS', 'EXPERTS ASK: "WHAT DO?"', 'TAXI UNION CALLS EMERGENCY MEETING',
+  'HOT DOG GUY UNAVAILABLE FOR COMMENT', 'MAYOR TO RIDER: "PLEASE STOP"', 'RIDER REFUSES TO USE A SECOND WHEEL', 'TRAFFIC REPORT: IT\'S BAD', 'SCIENTISTS BAFFLED BY RIDER\'S BALANCE',
+  'PIZZA RAT SIGNS BOOK DEAL', 'STATUE OF LIBERTY SEEN WAITING FOR THE BUS', 'SUBWAY PREACHER WAS RIGHT, SAYS SUBWAY PREACHER', 'LOCAL HORSE UNIMPRESSED', 'FIRE HYDRANT OPENED, CITY COOLS OFF'];
+function newsTicker() {
+  const el = $('tickTxt'), txt = ['LIVE: RIDER AT ' + Math.floor(Game.score).toLocaleString() + ' POINTS', nextLine(NEWS_LINES), nextLine(NEWS_LINES), nextLine(NEWS_LINES)].join('   \u2605   ');
+  const dur = 6 + txt.length * 0.09;
+  el.textContent = txt; el.style.setProperty('--d', dur + 's');
+  el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+  $('ticker').classList.remove('hidden');
+  clearTimeout(newsTicker.tm); newsTicker.tm = setTimeout(hideTicker, dur * 1000);
+}
+function hideTicker() { clearTimeout(newsTicker.tm); $('ticker').classList.add('hidden'); }
+
 /* =====================================================================
    GAME STATE
    ===================================================================== */
@@ -3518,7 +3904,7 @@ function updateDrone(dt) {
   if (alive && DRONE.state === 'in' && DRONE.t > 1.6) DRONE.state = 'film';
   if (alive && DRONE.state === 'film' && DRONE.t > 8.5) { DRONE.state = 'out'; DRONE.t = 0; }
   if (DRONE.state === 'film' && !DRONE.paid && DRONE.t > 2.2) {
-    DRONE.paid = true; award('ON THE NEWS!', NEWS_PTS * Game.level, 'good'); Voice.say("You're on the news!", 3, 'joke');
+    DRONE.paid = true; award('ON THE NEWS!', NEWS_PTS * Game.level, 'good'); Voice.say("You're on the news!", 3, 'joke'); newsTicker();
   }
   // fly toward the slot beside the rider (or hang over the crash, or climb away)
   // the offset is eased in the rider's own frame, so the drone keeps pace however fast you go
@@ -3593,10 +3979,13 @@ function updateEagle(dt) {
     EAGLE.cried = true;
     const rx = m.position.x - camera.position.x, rz = m.position.z - camera.position.z, cy = Math.cos(camYaw), sy = Math.sin(camYaw);
     Sound.screech(clamp((rx * cy - rz * sy) / 25, -1, 1), clamp(1.2 - Math.hypot(rx, rz) / 80, 0.35, 1));
-    if (!Game.mericaJoke && Game.state === 'play') { Game.mericaJoke = true; setTimeout(() => Voice.say('Marica!', 2, 'joke'), 700); }  // after the screech
+    if (!Game.mericaJoke && Game.state === 'play') { Game.mericaJoke = true; setTimeout(() => Voice.say('America!', 2, 'joke'), 700); }  // after the screech
   }
 }
 function resetWorld() {
+  Game.libertyN = 0; Game.libertyAt = randi(2, 5); Game.libertyDone = false;   // which chunk of this level gets the Statue of Liberty
+  Game.timesDone = false; Game.rivalDone = Math.random() >= 0.2; Game.rivalAt = rand(12, 35); Game.billAt = rand(8, 18);   // Times Square block, the rival (in 1 level in 5), the first dollar bill
+  if (BILL.on) endBill(); BILL.on = false; clearRivalDebris(); hideTicker(); $('wet').classList.remove('show');
   for (const r of runs.slice()) removeRun(r);
   REC.length = 0; Game.replayInfo = null;
   runs.length = 0;
@@ -4110,7 +4499,9 @@ const Voice = (() => {
 const ANNOUNCE = [
   [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
   [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
-  [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^PHOTOBOMB/, 'Photobomb!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1]
+  [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^PHOTOBOMB/, 'Photobomb!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1],
+  [/^PIZZA RAT/, 'Respect the rat!', 2], [/^HALLELUJAH/, 'Hallelujah!', 2], [/^HORSE PLAY/, 'Horse play!', 2], [/^SPIDEY SENSE/, 'Spidey sense!', 2],
+  [/^RIVAL SMOKED/, 'Rival smoked!', 3], [/^RIVAL WIPED OUT/, 'Wiped out!', 3], [/^COLD HARD CASH/, 'Cha-ching!', 2]
 ];
 function announce(label) {
   if (Game.state !== 'play') return;
@@ -4181,6 +4572,12 @@ function buildScoring() {
       ['CAR ALARM!', 'Pass close enough to a parked car to set it off', fmtPts(CAR_ALARM_PTS, CAR_ALARM_PTS * 2)],
       ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
       ['RELISH THE MOMENT!', 'Brush past the guy in the hot-dog costume', fmtPts(400, 800)],
+      ['LADY LIBERTY!', 'Brush past the Statue of Liberty performer (one every level)', fmtPts(400, 800)],
+      ['PIZZA RAT!', 'Just miss the rat dragging a slice across the crosswalk', fmtPts(300, 600)],
+      ['HALLELUJAH!', 'Brush past the preacher on his milk crate', fmtPts(300, 600)],
+      ['HORSE PLAY!', 'Pass close to the horse-drawn carriage', fmtPts(300, 600)],
+      ['SPIDEY SENSE!', 'Ride under Spider-Man hanging from a street light', fmtPts(SPIDEY_PTS)],
+      ['COLD HARD CASH!', 'Grab the dollar bill blowing down the street', fmtPts(BILL_PTS)],
       ['TIGHT TURN!', 'Clip a barricade or corner', fmtPts(150)],
       ['BIKE DODGE!', 'Slip past a cyclist', fmtPts(120, 240)],
       ['PHOTOBOMB!', 'Ride between a tourist’s camera and the friend they’re photographing', fmtPts(PHOTOBOMB_PTS, PHOTOBOMB_PTS * 2)],
@@ -4195,10 +4592,12 @@ function buildScoring() {
       ['TIGHTROPE', 'Ride the double yellow line for 2+ seconds (double with oncoming cars close)', '60–400 / SEC'],
       ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
       ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
-      ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)]]],
+      ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)],
+      ['COOL OFF!', 'Ride through the spray of an open fire hydrant', fmtPts(SPRAY_PTS)]]],
     ['BONUSES', '', [
       ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
       ['ON THE NEWS!', 'Scatter 5 flocks of pigeons and a news drone flies in to film you', '750 × LEVEL'],
+      ['RIVAL SMOKED!', 'Now and then another rider passes you: get back past him (or ride right into him: RIVAL WIPED OUT!)', fmtPts(RIVAL_PTS)],
       ['RIDING', 'Just keep moving', '~5 / SEC']]],
     ['MULTIPLIERS', '', [
       ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
@@ -4293,16 +4692,20 @@ function nearMissScore(o, isStatic) {
     // scored by crossPass(): in front (the car was still coming at you) is worth more than behind
     const front = o.crossFront, t = o.crossTight;
     award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? 800 : 500) * sf * (1 + t * 2), 'nm');
-  } else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
+  } else if (o.kind === 'carriage') { award('HORSE PLAY!', 300 * sf * (1 + tight), 'good'); Sound.neigh(pan, 1); }
+  else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
   else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
   else if (o.type === 'ped' && o.kind === 'hotdog') { award('RELISH THE MOMENT!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(HOTDOG_BUBBLES)); }
+  else if (o.type === 'ped' && o.kind === 'rat') { award('PIZZA RAT!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(RAT_BUBBLES)); }
+  else if (o.type === 'ped' && o.kind === 'preacher') { award('HALLELUJAH!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(PREACHER_LINES)); }
+  else if (o.type === 'ped' && o.kind === 'liberty') { award('LADY LIBERTY!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(LIBERTY_BUBBLES)); }
   else if (o.type === 'ped') { award('EXCUSE ME!', 150 * sf * (1 + tight), 'nm'); pedBubble(o, nextLine(PED_BUBBLES)); }
   else if (o.kind === 'closed' || o.kind === 'building') award('TIGHT TURN!', 150 * sf, 'nm');
   else if (alarmed) award('CAR ALARM!', CAR_ALARM_PTS * sf * (1 + tight), 'nm');
   else award('CLOSE SHAVE!', 60 * sf * (1 + tight), 'nm');
   Sound.whoosh(pan, isVehicle(o) ? 1 : 0.6);
   if (o.type === 'ped' && screamCd <= 0) { Sound.scream(pan, 0.55, rand(0.9, 1.4)); screamCd = 0.7; }
-  if (isVehicle(o) && Math.random() < 0.6) Sound.honk(pan, 0.8, Math.random() < 0.5);
+  if (isVehicle(o) && o.kind !== 'carriage' && Math.random() < 0.6) Sound.honk(pan, 0.8, Math.random() < 0.5);
   Game.shake = Math.max(Game.shake, isVehicle(o) ? 0.25 : 0.1);
 }
 function testHit(o) {
@@ -4409,7 +4812,7 @@ function checkCollisions(dt) {
       if (e.type === 'xcar') crossPass(e);   // every frame, so it always knows which side of the car's path the rider is on
       if (Math.abs(e.z - PL.z) > 14 || Math.abs(e.x - PL.x) > 14) continue;
       const res = testHit(e);
-      if (res === 2) { die(e.kind, e); return; }
+      if (res === 2) { if (e.type === 'rival') { crashRival(r, e); continue; } die(e.kind, e); return; }
       if (res === 1 && e.type !== 'xcar') { e.nm = true; nearMiss(e, false); }
       if (mine) sideGap(e);
     }
@@ -4452,7 +4855,10 @@ const DEATH = {
   barrier: ['Construction zone. Now under reconstruction: you.'],
   parked: ['Discovered parked cars are, in fact, solid.'],
   closed: ['Ignored the ROAD CLOSED sign.', 'The detour was RIGHT THERE.', 'Road closed. So is your casket.'],
-  building: ['Tried to ride through a building. The building won.']
+  building: ['Tried to ride through a building. The building won.'],
+  rat: ['Slipped on a slice. The rat kept the rest.', 'Pizza Rat: 1. You: 0.'],
+  preacher: ['The end was near. Very near.', 'Knocked the preacher off his crate. Repent.'],
+  carriage: ['Trampled by a horse. In Midtown.', 'Horsepower: 1. Wheel power: 0.', 'Neigh.']
 };
 const COMIC = ['SPLAT!', 'SPLORCH!', 'KA-SPLAT!', 'SQUELCH!', 'BLAMMO!', 'WHAT DO?!'];
 const flying = [];
@@ -4560,6 +4966,7 @@ function die(kind, ent) {
   if (SC.chainN > 1) popup('CHAIN LOST!', 'red');
   resetScoring(); $('chainBox').classList.add('hidden'); $('tricks').innerHTML = '';
   Game.cause = nextLine(DEATH[kind] || ['Splattered across the avenue.']);
+  if (ent && ent.kind === 'liberty') Game.cause = nextLine(['Knocked over Lady Liberty. Unpatriotic.', 'Liberty and justice for none.', 'The torch has been dropped.']);
   if (ent && ent.kind === 'hotdog') Game.cause = nextLine(['Took out a hot dog. Hold the mustard.', 'Ran over the wiener.', 'Bun voyage.']);
   track('crash/' + (kind || 'unknown'), 'Crashed: ' + (kind || 'unknown') + ' (level ' + Game.level + ')');
   track('died-on-level/' + Game.level, 'Died on level ' + Game.level);
@@ -4753,7 +5160,7 @@ function movePlayer(dt, steer, yawCtl) {
 }
 function updatePlay(dt) {
   Game.time += dt; Game.elapsed += dt; Game.runT += dt;
-  updateGas(dt); checkItems();
+  updateGas(dt); checkItems(); updateExtras(dt);
   screamCd -= dt;
   const steer = readSteer(), gas = readGas();
   // in FOCUS your speed and gas are held as they were when it started (your thumb may have left GAS to press FOCUS)
@@ -4761,6 +5168,7 @@ function updatePlay(dt) {
   player.boost = FOCUS.on ? FOCUS.boost && GASC.t > 0 : gas;
   if (FOCUS.on) player.speed = FOCUS.speed;
   else player.speed += clamp((gas ? player.max : player.base) - player.speed, -12 * dt, 16 * dt);
+  if (Game.slow20) { player.speed = 20 / 2.1; if (FOCUS.on) FOCUS.speed = player.speed; }   // '$' cheat: held at 20 mph
   // turning at the road closure: near the intersection, steering yaws the rider along a real arc (no autopilot).
   // Halfway round (45°) the rider switches onto the new street and the camera swings to it; from there you
   // steer to finish the turn, or the rider straightens out by themselves when you let go.
@@ -4916,6 +5324,10 @@ function recordFrame() {
       data.push(m.position.x, m.position.y, m.position.z, m.rotation.x, m.rotation.y, m.rotation.z, m.visible ? 1 : 0, m.scale.x);
     }
   }
+  for (const d of RIVAL_DEBRIS) {   // the rival's flying pieces (world space)
+    const m = d.m; meshes.push(m); geos.push(m.geometry); parents.push(scene);
+    data.push(m.position.x, m.position.y, m.position.z, m.rotation.x, m.rotation.y, m.rotation.z, 1, m.scale.x);
+  }
   REC.push({ t: Game.time, run: player.run,
     rig: [player.x, player.y, player.z, rig.root.rotation.y, rig.lean.rotation.z, rig.lean.rotation.x, rig.tire.rotation.x, rig.armL.rotation.z, rig.armR.rotation.z, rig.armL.rotation.x, rig.head.rotation.y],
     meshes, geos, parents, data: Float32Array.from(data) });
@@ -4954,8 +5366,9 @@ function startReplay(auto) {
   if (REC.length < 8 || !info) { vidBtnState('none'); showGameOver(); return; }
   Game.state = 'replay'; Game.overReady = false;
   RP.home = new Map();   // mesh -> its parent now (null if it has been cleaned up), restored when the replay ends
-  for (const f of REC) for (const m of f.meshes) if (!RP.home.has(m)) RP.home.set(m, m.parent);
+  for (const f of REC) for (const m of f.meshes) if (!RP.home.has(m)) { RP.home.set(m, m.parent); if (m.userData.rivalDebris) m.visible = false; }
   RP.frames = REC.slice(); RP.i = 0; RP.t = RP.frames[0].t; RP.tEnd = RP.frames[RP.frames.length - 1].t; RP.phase = 'pre'; RP.post = 0;
+  RP.rival = RIVAL_CRASHES.filter((c) => c.t >= RP.t && c.t <= RP.tEnd).map((c) => Object.assign({ done: false }, c)); RP.blood = false;
   showScreen(null); setHudVisible(false);
   $('comic').classList.remove('show');
   $('replayUI').classList.remove('hidden');
@@ -4994,15 +5407,19 @@ function updateCrashPeds(dt) {
 const REPLAY_AFTER = 5.2;   // seconds the replay (and its video) keeps rolling after the impact
 function updateReplay(dt) {
   if (RP.phase === 'pre') {
-    const left = RP.tEnd - RP.t;
-    RP.t += dt * (left < 0.75 ? 0.3 : 1);
+    const left = RP.tEnd - RP.t, rdt = dt * (left < 0.75 ? 0.3 : 1);
+    RP.t += rdt;
+    for (const c of RP.rival) if (!c.done && RP.t >= c.t) {   // the rival gets hit again: his blood flies again
+      c.done = true; if (!RP.blood) { RP.blood = true; clearSplats(); } rivalBlood(c); Game.shake = Math.max(Game.shake, 0.6);
+    }
+    if (RP.blood) updateParticles(rdt);
     if (RP.t >= RP.tEnd) { RP.t = RP.tEnd; applyAt(RP.t); replayImpact(false); }
     else applyAt(RP.t);
   } else {
     RP.post += dt;
     const ts = RP.post < 1.1 ? 0.3 : Math.min(1, 0.3 + (RP.post - 1.1) * 0.8);
     const sdt = dt * ts;
-    updateFlying(sdt); updateParticles(sdt); updateCrashPeds(sdt);
+    updateFlying(sdt); updateParticles(sdt); updateCrashPeds(sdt); updateRivalDebris(sdt);
     if (RP.post > REPLAY_AFTER) endReplay();
   }
 }
@@ -5252,7 +5669,8 @@ function frame(now) {
   updateCamera(dt);
   if (st === 'play' || st === 'countdown') updateHud(false);
   Sound.setEngine(player.speed, st === 'play', player.boost);
-  if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
+  if (st === 'play') { updateSiren(); updateBuskers(); updateShouts(dt); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
+  if (st !== 'replay') updateRivalDebris(dt);   // in the replay the pieces follow the recording (then tumble on after the impact)
   updateDecor(dt); updateItems(dt); updateDrone(dt); updateEagle(dt); updateBubbles(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
   if (Game.state === 'replay' && VID.cap) VID.capture();   // the tall video frame first: the normal frame then covers it
   renderer.render(scene, camera);
