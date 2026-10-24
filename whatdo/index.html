@@ -157,6 +157,7 @@ body.touch #touch.on{display:block}
 @keyframes wetFade{0%{opacity:1}55%{opacity:.85}100%{opacity:0}}
 @keyframes featherSway{from{transform:translateX(-22px) rotate(-25deg)}to{transform:translateX(22px) rotate(25deg)}}
 #unlockMsg.show{display:block;animation:unlockIn 2.6s ease-out forwards}
+#flyTag{position:fixed;left:50%;top:calc(8px + var(--st));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:#d32f2f;border:3px solid #000;padding:6px 10px;pointer-events:none;z-index:30}
 #padToast{position:fixed;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:rgba(13,15,26,.85);border:3px solid #000;padding:8px 12px;pointer-events:none;opacity:0;z-index:20}
 .padFocus{outline:4px solid #fff;outline-offset:3px;box-shadow:0 0 0 7px rgba(255,210,63,.55),0 4px 0 #000 !important;animation:padFocus .8s ease-in-out infinite alternate}
 @keyframes padFocus{from{outline-color:#fff}to{outline-color:#ffd23f}}
@@ -330,6 +331,7 @@ body:not(.touch) .card.tch{display:none}
 <div id="feathers" class="layer"></div>
 <div id="wet" class="layer"></div>
 <div id="padToast"></div>
+<div id="flyTag" class="hidden">DEBUG FLY &middot; WASD MOVE &middot; MOUSE LOOK (CLICK TO GRAB) &middot; SHIFT UP &middot; CTRL DOWN &middot; ` EXIT</div>
 <div id="updToast" class="hidden">NEW VERSION! NOW WITH 12% MORE TAXIS &mdash; TAP TO UPDATE</div>
 <div id="replayUI" class="layer hidden"><div class="lb top"></div><div class="lb bot"></div><div id="rpLabel"><i></i>INSTANT REPLAY</div><div id="rpSkip">TAP TO SKIP</div></div>
 <div id="comic"><div class="burst"><span id="comicTxt">SPLAT!</span></div></div>
@@ -935,7 +937,7 @@ function robotParts() {
   const mk = (kind, v) => PEDS[kind].push({ kind, geo: [vox(pedParts(v, 0)), vox(pedParts(v, 1)), vox(pedParts(v, 2))] });
   PEDS.hotdog.push({ kind: 'hotdog', geo: [vox(hotdogParts(0)), vox(hotdogParts(1)), vox(hotdogParts(2))] });
   PEDS.liberty.push({ kind: 'liberty', geo: [vox(libertyParts(0)), vox(libertyParts(1)), vox(libertyParts(2))] });
-  PEDS.rat.push({ kind: 'rat', geo: [vox(ratParts(0)), vox(ratParts(1)), vox(ratParts(2))] });
+  PEDS.rat.push({ kind: 'rat', geo: [vox(ratParts(0)), vox(ratParts(1)), vox(ratParts(2))], flat: vox(ratParts(0).map((q) => [q[0], q[1] * 0.25, q[2], q[3] * 1.15, q[4] * 0.25, q[5] * 1.1, q[6]])) });
   const pr = vox(preacherParts()); PEDS.preacher.push({ kind: 'preacher', geo: [pr, pr, pr] });
   const rb = vox(robotParts()); PEDS.robot.push({ kind: 'robot', geo: [rb, rb, rb] });
   PEDS.spidey.push({ kind: 'spidey', geo: [vox(spideyParts(0)), vox(spideyParts(1)), vox(spideyParts(2))] });
@@ -1992,11 +1994,15 @@ function makeRun(theta, ox, oz, base, turnIn, prev) {
   runs.push(r);
   return r;
 }
+const TRAFFIC = 1.2;   // how busy the streets are: cars kept on the road, and how closely they're placed at the start of a street (1 = the original amount)
+// detours: traffic thins out around a turn so there's always a way through
+const DETOUR_CLEAR = 160;   // metres before a closure where no new cars going your way are added
+const DETOUR_EXIT = 3, DETOUR_EXIT_SPEED = 17;   // seconds after turning that a car hurries on, and the speed it hurries to (m/s)
 function spawnNextRun(A) {
   toWorld(A, 0, A.endZc, _t);
   const B = makeRun(A.theta - A.turnDir * Math.PI / 2, _t.x, _t.z, -11, A.turnDir, A);
   A.next = B;
-  for (let z = -40; z > -280; z -= rand(16, 30)) { const li = randi(0, 3); if (laneFree(B, li, z, 10)) spawnCar(B, li, z); }
+  for (let z = -40; z > -280; z -= rand(16, 30) / TRAFFIC) { const li = randi(0, 3); if (laneFree(B, li, z, 10)) spawnCar(B, li, z); }
   return B;
 }
 function removeRun(r) {
@@ -2742,7 +2748,7 @@ function genChunk(run, z0, idx) {
     p.push([sx * 11.7, 0.25, -78.6, 0.28, 6.3, 0.28, 0x2a2a2a], [sx * 8.1, 6.35, -78.6, 7.2, 0.2, 0.2, 0x2a2a2a], [sx * 4.5, 5.15, -78.6, 0.55, 1.55, 0.45, 0x1b1b1b]);
     addStatic(ch, sx * 11.7, z0 - 78.6, 0.2, 0.2, 'light');
   }
-  const I = { zc: z0 - 90, red: false, redUntil: 0, triggered: isStart || isEnd, isEnd, ambientT: rand(1, 4), lights: [], chunk: ch };
+  const I = { zc: z0 - 90, red: false, redUntil: 0, triggered: isStart || isEnd || isFirst, isEnd, ambientT: rand(1, 4), lights: [], chunk: ch };   // the first light after a detour stays green: no queue or cross traffic as you come out of the turn
   for (const sx of [-1, 1]) {
     const r = addMesh(g, GEO.lamp, MAT.redOff, sx * 4.5, 6.15, -78.35); const gr = addMesh(g, GEO.lamp, MAT.grnOn, sx * 4.5, 5.45, -78.35);
     I.lights.push({ r, g: gr });
@@ -2909,6 +2915,7 @@ function transferEnt(run, i, to) {
   killEnt(run, i);
   e.x = _t.x; e.z = _t.z; e.turnYaw = normAng(run.theta - to.theta); e.run = to; e.nm = false;
   if (e.type === 'bike') { e.homeX = e.tx = 10; }
+  if (e.type === 'car') e.exitT = DETOUR_EXIT;   // just came round the corner: hurry on (updCar)
   to.root.add(e.mesh); to.ents.push(e);
 }
 function isVehicle(e) { return e.type === 'car' || e.type === 'xcar'; }
@@ -2925,8 +2932,10 @@ function laneFree(run, li, z, gap, self) {
   return !laneClosedAt(run, li, z, gap);
 }
 function spawnCar(run, li, z, forceKind) {
-  const v = pickVehicle(forceKind), dir = li < 2 ? 1 : -1, diff = Game.level - 1;
-  let spd = v.kind === 'bus' || v.kind === 'tourbus' ? rand(6, 10) : rand(8, 14.5) + diff * 0.7;
+  const v = pickVehicle(forceKind), diff = Game.level - 1, big = v.kind === 'bus' || v.kind === 'tourbus';
+  if (big && li === 2 && laneFree(run, 3, z, 12)) li = 3;   // buses keep to the right lane, leaving the left one for passing
+  const dir = li < 2 ? 1 : -1;
+  let spd = big ? rand(8.5, 11.5) : rand(8, 14.5) + diff * 0.7;
   if (dir < 0) spd = Math.min(spd, player.base - 3);
   else spd = Math.min(spd + 1, 18 + diff);
   const m = new THREE.Mesh(v.bodyGeo, MAT.vox); if (dir > 0) m.rotation.y = Math.PI;
@@ -2939,7 +2948,7 @@ function spawnCar(run, li, z, forceKind) {
   return addEnt(run, {
     type: 'car', kind: v.kind, mesh: m, x: LANES[li], z, hw: v.hw, hd: v.hd, lane: li, dir, v: spd, vBase: spd, vx: 0,
     erratic, runsRed: erratic && Math.random() < 0.35 + 0.08 * diff, t: rand(0, 10), brakeT: 0, swerveT: 0, swervePre: 0, steer: 0, signalT: 0, signalLane: 0,
-    nextAct: erratic ? rand(1, 3) : rand(4, 12), honkT: 0, nm: false, lethal: true
+    nextAct: big ? 1e9 : erratic ? rand(1, 3) : rand(4, 12), honkT: 0, nm: false, lethal: true   // buses don't change lanes
   });
 }
 function nextInter(run, z, dir) {
@@ -2957,7 +2966,8 @@ const SIGNAL_TIME = 0.7, SIGNAL_TIME_ERRATIC = 0.3;   // seconds a car signals b
 function updCar(run, e, dt) {
   e.t += dt; e.nextAct -= dt; e.honkT -= dt;
   const own = e.dir < 0 ? FWD : ONC;
-  let target = e.vBase;
+  const exiting = e.exitT > 0; if (exiting) e.exitT -= dt;
+  let target = exiting && !e.horse ? Math.max(e.vBase, DETOUR_EXIT_SPEED) : e.vBase;   // just out of a turn: hurry on (the checks below still slow it for cars and lights ahead)
   if (e.erratic) target *= 1 + 0.22 * Math.sin(e.t * 1.4 + e.x);
   if (e.brakeT > 0) { e.brakeT -= dt; target = 1.2; }
   if (e.swerveT > 0) { e.swerveT -= dt; if (e.swerveT <= 0) e.lane = e.homeLane; }
@@ -2999,10 +3009,10 @@ function updCar(run, e, dt) {
     const gap = (e.dir < 0 ? e.z - o.z : o.z - e.z) - e.hd - o.hd;
     if (gap > -1 && gap < 12) target = Math.min(target, Math.max(0, o.v + (gap - 2.5) * 0.9));
   }
-  if (e.turnYaw !== 0) { target = Math.min(target, 9); const s = Math.sign(e.turnYaw); e.turnYaw = s * Math.max(0, Math.abs(e.turnYaw) - 2.6 * dt); }
-  e.v += clamp(target - e.v, -16 * dt, 5 * dt);
+  if (e.turnYaw !== 0) { target = Math.min(target, 14); const s = Math.sign(e.turnYaw); e.turnYaw = s * Math.max(0, Math.abs(e.turnYaw) - 3.5 * dt); }
+  e.v += clamp(target - e.v, -16 * dt, (exiting ? 10 : 5) * dt);
   if (e.v < 0) e.v = 0;
-  const tx = LANES[e.lane] + (e.swervePre > 0 ? Math.sign(LANES[2] - LANES[e.lane]) * SWERVE_DRIFT : 0), ls = e.erratic ? 6.5 : 3.5;
+  const tx = LANES[e.lane] + (e.swervePre > 0 ? Math.sign(LANES[2] - LANES[e.lane]) * SWERVE_DRIFT : 0), ls = exiting ? 8 : e.erratic ? 6.5 : 3.5;
   e.vx = clamp((tx - e.x) * 2.2, -ls, ls);
   e.x += e.vx * dt; e.z += e.dir * e.v * dt;
   const wob = e.erratic ? Math.sin(e.t * 2.3) * 0.12 : 0;
@@ -3105,6 +3115,7 @@ function updPed(run, e, dt) {
   e.t += dt;
   if (e.mode === 'hifive') { updHiFive(e, dt); return; }
   if (e.mode === 'hang') { updSpidey(e, dt); return; }
+  if (e.mode === 'squashed') return;
   if (e.mode === 'robot') { updRobot(run, e, dt); return; }
   if (e.mode === 'fallen') {
     e.fall = Math.min(1, e.fall + dt * 3); e.mesh.rotation.x = -e.fall * Math.PI / 2; e.mesh.position.y = groundY(run, e.x, e.z) + 0.15 * e.fall; return;
@@ -3266,6 +3277,22 @@ function rivalBeaten(e, wiped) {
 // The pieces are copies (his own model just disappears), so the instant replay can show him whole before the hit;
 // the pieces are recorded like traffic, and each crash is logged so the replay can throw the blood again.
 const RIVAL_DEBRIS = [], RIVAL_CRASHES = [];
+// you ran over Pizza Rat: you ride on, he's flattened in a little pool of blood (logged with the rival crashes, so the replay repeats it)
+const RAT_RIP_LINES = ['Not the pizza rat!', 'Pizza rat, rest in pepperoni', 'He just wanted a slice', 'The city will remember him', 'You monster', 'Pour one out for pizza rat', 'Extra sauce'];
+function ratBlood(c) {
+  for (let i = 0; i < 90; i++) emit(c.x + rand(-0.15, 0.15), rand(0.1, 0.4), c.z + rand(-0.15, 0.15), rand(-3, 3), rand(1, 5), rand(-3, 3), bloodColor(), rand(0.04, 0.1));
+  for (let i = 0; i < 22; i++) { const a = rand(0, 6.28), rr = rand(0, 0.9); emit(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr, 0, -1, 0, bloodColor(), rand(0.25, 0.45)); }
+  Sound.crunch(); Sound.blip(2600, 0.06, 'sine', 0.08); Sound.blip(3300, 0.09, 'sine', 0.06, 0.06);   // crunch, squeak
+}
+function squashRat(run, e) {
+  e.lethal = false; e.nm = true; e.mode = 'squashed'; e.vx = 0;
+  e.mesh.geometry = e.var.flat; e.mesh.position.y = groundY(run, e.x, e.z);
+  toWorld(run, e.x, e.z, _t);
+  const c = { t: Game.time, x: _t.x, z: _t.z, rat: true };
+  RIVAL_CRASHES.push(c); if (RIVAL_CRASHES.length > 4) RIVAL_CRASHES.shift();
+  ratBlood(c); Game.shake = Math.max(Game.shake, 0.2); buzz(40);
+  popup('RIP PIZZA RAT', 'red'); Voice.say(nextLine(RAT_RIP_LINES), 5, 'joke');
+}
 function rivalBlood(c) {   // the blood burst and the pool (world space), plus the sounds
   for (let i = 0; i < 420; i++) {
     rotXZ(rand(-7, 7), rand(-9, 5) - c.push * 0.25, c.theta, _o);
@@ -3533,10 +3560,10 @@ function spawnTraffic(run, dt, playing) {
   run.spawnCd -= dt; if (run.spawnCd > 0) return;
   run.spawnCd = 0.25;
   const diff = Game.level - 1, lim = run.endZc + 30;
-  const wantF = 7 + Math.min(10, diff * 2), wantO = 6 + Math.min(10, diff * 2);
+  const wantF = Math.round((7 + Math.min(10, diff * 2)) * TRAFFIC), wantO = Math.round((6 + Math.min(10, diff * 2)) * TRAFFIC);
   if (countCars(run, -1) < wantF) {
     const z = PL.z - rand(240, 290), li = pick(FWD);
-    if (z > lim && laneFree(run, li, z, 12)) {
+    if (z > lim + DETOUR_CLEAR && laneFree(run, li, z, 12)) {   // none in the last stretch before a closure: they'd only pile into the turn ahead of you
       const c = spawnCar(run, li, z);
       if (Math.random() < 0.35 + 0.05 * diff) { const ol = li === 2 ? 3 : 2; if (laneFree(run, ol, z, 8)) { const c2 = spawnCar(run, ol, z + rand(-1.2, 1.2)); c2.vBase = c2.v = c.vBase; c2.erratic = false; } }
     }
@@ -3650,6 +3677,8 @@ const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'ri
 window.addEventListener('keydown', (e) => {
   if (scoringKey(e) || settingsKey(e)) return;   // the scoring and settings screens take the keyboard while open
   if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
+  if (e.code === 'Backquote' && !e.repeat) { e.preventDefault(); toggleFly(); return; }   // debug: free-fly camera
+  if (FLY.on) { FLY.keys.add(e.code); e.preventDefault(); return; }
   const k = KEYMAP[e.code];
   if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') { input.mouseSteer = false; input.mouseTravel = 0; } e.preventDefault(); }
   // secret: '@' skips straight to the next level
@@ -3667,9 +3696,10 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyM') toggleMute();
 }, { passive: false });
-window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) { input[k] = false; e.preventDefault(); } });
+window.addEventListener('keyup', (e) => { if (FLY.on) { FLY.keys.delete(e.code); e.preventDefault(); return; } const k = KEYMAP[e.code]; if (k) { input[k] = false; e.preventDefault(); } });
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (FLY.on) { if (e.pointerType === 'mouse' && document.pointerLockElement !== canvas) grabMouse(); return; }   // debug fly: click grabs the mouse for looking
   if (e.pointerType === 'mouse') { if (e.button === 0) input.mouseGas = true; else if (e.button === 2) input.mouseFocus = true; }
   else input.canvasTouchGas = true;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
@@ -3679,6 +3709,7 @@ canvas.addEventListener('pointerup', endCanvasPointer);
 canvas.addEventListener('pointercancel', endCanvasPointer);
 window.addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse') return;
+  if (FLY.on) { flyLook(e); return; }
   const nx = e.clientX / viewW;
   // hand steering to the mouse only after a deliberate move (~40 px since the last steering key), so a bump of the
   // desk or a jittery sensor doesn't suddenly swing the rider toward wherever the pointer happens to be
@@ -4112,7 +4143,7 @@ function resetWorld() {
   updatePW();
   manageRuns(true); manageRuns(true);
   setPL(player.run);
-  for (let z = -70; z > -290; z -= rand(16, 30)) { const li = randi(0, 3); if (z > player.run.endZc + 30 && laneFree(player.run, li, z, 10)) spawnCar(player.run, li, z); }
+  for (let z = -70; z > -290; z -= rand(16, 30) / TRAFFIC) { const li = randi(0, 3); if (z > player.run.endZc + 30 && laneFree(player.run, li, z, 10)) spawnCar(player.run, li, z); }
   Game.elapsed = 0; Game.levelTime = LEVEL_TIME; Game.time = 0; resetScoring(); player.prevZ = 0; Game.shake = 0;
   camOff.set(0, 3.7, 7.4); skyAng = 0; resetDrone(); clearBubbles();
   $('comic').classList.remove('show'); $('flash').style.opacity = 0;
@@ -4253,6 +4284,39 @@ const AGAIN_LINES = [
   "There are no sour patch adults because we keep eating their kids",
   'It is giving determination.',
   'Fortune favours the bold or sometimes the italics',
+  'The pavement has unfinished business.',
+  'Your insurance agent just felt a disturbance in the Force.',
+  'Aura recovery in progress.',
+  'Bro thinks this is a cutscene.',
+  'Statistically, you have to survive eventually.',
+  'You died for the lore. Respect.',
+  'the ground is undefeated.',
+  'The pavement is NOT a checkpoint.',
+  'Bro is about to enter the blooper reel.',
+  'Your ancestors survived the ice age. Lock in.',
+  'The skill tree is looking a little bare.',
+  'Gravity has your IP address.',
+  'The council has reviewed your last attempt.',
+  'This is a canon event.',
+  'Your aura is on life support.',
+  'The wheel yearns for the streets.',
+  'Achievement unlocked: learning nothing.',
+  'The pigeons placed bets against you.',
+  'Your character development is taking too long.',
+  'Side quest updated: survive the intersection.',
+  'The ground is calling. Let it go to voicemail.',
+  'We got unfinished business with that curb.',
+  'Bro respawned with the same build.',
+  'Your comeback story needs a better writer.',
+  'The simulation is testing you again.',
+  'The plot armor better be working today.',
+  'One does not simply ride through downtown.',
+  'Your enemies are the potholes you made along the way.',
+  'Lore accurate crash incoming.',
+  'The streets are rated E for Everyone except you.',
+  'The grind never stops. Your wheel occasionally does.',
+  'Remember your training. And that one embarrassing crash.',
+  'Today we ride. Tomorrow we ice the bruises.'
 ];
 // said when a level is cleared (any announcer level from JOKES up; never the same line twice in a row)
 const CLEAR_LINES = [
@@ -4929,8 +4993,8 @@ function checkCollisions(dt) {
       if (e.type === 'xcar') crossPass(e);   // every frame, so it always knows which side of the car's path the rider is on
       if (Math.abs(e.z - PL.z) > 14 || Math.abs(e.x - PL.x) > 14) continue;
       const res = testHit(e);
-      if (res === 2) { if (e.type === 'rival') { crashRival(r, e); continue; } die(e.kind, e); return; }
-      if (res === 1 && e.type !== 'xcar') { e.nm = true; nearMiss(e, false); }
+      if (res === 2) { if (e.type === 'rival') { crashRival(r, e); continue; } if (e.kind === 'rat') { squashRat(r, e); continue; } die(e.kind, e); return; }
+      if (res === 1 && e.type !== 'xcar' && !(e.kind === 'rat' && Math.abs(PL.x - e.x) < P_HW + e.hw)) { e.nm = true; nearMiss(e, false); }   // riding straight at the rat isn't a near miss: you're about to squash him
       if (mine) sideGap(e);
     }
     for (const ch of r.chunks) {
@@ -4974,7 +5038,6 @@ const DEATH = {
   closed: ['Ignored the ROAD CLOSED sign.', 'The detour was RIGHT THERE.', 'Road closed. So is your casket.'],
   building: ['Tried to ride through a building. The building won.'],
   robot: ['Tripped over a delivery robot. Your food is late.', 'The robot has filed an incident report.', 'Defeated by a cooler on wheels.'],
-  rat: ['Slipped on a slice. The rat kept the rest.', 'Pizza Rat: 1. You: 0.'],
   preacher: ['The end was near. Very near.', 'Knocked the preacher off his crate. Repent.'],
   carriage: ['Trampled by a horse. In Midtown.', 'Horsepower: 1. Wheel power: 0.', 'Neigh.']
 };
@@ -5075,7 +5138,38 @@ function die(kind, ent) {
     'Post that to instagram',
     'Bro forgot how to wheel', 
     'No photos please',
-    'Touch grass. Literally'
+    'Touch grass. Literally',
+    'The ground sends its regards',
+    'That was a financial decision',
+    'The pavement collected its taxes',
+    'Certified bruh moment',
+    'The replay is going straight to HR',
+    'You had one job',
+    'F in the group chat',
+    'The curb remains undefeated',
+    'Bro got patched out',
+    'That landing was not in the manual',
+    'Unexpected dismount',
+    'The floor is lava. You are not lava.',
+    'Aura bankruptcy',
+    'Your wheel needs a moment',
+    'The streets are NOT forgiving',
+    'Bro unlocked spectator mode',
+    'Task failed successfully',
+    'The sidewalk hit a parry',
+    'Bro got humbled in 4K',
+    'That was a speedrun to the respawn screen',
+    'You cannot park there',
+    'The laws of physics have been enforced',
+    'Bro got sent to the shadow realm',
+    'Your K/D ratio is concerning',
+    'The pavement won the debate',
+    'Someone check the wheel for emotional damage',
+    'That was a tactical ground inspection',
+    'The city claims another victim',
+    'Your villain arc has been postponed',
+    'Fatal error: skill not found',
+    'The replay button is looking tempting',
   ];
   setTimeout(() => Voice.say(nextLine(sayings), 6, 'joke'), 1100);
   recordFrame();                       // final pose for the instant replay
@@ -5528,7 +5622,7 @@ function updateReplay(dt) {
     const left = RP.tEnd - RP.t, rdt = dt * (left < 0.75 ? 0.3 : 1);
     RP.t += rdt;
     for (const c of RP.rival) if (!c.done && RP.t >= c.t) {   // the rival gets hit again: his blood flies again
-      c.done = true; if (!RP.blood) { RP.blood = true; clearSplats(); } rivalBlood(c); Game.shake = Math.max(Game.shake, 0.6);
+      c.done = true; if (!RP.blood) { RP.blood = true; clearSplats(); } if (c.rat) ratBlood(c); else { rivalBlood(c); Game.shake = Math.max(Game.shake, 0.6); }
     }
     if (RP.blood) updateParticles(rdt);
     if (RP.t >= RP.tEnd) { RP.t = RP.tEnd; applyAt(RP.t); replayImpact(false); }
@@ -5733,6 +5827,45 @@ $('vidBtn').addEventListener('pointerup', (e) => {
 window.addEventListener('pointerdown', () => { if (Game.state === 'replay') endReplay(); });
 vidBtnState('wait');
 
+/* ---------- DEBUG FLY: '`' freezes the game and lets you fly the camera around the city ----------
+   W / S (or Up / Down): forward / back where you're looking · A / D (or Left / Right): strafe · mouse: look (the mouse is grabbed;
+   click to grab it again after Esc, or drag with a button held) · Shift: up · Ctrl: down · '`' again: back to the game where you left it */
+const FLY = { on: false, keys: new Set(), yaw: 0, pitch: 0 };
+const FLY_SPEED = 25, FLY_CLIMB = 12, FLY_LOOK = 0.0025;   // m/s moving, m/s up/down, radians per pixel of mouse movement
+function toggleFly() {
+  if (Game.state === 'replay') return;
+  FLY.on = !FLY.on; FLY.keys.clear();
+  if (FLY.on) {
+    for (const k in input) if (input[k] === true) input[k] = false;   // let go of any held game keys
+    camera.getWorldDirection(_v3); FLY.yaw = Math.atan2(-_v3.x, -_v3.z); FLY.pitch = Math.asin(clamp(_v3.y, -1, 1));   // start looking where the game camera was
+    camera.rotation.order = 'YXZ';
+    grabMouse();
+    Sound.setEngine(0, false, false); Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); Sound.setSteam(0, 0); Sound.setDrone(0, 0);
+  } else {
+    camera.rotation.order = 'XYZ'; lastT = performance.now();
+    if (document.pointerLockElement) document.exitPointerLock();
+    for (const k in input) if (input[k] === true) input[k] = false;
+  }
+  $('flyTag').classList.toggle('hidden', !FLY.on);
+  slMesh.visible = !FLY.on;   // no frozen speed lines in front of the lens
+}
+function grabMouse() {   // pointer lock (newer browsers return a promise that rejects if it's refused: ignore that too)
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (err) { /* ignore */ }
+}
+function flyLook(e) {   // mouse look: with the mouse grabbed, or while dragging
+  if (document.pointerLockElement !== canvas && !e.buttons) return;
+  FLY.yaw -= e.movementX * FLY_LOOK; FLY.pitch = clamp(FLY.pitch - e.movementY * FLY_LOOK, -1.55, 1.55);
+}
+function updateFly(dt) {
+  const k = FLY.keys, has = (a, b) => k.has(a) || k.has(b);
+  const fwd = (has('KeyW', 'ArrowUp') ? 1 : 0) - (has('KeyS', 'ArrowDown') ? 1 : 0), side = (has('KeyD', 'ArrowRight') ? 1 : 0) - (has('KeyA', 'ArrowLeft') ? 1 : 0);
+  const up = (has('ShiftLeft', 'ShiftRight') ? 1 : 0) - (has('ControlLeft', 'ControlRight') ? 1 : 0);
+  const cy = Math.cos(FLY.yaw), sy = Math.sin(FLY.yaw), cp = Math.cos(FLY.pitch), sp = Math.sin(FLY.pitch), d = FLY_SPEED * dt;
+  // forward goes where you look (up and down too); strafe stays level
+  camera.position.x += (-sy * cp * fwd + cy * side) * d; camera.position.z += (-cy * cp * fwd - sy * side) * d;
+  camera.position.y = Math.max(0.5, camera.position.y + sp * fwd * d + up * FLY_CLIMB * dt);
+  camera.rotation.set(FLY.pitch, FLY.yaw, 0);
+}
 let lastT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
@@ -5740,6 +5873,7 @@ function frame(now) {
   let dt = (now - lastT) / 1000; lastT = now;
   if (!(dt > 0)) dt = 0.016; dt = Math.min(dt, 0.05);
   animT += dt;
+  if (FLY.on) { updateFly(dt); renderer.render(scene, camera); return; }   // debug fly: the world is frozen
   const st = Game.state;
   if (st !== 'play' && (FOCUS.on || FOCUS.k)) updateFocus(dt);   // any other state drops out of slow-mo
   if (st === 'paused') { renderer.render(scene, camera); return; }
