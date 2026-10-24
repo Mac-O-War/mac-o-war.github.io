@@ -137,18 +137,18 @@ body.touch #touch.on{display:block}
 .tb.justUnlocked{animation:unlockPulse .35s ease-in-out 6 alternate}
 @keyframes unlockPulse{from{transform:scale(1)}to{transform:scale(1.18);box-shadow:0 0 0 6px rgba(255,210,63,.8),0 6px 0 rgba(0,0,0,.35)}}
 #unlockMsg{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--comic);font-size:clamp(30px,7vw,60px);letter-spacing:2px;color:#3ddc84;-webkit-text-stroke:3px #000;text-shadow:5px 5px 0 #000;pointer-events:none;display:none;z-index:4}
-.bubble{position:absolute;transform:translate(-50%,-100%);background:#fff;color:#111;font-family:var(--comic);font-size:clamp(56px,13.6vmin,80px);letter-spacing:3px;padding:10px 32px;border:8px solid #000;border-radius:44px;white-space:nowrap;box-shadow:8px 8px 0 rgba(0,0,0,.35);animation:bubbleIn .18s ease-out}
-.bubble::after{content:'';position:absolute;left:50%;bottom:-40px;transform:translateX(-50%);border:28px solid transparent;border-bottom:0;border-top:32px solid #000}   /* hangs just below the 8px outline */
-.bubble.small{font-size:clamp(28px,6.8vmin,40px);letter-spacing:1.5px;padding:5px 16px;border-width:4px;border-radius:22px;box-shadow:4px 4px 0 rgba(0,0,0,.35)}   /* the rival's taunts: half size */
-.bubble.small::after{bottom:-20px;border-width:16px 14px 0;border-top-width:16px}
+.bubble{position:absolute;transform:translate(-50%,-100%);background:#fff;color:#111;font-family:var(--comic);font-size:clamp(35px,8.5vmin,50px);letter-spacing:1.9px;padding:6px 20px;border:5px solid #000;border-radius:28px;white-space:nowrap;box-shadow:5px 5px 0 rgba(0,0,0,.35);animation:bubbleIn .18s ease-out}
+.bubble::after{content:'';position:absolute;left:50%;bottom:-25px;transform:translateX(-50%);border:18px solid transparent;border-bottom:0;border-top:20px solid #000}   /* hangs just below the 5px outline */
 @keyframes bubbleIn{from{transform:translate(-50%,-100%) scale(.3)}to{transform:translate(-50%,-100%) scale(1)}}
 .feather{position:absolute;top:-60px;width:46px;height:46px;animation:featherFall var(--d,3.4s) linear forwards}
 .feather svg{width:100%;height:100%;animation:featherSway 1.1s ease-in-out infinite alternate}
 @keyframes featherFall{to{transform:translate(var(--dx,40px),calc(100vh + 120px)) rotate(var(--rot,200deg))}}
 /* breaking-news ticker (after the news drone films you) and water drops on the screen (riding through an open hydrant) */
-#ticker{position:absolute;left:0;right:0;bottom:calc(150px + var(--sb));display:flex;height:34px;background:rgba(10,12,30,.9);border-top:3px solid #000;border-bottom:3px solid #000;font-family:var(--hud);font-size:12px;overflow:hidden;pointer-events:none}
+#ticker{position:absolute;left:0;right:0;bottom:0;padding-bottom:var(--sb);display:flex;height:34px;background:rgba(10,12,30,.9);border-top:3px solid #000;border-bottom:3px solid #000;font-family:var(--hud);font-size:12px;overflow:hidden;pointer-events:none}
 #ticker b{background:#d32f2f;color:#fff;padding:0 12px;display:flex;align-items:center;white-space:nowrap;font-weight:normal;z-index:1;box-shadow:4px 0 0 #000}
 #ticker .tk{flex:1;position:relative;overflow:hidden}
+#speedo,#metalBox,#focusBox,#gasBox{transition:translate .3s}
+#hud.news #speedo,#hud.news #metalBox,#hud.news #focusBox,#hud.news #gasBox{translate:0 -40px}   /* lifted clear of the ticker while it runs */
 #tickTxt{position:absolute;left:100%;top:50%;margin-top:-.5em;line-height:1;white-space:nowrap;color:#ffd23f;animation:tick var(--d,14s) linear forwards}
 @keyframes tick{to{transform:translateX(calc(-100% - 100vw))}}
 #wet{opacity:0;background:rgba(140,200,255,.12)}
@@ -865,7 +865,7 @@ function pedParts(v, ph) {
   if (v.briefcase) p.push([0.4, 0.4, 0, 0.1, 0.38, 0.5, 0x3e2723]);
   return p;
 }
-const PEDS = { ped: [], tourist: [], business: [], hotdog: [], liberty: [], rat: [], preacher: [], spidey: [] };
+const PEDS = { ped: [], tourist: [], business: [], hotdog: [], liberty: [], rat: [], preacher: [], spidey: [], robot: [] };
 // a person in a giant hot-dog costume: a sausage with mustard in a bun, a face hole, red tights
 function hotdogParts(ph) {
   const p = [], lz = ph === 1 ? -0.14 : ph === 2 ? 0.14 : 0;
@@ -922,12 +922,22 @@ function spideyParts(ph) {
     [0, 1.14, -0.177, 0.07, 0.18, 0.02, 0x111111], [0, 1.24, -0.178, 0.24, 0.03, 0.02, 0x111111], [0, 1.16, -0.178, 0.2, 0.03, 0.02, 0x111111],
     [-0.31, 0.86, 0, 0.02, 0.7, 0.36, B], [0.31, 0.86, 0, 0.02, 0.7, 0.36, B]]);   // blue sides
 }
+// a sidewalk delivery robot: a white box on six little wheels, a lid, blue sensor eyes and an orange flag on a whip (front faces -Z)
+function robotParts() {
+  const p = [];
+  for (const x of [-0.34, 0.34]) for (const z of [-0.28, 0, 0.28]) p.push([x, 0, z, 0.1, 0.22, 0.22, 0x1a1a1a]);
+  p.push([0, 0.16, 0, 0.62, 0.52, 0.8, 0xf2f2f2], [0, 0.68, 0, 0.6, 0.08, 0.78, 0x2a2a2a], [0, 0.44, -0.405, 0.44, 0.1, 0.02, 0x111111]);   // body, lid, sensor strip
+  p.push([-0.12, 0.46, -0.415, 0.09, 0.05, 0.02, 0x35d0ff], [0.12, 0.46, -0.415, 0.09, 0.05, 0.02, 0x35d0ff], [0, 0.3, -0.405, 0.3, 0.04, 0.02, 0xff6a00]);   // eyes, orange stripe
+  p.push([0.22, 0.76, 0.3, 0.025, 0.95, 0.025, 0x9a9a9a], [0.28, 1.56, 0.3, 0.12, 0.15, 0.02, 0xff6a00]);   // flag
+  return p;
+}
 (function buildPeds() {
   const mk = (kind, v) => PEDS[kind].push({ kind, geo: [vox(pedParts(v, 0)), vox(pedParts(v, 1)), vox(pedParts(v, 2))] });
   PEDS.hotdog.push({ kind: 'hotdog', geo: [vox(hotdogParts(0)), vox(hotdogParts(1)), vox(hotdogParts(2))] });
   PEDS.liberty.push({ kind: 'liberty', geo: [vox(libertyParts(0)), vox(libertyParts(1)), vox(libertyParts(2))] });
   PEDS.rat.push({ kind: 'rat', geo: [vox(ratParts(0)), vox(ratParts(1)), vox(ratParts(2))] });
   const pr = vox(preacherParts()); PEDS.preacher.push({ kind: 'preacher', geo: [pr, pr, pr] });
+  const rb = vox(robotParts()); PEDS.robot.push({ kind: 'robot', geo: [rb, rb, rb] });
   PEDS.spidey.push({ kind: 'spidey', geo: [vox(spideyParts(0)), vox(spideyParts(1)), vox(spideyParts(2))] });
   for (let i = 0; i < 14; i++) {
     const shirt = pick(SHIRTS);
@@ -1396,6 +1406,31 @@ const Sound = (() => {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.04); g.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
     n.connect(f); f.connect(g); g.connect(o);
   }
+  // cash register "ka-CHING!": the lever's ratchet clatters, the drawer thunks open, the big bell rings out, coins jingle
+  function chaching(pan, vol) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
+    const click = (at, f, v, len) => {   // a short metallic click: band-passed noise
+      const n = noise(at, len + 0.02), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+      bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 5;
+      g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(v * vol, at + 0.002); g.gain.exponentialRampToValueAtTime(0.001, at + len);
+      n.connect(bp); bp.connect(g); g.connect(o);
+    };
+    const tone = (at, f, v, len, type, f1) => {
+      const os = ctx.createOscillator(), g = ctx.createGain(); os.type = type || 'sine';
+      os.frequency.setValueAtTime(f, at); if (f1) os.frequency.exponentialRampToValueAtTime(f1, at + len);
+      g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(v * vol, at + 0.004); g.gain.exponentialRampToValueAtTime(0.0005, at + len);
+      os.connect(g); g.connect(o); os.start(at); os.stop(at + len + 0.05);
+    };
+    // "ka": the ratchet (five fast clicks), then the drawer slamming open (a low thunk and a rattle)
+    for (let k = 0; k < 5; k++) click(t + k * 0.014, 3200 + k * 250, 0.32, 0.018);
+    tone(t + 0.075, 150, 0.5, 0.12, 'sine', 60); click(t + 0.075, 700, 0.35, 0.06); click(t + 0.09, 1500, 0.2, 0.05);
+    // "CHING!": a bright bell, two strings slightly out of tune so it shimmers, plus its metallic overtones and the strike
+    const tb = t + 0.13;
+    click(tb, 7000, 0.3, 0.02);
+    for (const [f, v, len] of [[2093, 0.28, 1.6], [2101, 0.2, 1.6], [4186, 0.11, 1.0], [5765, 0.07, 0.7], [8372, 0.04, 0.35]]) tone(tb, f, v, len);
+    // a few coins jingling in the drawer
+    for (let k = 0; k < 5; k++) { const at = tb + 0.12 + k * rand(0.05, 0.09); tone(at, rand(5200, 7600), 0.05, 0.09); }
+  }
   // horse hooves: a hollow double knock (clip-clop)
   function clop(pan, vol) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
@@ -1779,7 +1814,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, clop, neigh, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, clop, neigh, chaching, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -3038,6 +3073,11 @@ function spawnPed(run, kind, x, z, mode, opts) {
 /* ---------- speech bubbles: what a pedestrian shouts when you nearly hit them (an HTML label kept over their head) ---------- */
 const PED_BUBBLES = ['HEY!', 'WATCH IT!', 'MY LATTE!', "I'M WALKING HERE!", 'WHOA!', 'SERIOUSLY?!', 'GET A CAR!', 'RUDE!', 'MY SHOES!', 'NOT COOL!', 'WHAT WAS THAT?!'];
 const HOTDOG_BUBBLES = ['I RELISH MY LIFE!', 'WATCH THE WIENER!', "I'M ON BREAK!"];
+// what the announcer says (now and then) when you run a red light
+const RED_JOKES = ['Red means go', 'Red is just a suggestion', 'That light was more of an orange', 'Traffic laws are for cars',
+ 'Red means speed up', 
+  'The cops saw that'];
+const ROBOT_BUBBLES = ['BEEP BOOP!', 'PLEASE STAND CLEAR', 'OBSTACLE DETECTED', 'YOUR ORDER IS ON ITS WAY', 'RECALCULATING ROUTE', 'HUMAN DETECTED. PAUSING.'];
 const RAT_BUBBLES = ['SQUEAK!', 'MY SLICE!', 'DOLLAR SLICE, BABY!', 'NOT THE PIZZA!'];
 const PREACHER_LINES = ['THE END IS NEAR!', 'REPENT!', 'THE L TRAIN IS NEVER COMING!', 'TURN BACK NOW!', 'ONE WHEEL TO DOOM!', 'BLESSED ARE THE PEDESTRIANS!', 'THE RENT IS TOO HIGH!', 'BIKE LANES ARE A SIGN!', 'I SEE YOU, WHEEL BOY!', 'GET A SECOND WHEEL!'];
 const LIBERTY_BUBBLES = ['GIVE ME YOUR TIRED!', 'LET FREEDOM RIDE!', 'TIPS APPRECIATED!', 'WATCH THE TORCH!', "I'M A NATIONAL MONUMENT!"];
@@ -3045,7 +3085,7 @@ const BUBBLES = [];
 const _bw = { x: 0, z: 0 }, _bv = new THREE.Vector3();
 function pedBubble(e, text) {
   if (!e.run || e.bubble || BUBBLES.length >= 3) return;   // one at a time each, three on screen at most
-  const el = document.createElement('div'); el.className = e.type === 'rival' ? 'bubble small' : 'bubble'; el.textContent = text; $('bubbles').appendChild(el);
+  const el = document.createElement('div'); el.className = 'bubble'; el.textContent = text; $('bubbles').appendChild(el);
   const b = { e, el, t: 0 }; e.bubble = b; BUBBLES.push(b);
 }
 function updateBubbles(dt) {
@@ -3065,6 +3105,7 @@ function updPed(run, e, dt) {
   e.t += dt;
   if (e.mode === 'hifive') { updHiFive(e, dt); return; }
   if (e.mode === 'hang') { updSpidey(e, dt); return; }
+  if (e.mode === 'robot') { updRobot(run, e, dt); return; }
   if (e.mode === 'fallen') {
     e.fall = Math.min(1, e.fall + dt * 3); e.mesh.rotation.x = -e.fall * Math.PI / 2; e.mesh.position.y = groundY(run, e.x, e.z) + 0.15 * e.fall; return;
   }
@@ -3170,8 +3211,7 @@ function updHorse(e) {   // trot: swap leg frames in step with its speed, clip-c
 }
 // ---------- the rival: another EUC rider who passes you and dares you to catch him ----------
 const RIVAL_PTS = 1000, RIVAL_X = [2.25, 6.75, 10];   // our two lanes and the bike lane
-const RIVAL_GEO = (() => {   // legs, torso, two arms, head: separate pieces, so a crash can throw them apart
-  const J = 0x111111, L = 0x39ff14, SK = 0xc68642;
+const rivalGeo = (J, L, SK) => {   // legs, torso, two arms, head: separate pieces, so a crash can throw them apart
   return [
     [[-0.26, 0.24, 0, 0.2, 0.92, 0.26, 0x222831], [0.26, 0.24, 0, 0.2, 0.92, 0.26, 0x222831], [-0.26, 0.18, -0.06, 0.22, 0.12, 0.36, L], [0.26, 0.18, -0.06, 0.22, 0.12, 0.36, L]],
     [[0, 1.16, 0.02, 0.62, 0.72, 0.36, J], [0, 1.52, -0.185, 0.62, 0.06, 0.02, L], [0, 1.2, 0.26, 0.48, 0.56, 0.14, 0x333333], [-0.24, 1.2, -0.185, 0.04, 0.6, 0.02, L], [0.24, 1.2, -0.185, 0.04, 0.6, 0.02, L]],
@@ -3179,20 +3219,48 @@ const RIVAL_GEO = (() => {   // legs, torso, two arms, head: separate pieces, so
     [[0.4, 1.2, 0, 0.17, 0.62, 0.2, J], [0.4, 1.08, 0, 0.16, 0.14, 0.18, L]],
     [[0, 1.88, 0, 0.42, 0.4, 0.4, SK], [0, 2.16, 0.02, 0.5, 0.22, 0.5, L], [0, 2.1, -0.25, 0.46, 0.08, 0.1, 0x111111], [-0.1, 2.06, -0.205, 0.07, 0.07, 0.02, 0x111111], [0.1, 2.06, -0.205, 0.07, 0.07, 0.02, 0x111111]]
   ].map(vox);
-})();
+};
+const RIVAL_GEO = rivalGeo(0x111111, 0x39ff14, 0xc68642);
+const GANG_GEO = [0xc68642, 0x8d5524, 0xf1c27d].map((sk) => rivalGeo(0x4a1a6b, 0xff2bd6, sk));   // matching jackets, different faces
+// the RIVAL GANG: now and then (GANG_CHANCE of levels) three of them race you at once; beat them all for GANG BUSTED!
+const GANG_CHANCE = 0.05, GANG_N = 3, GANG_PTS = 3000;
+const GANG_LINES = ['Gang busted!', 'The whole crew, gone', 'Squad wiped', 'Gang disbanded', 'Clean sweep', 'One versus three. Easy', 'Call the whole squad next time'];
 const RIVAL_TAUNTS = ['CATCH ME IF YOU CAN!', 'TOO SLOW!', 'EAT MY DUST!', 'KEEP UP!', 'IS THAT ALL YOU GOT?', 'NICE WHEEL. IS IT A RENTAL?'];
 const RIVAL_LOSE = ['NO WAY!', 'REMATCH!', 'LAG!', 'I LET YOU WIN!', 'MY BATTERY DIED!'];
-function spawnRival() {
+// what the announcer says when you beat the rival (heard on every voice setting but OFF)
+const RIVAL_WIN_LINES = ['Rival smoked!', 'Too easy', 'Sit down, rival', 'Who was that guy?', 'Get rekt', 'Not even close', 'Better luck next time',
+  'He fell off', 'Built different', 'Victory royale', 'GG, no re', 'Left him in the dust', 'Clear skill gap'];
+// ...and when you ride right into him
+const RIVAL_KILL_LINES = ['Wiped out!', 'Rival deleted', 'That is one way to win', 'He did not see that coming', 'Road rage maxxing', 'Rival: uninstalled',
+  'Ouch. For him', 'Thanks for the free points', 'Race over. Permanently', 'Hit and run!', 'That is a red card', 'Brutal', 'No mercy', 'You monster', 'Clean him up, aisle five'];
+const RIVAL_COMEBACK = ['NOT SO FAST!', "OH, IT'S ON!", 'LUCKY BREAK!', "I'M JUST WARMING UP!", 'ENJOY IT WHILE IT LASTS!'];
+// the race is a rubber band: fall too far behind and he eases off, pull too far ahead and he gets a burst and comes back past.
+// Each time you take the lead is a bounce; the RIVAL_BOUNCES-th time the band lets go and the race is yours.
+const RIVAL_BOUNCES = 2, RIVAL_FAR_BEHIND = 16, RIVAL_FAR_AHEAD = 6, RIVAL_RACE_MAX = 20, RIVAL_LEVEL_LEFT = 15;   // passes to win, metres, metres, seconds before the band lets go anyway, and it always lets go with this many seconds of the level left
+function spawnRival(gang, i) {
   const r = player.run, root = new THREE.Group();
   const tire = new THREE.Mesh(RIG_GEO.tire, MAT.vox); tire.position.y = 0.45; root.add(tire);
   const shell = new THREE.Mesh(RIG_GEO.shell, MAT.vox); shell.position.y = 0.45; root.add(shell);
-  for (const g of RIVAL_GEO) root.add(new THREE.Mesh(g, MAT.vox));
+  for (const g of (gang ? GANG_GEO[i % GANG_GEO.length] : RIVAL_GEO)) root.add(new THREE.Mesh(g, MAT.vox));
   for (const c of root.children) c.castShadow = true;
-  const x = player.x > 4.5 ? 2.25 : 6.75, z = player.z + 16;
+  const lanes = RIVAL_X.filter((lx) => Math.abs(lx - player.x) > 1.6), x = gang ? lanes[(i || 0) % lanes.length] : (player.x > 4.5 ? 2.25 : 6.75), z = player.z + 16 + (i || 0) * 6;
   root.position.set(x, 0.02, z);
-  const e = addEnt(r, { type: 'rival', kind: 'rival', mesh: root, tire, x, z, tx: x, hw: 0.3, hd: 0.5, dir: -1, v: player.speed + 7, t: 0, laneT: 3, tauntT: 2, phase: 'pass', nm: true, lethal: true, bubbleY: 2.8 });
-  Voice.say('A rival appears!', 3, 'joke'); popup('RIVAL! CATCH HIM!', 'good');
+  const e = addEnt(r, { type: 'rival', kind: 'rival', mesh: root, tire, x, z, tx: x, hw: 0.3, hd: 0.5, dir: -1, v: player.speed + 7, t: 0, laneT: 3, tauntT: 2 + (i || 0) * 1.5, phase: 'pass', nm: true, lethal: true, bubbleY: 2.8, gang: !!gang, hold: 5 + (i || 0) * 4 });
+  if (!gang) { Voice.say('A rival appears!', 3, 'joke'); popup('RIVAL! CATCH HIM!', 'good'); }
   return e;
+}
+function spawnGang() {
+  for (let i = 0; i < GANG_N; i++) spawnRival(true, i);
+  Game.gangLeft = GANG_N;
+  Voice.say('A rival gang appears!', 4, 'joke'); popup('RIVAL GANG! BEAT ALL ' + GANG_N + '!', 'good');
+}
+// a rival is beaten: passed for good (smoked), or ridden into (wiped out). The last of a gang busts the gang.
+function rivalBeaten(e, wiped) {
+  e.phase = 'beaten';
+  award(wiped ? 'RIVAL WIPED OUT!' : 'RIVAL SMOKED!', RIVAL_PTS * (player.speed / player.base), 'good');
+  if (!wiped) { pedBubble(e, nextLine(RIVAL_LOSE)); Sound.slap(0.4); }
+  if (e.gang && --Game.gangLeft === 0) { award('GANG BUSTED!', GANG_PTS * (player.speed / player.base), 'good'); Voice.say(nextLine(GANG_LINES), 6, 'joke'); }
+  else Voice.say(nextLine(wiped ? RIVAL_KILL_LINES : RIVAL_WIN_LINES), 5, 'joke');
 }
 // you rode into the rival: he goes flying in pieces, in a burst of blood, and you ride on.
 // The pieces are copies (his own model just disappears), so the instant replay can show him whole before the hit;
@@ -3223,7 +3291,7 @@ function crashRival(run, e) {
   RIVAL_CRASHES.push(c); if (RIVAL_CRASHES.length > 4) RIVAL_CRASHES.shift();
   rivalBlood(c);
   Game.shake = Math.max(Game.shake, 0.6); buzz([60, 40, 120]);
-  if (e.phase !== 'beaten') { e.phase = 'beaten'; award('RIVAL WIPED OUT!', RIVAL_PTS * (player.speed / player.base), 'good'); }
+  if (e.phase !== 'beaten') rivalBeaten(e, true); else Voice.say(nextLine(RIVAL_KILL_LINES), 5, 'joke');
 }
 function updateRivalDebris(dt) {   // same tumbling and bleeding as the rider's own crash
   for (let i = RIVAL_DEBRIS.length - 1; i >= 0; i--) {
@@ -3248,32 +3316,63 @@ function updRival(run, e, dt) {
   let target = e.v;
   if (e.phase === 'pass') {   // coming past you
     target = player.speed + 7;
-    if (ahead > 6) { e.phase = 'race'; e.t = 0; pedBubble(e, nextLine(RIVAL_TAUNTS)); }
-  } else if (e.phase === 'race') {   // stays 10-20 m ahead, but he tires after 25 s
-    target = e.t < 25 ? clamp(player.speed + (15 - ahead) * 0.5, player.base * 0.7, player.base + 7) : player.base * 0.8;
+    if (ahead > 6) { e.phase = 'race'; e.t = 0; e.lead = 'rival'; e.passes = 0; pedBubble(e, nextLine(RIVAL_TAUNTS)); }
+  } else if (e.phase === 'race') {
+    const band = e.passes < RIVAL_BOUNCES && e.t < RIVAL_RACE_MAX && Game.levelTime - Game.elapsed > RIVAL_LEVEL_LEFT;
+    if (band) {   // the rubber band
+      if (ahead > RIVAL_FAR_BEHIND) target = player.speed * 0.7;          // you're falling behind: he eases off so you close in fast
+      else if (ahead < -RIVAL_FAR_AHEAD) target = player.speed + 12;      // you've pulled away: a burst of speed to come back past
+      else target = player.speed + clamp((e.hold - ahead) * 0.5, -6, 4);  // close: dueling, holding a few metres in front (gang members spread out)
+      target = Math.max(target, 6);
+    } else target = player.base * 0.65;   // the band has let go: he fades fast
     e.tauntT -= dt;
     if (playing && e.tauntT <= 0 && ahead > 0 && ahead < 30) { e.tauntT = rand(5, 8); pedBubble(e, nextLine(RIVAL_TAUNTS)); }
-    if (playing && ahead < -2) {   // you got past him
-      e.phase = 'beaten'; pedBubble(e, nextLine(RIVAL_LOSE));
-      award('RIVAL SMOKED!', RIVAL_PTS * (player.speed / player.base), 'good'); Sound.slap(0.4);
-    }
+    if (playing && e.lead === 'rival' && ahead < -2) {   // you take the lead
+      e.lead = 'you'; e.passes++;
+      if (!band || e.passes >= RIVAL_BOUNCES) {   // the last bounce (or the band has let go): the race is yours
+        rivalBeaten(e, false);
+      } else { popup('OVERTAKE! ' + e.passes + '/' + RIVAL_BOUNCES, 'good'); pedBubble(e, nextLine(RIVAL_COMEBACK)); Sound.whoosh(clamp((e.x - PL.x) / 3, -1, 1), 0.7); }
+    } else if (e.lead === 'you' && ahead > 2) { e.lead = 'rival'; e.tauntT = rand(4, 6); pedBubble(e, nextLine(RIVAL_TAUNTS)); }   // he's back in front
   } else target = player.base * 0.55;   // beaten: drops back
   // weave between our lanes and the bike lane, around slower traffic and closures
   e.laneT -= dt;
   const blocked = (x) => run.ents.some((o) => o.type === 'car' && o.dir < 0 && Math.abs(o.x - x) < 1.8 && e.z - o.z > -2 && e.z - o.z < 14) ||
+    (run === player.run && Math.abs(PL.x - x) < 1.6 && e.z - PL.z > -2 && e.z - PL.z < 12) ||   // going round you, not through you
+    run.ents.some((o) => o !== e && ((o.type === 'rival' && !o.crashed) || o.kind === 'robot') && Math.abs(o.x - x) < 1.4 && e.z - o.z > -2 && e.z - o.z < 8) ||   // other riders, robots
     run.closures.some((c) => c.lane === (x > 9 ? 4 : x > 4.5 ? 3 : 2) && e.z > c.zTop - 4 && e.z - 12 < c.zBot);
   if (blocked(e.tx) || e.laneT <= 0) {
     const free = RIVAL_X.filter((x) => x !== e.tx && !blocked(x));
     if (free.length) e.tx = pick(free); else if (blocked(e.tx)) target = Math.min(target, 6);
     e.laneT = rand(2, 4);
   }
-  e.v += clamp(target - e.v, -10 * dt, 8 * dt);
+  e.v += clamp(target - e.v, -10 * dt, (target > player.speed + 6 ? 14 : 8) * dt);   // a rubber-band burst kicks in hard
   const vx = clamp((e.tx - e.x) * 1.8, -4, 4);
   e.x += vx * dt; e.z -= e.v * dt;
   if (e.turnYaw !== 0) { const s = Math.sign(e.turnYaw); e.turnYaw = s * Math.max(0, Math.abs(e.turnYaw) - 3 * dt); }
   e.mesh.position.set(e.x, 0.02 + Math.abs(Math.sin(e.t * 5)) * 0.02, e.z);
   e.mesh.rotation.y = e.turnYaw - vx * 0.04; e.mesh.rotation.z = -vx * 0.06; e.mesh.rotation.x = -clamp((target - e.v) * 0.02, -0.15, 0.15);
   e.tire.rotation.x -= e.v * dt / 0.45;
+}
+// ---------- delivery robot: trundles along the bike lane, and stops dead (beep beep) when it spots you coming ----------
+const ROBOT_PTS = 250;
+function spawnRobot(run, z) {
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const e = spawnPed(run, 'robot', 10 + rand(-0.3, 0.3), z, 'robot', { hw: 0.36, hd: 0.45, bubbleY: 1.9, dir, stopT: 0, spotted: false });
+  e.mesh.rotation.y = dir > 0 ? Math.PI : 0;
+  return e;
+}
+function updRobot(run, e, dt) {
+  const ahead = PL.z - e.z;   // > 0: it's in front of you
+  if (Game.state === 'play' && !e.spotted && ahead > 0 && ahead < 22 && Math.abs(PL.x - e.x) < 5) {
+    e.spotted = true; e.stopT = rand(1.5, 2.6);
+    Sound.blip(1500, 0.07, 'square', 0.07); Sound.blip(1500, 0.07, 'square', 0.07, 0.14);
+    if (Math.random() < 0.5) pedBubble(e, nextLine(ROBOT_BUBBLES));
+  }
+  if (e.stopT > 0) e.stopT -= dt;
+  else { e.z += e.dir * 1.5 * dt; if (Math.random() < dt * 0.2) e.stopT = rand(0.6, 1.6); }   // and now and then it just... stops
+  const moving = !(e.stopT > 0);
+  e.mesh.position.set(e.x, groundY(run, e.x, e.z) + (moving ? Math.abs(Math.sin(e.t * 14)) * 0.015 : 0), e.z);
+  e.mesh.rotation.z = moving ? Math.sin(e.t * 9) * 0.015 : 0;
 }
 // ---------- Spider-Man hangs upside down on a web from a street light over the bike lane; ride under him ----------
 const SPIDEY_PTS = 600, SPIDEY_BUBBLES = ['WITH GREAT POWER...', 'NICE MOVES!', 'MY SPIDEY SENSE IS TINGLING!', 'PHOTOS ARE $5!', 'THWIP!'];
@@ -3397,6 +3496,8 @@ function populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst) {
   }
   // a horse-drawn carriage clip-clopping along the right lane
   if (roadHazards && !isEnd && Math.random() < 0.1) { const z = z0 + rand(-60, -20); if (laneFree(run, 3, z, 14)) spawnCarriage(run, z); }
+  // a delivery robot in the bike lane
+  if (roadHazards && !isEnd && Math.random() < 0.15) spawnRobot(run, z0 + rand(-70, -15));
   // Spider-Man hanging upside down from a street light over the bike lane
   if (!isStart && !isEnd && Math.random() < 0.1) spawnSpidey(run, z0 + pick([-12, -40, -68]));
   // Times Square: crowds of tourists on both sidewalks
@@ -3821,12 +3922,12 @@ function updateBill(dt) {
   BILL.y = 1.1 + Math.sin(BILL.t * 1.7) * 0.45;
   BILL.mesh.position.set(BILL.x, BILL.y, BILL.z); BILL.mesh.rotation.set(Math.sin(BILL.t * 3.1) * 0.9, BILL.t * 1.3, Math.sin(BILL.t * 2.3) * 0.6);
   if (Math.abs(BILL.x - player.x) < 1.4 && Math.abs(BILL.z - player.z) < 1.6) {
-    award('COLD HARD CASH!', BILL_PTS * (player.speed / player.base), 'good'); pickupChime(880); endBill();
+    award('COLD HARD CASH!', BILL_PTS * (player.speed / player.base), 'good'); Sound.chaching(clamp((BILL.x - player.x) / 3, -1, 1)); endBill();
   } else if (BILL.z > player.z + 20) endBill();   // it got away
 }
 function updateExtras(dt) {
   setPL(player.run);
-  if (!Game.rivalDone && Game.elapsed > Game.rivalAt && !player.turnPhase && !player.finishing) { Game.rivalDone = true; spawnRival(); }
+  if (!Game.rivalDone && Game.elapsed > Game.rivalAt && !player.turnPhase && !player.finishing) { Game.rivalDone = true; if (Game.rivalGang) spawnGang(); else spawnRival(); }
   updateBill(dt);
 }
 /* ---------- BREAKING NEWS ticker: runs along the bottom after the news drone films you ---------- */
@@ -3838,10 +3939,10 @@ function newsTicker() {
   const dur = 6 + txt.length * 0.09;
   el.textContent = txt; el.style.setProperty('--d', dur + 's');
   el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
-  $('ticker').classList.remove('hidden');
+  $('ticker').classList.remove('hidden'); $('hud').classList.add('news');
   clearTimeout(newsTicker.tm); newsTicker.tm = setTimeout(hideTicker, dur * 1000);
 }
-function hideTicker() { clearTimeout(newsTicker.tm); $('ticker').classList.add('hidden'); }
+function hideTicker() { clearTimeout(newsTicker.tm); $('ticker').classList.add('hidden'); $('hud').classList.remove('news'); }
 
 /* =====================================================================
    GAME STATE
@@ -3952,17 +4053,28 @@ const EAGLE = { on: false, t: 0, cd: rand(25, 50), from: new THREE.Vector3(), to
   g.scale.setScalar(2.4); g.visible = false; scene.add(g); EAGLE.mesh = g;
 })();
 function startEagle() {
-  // cross the street well ahead of the rider, from one side to the other, gently climbing or dipping
-  // its path is placed far enough ahead that it crosses 25-40 m in front of you at mid-flight, however fast you're riding
+  // glide along a cross street, from one side to the other, so it never flies through a building.
+  // It picks the intersection that will be 25-40 m in front of you when it's halfway across, however fast you're riding
+  // (false if there's no suitable one yet, e.g. coming up to a road closure: try again shortly)
   const r = player.run, side = Math.random() < 0.5 ? -1 : 1, dur = rand(6.5, 9), h = rand(8, 13);
-  const ahead = rand(25, 40) + (Game.state === 'play' ? player.speed : 0) * dur * 0.5;
-  const at = (a, sx, y, o) => o.set(PW.x - r.sin * a + r.cos * sx, y, PW.z - r.cos * a - r.sin * sx);
-  at(ahead + rand(-8, 8), side * 50, h, EAGLE.from); at(ahead + rand(-8, 12), -side * 50, h + rand(-3, 3), EAGLE.to);
+  const run = (Game.state === 'play' ? player.speed : 0) * dur * 0.5, want = rand(25, 40) + run;
+  setPL(r);
+  let best = null, bestD = Infinity;
+  for (const I of r.inters) {
+    const d = PL.z - I.zc;
+    if (I.isEnd || I.parade || d < run + 15 || d > run + 130) continue;
+    if (Math.abs(d - want) < bestD) { bestD = Math.abs(d - want); best = I; }
+  }
+  if (!best) return false;
+  const z = best.zc + rand(-2, 2);   // the cross street is ~17 m wide between the buildings; the wings span ~11 m
+  toWorld(r, side * 55, z, _t); EAGLE.from.set(_t.x, h, _t.z);
+  toWorld(r, -side * 55, z + rand(-1.5, 1.5), _t); EAGLE.to.set(_t.x, h + rand(-2, 2), _t.z);
   EAGLE.on = true; EAGLE.t = 0; EAGLE.dur = dur; EAGLE.cried = false; EAGLE.mesh.visible = true;
+  return true;
 }
 function updateEagle(dt) {
   if (!EAGLE.on) {
-    if (Game.state === 'play' || Game.state === 'menu') { EAGLE.cd -= dt; if (EAGLE.cd <= 0) { EAGLE.cd = rand(40, 90); startEagle(); } }
+    if (Game.state === 'play' || Game.state === 'menu') { EAGLE.cd -= dt; if (EAGLE.cd <= 0) EAGLE.cd = startEagle() ? rand(40, 90) : 3; }
     return;
   }
   EAGLE.t += dt;
@@ -3984,7 +4096,9 @@ function updateEagle(dt) {
 }
 function resetWorld() {
   Game.libertyN = 0; Game.libertyAt = randi(2, 5); Game.libertyDone = false;   // which chunk of this level gets the Statue of Liberty
-  Game.timesDone = false; Game.rivalDone = Math.random() >= 0.2; Game.rivalAt = rand(12, 35); Game.billAt = rand(8, 18);   // Times Square block, the rival (in 1 level in 5), the first dollar bill
+  Game.timesDone = false; 
+  const rr = Math.random(); Game.rivalGang = rr < GANG_CHANCE; Game.rivalDone = rr >= GANG_CHANCE + 0.2;   // a rival gang in 5% of levels, a lone rival in 20%  
+  Game.rivalAt = rand(8, 18); Game.billAt = rand(8, 18);   // Times Square block, the rival (in 1 level in 5), the first dollar bill
   if (BILL.on) endBill(); BILL.on = false; clearRivalDebris(); hideTicker(); $('wet').classList.remove('show');
   for (const r of runs.slice()) removeRun(r);
   REC.length = 0; Game.replayInfo = null;
@@ -4427,7 +4541,7 @@ function updateScoring(dt) {
       I.ran = true;
       let traffic = 0; for (const e of R.ents) if (e.type === 'xcar' && e.delay <= 0 && Math.abs(e.z - I.zc) < 8 && Math.abs(e.x - player.x) < 40) traffic++;
       award(traffic ? 'RAN THE RED! INTO TRAFFIC!' : 'RAN THE RED!', 600 * (player.speed / player.base) * (1 + Math.min(2, traffic) * 0.4), 'red');
-      if (!Game.redJoke && Math.random() < 0.2) { Game.redJoke = true; Voice.say('Red means go', 3, 'joke'); }   // once a level
+      if (!Game.redJoke && Math.random() < 0.2) { Game.redJoke = true; Voice.say(nextLine(RED_JOKES), 3, 'joke'); }   // once a level
       Sound.honk(0, 0.9, true);
     }
   }
@@ -4500,8 +4614,8 @@ const ANNOUNCE = [
   [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
   [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
   [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^PHOTOBOMB/, 'Photobomb!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1],
-  [/^PIZZA RAT/, 'Respect the rat!', 2], [/^HALLELUJAH/, 'Hallelujah!', 2], [/^HORSE PLAY/, 'Horse play!', 2], [/^SPIDEY SENSE/, 'Spidey sense!', 2],
-  [/^RIVAL SMOKED/, 'Rival smoked!', 3], [/^RIVAL WIPED OUT/, 'Wiped out!', 3], [/^COLD HARD CASH/, 'Cha-ching!', 2]
+  [/^PIZZA RAT/, 'Respect the rat!', 2], [/^ROBO DODGE/, 'Robo dodge!', 2], [/^HALLELUJAH/, 'Hallelujah!', 2], [/^HORSE PLAY/, 'Horse play!', 2], [/^SPIDEY SENSE/, 'Spidey sense!', 2],
+   [/^COLD HARD CASH/, 'Cha-ching!', 2]
 ];
 function announce(label) {
   if (Game.state !== 'play') return;
@@ -4573,6 +4687,7 @@ function buildScoring() {
       ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
       ['RELISH THE MOMENT!', 'Brush past the guy in the hot-dog costume', fmtPts(400, 800)],
       ['LADY LIBERTY!', 'Brush past the Statue of Liberty performer (one every level)', fmtPts(400, 800)],
+      ['ROBO DODGE!', 'Just miss a delivery robot in the bike lane', fmtPts(ROBOT_PTS, ROBOT_PTS * 2)],
       ['PIZZA RAT!', 'Just miss the rat dragging a slice across the crosswalk', fmtPts(300, 600)],
       ['HALLELUJAH!', 'Brush past the preacher on his milk crate', fmtPts(300, 600)],
       ['HORSE PLAY!', 'Pass close to the horse-drawn carriage', fmtPts(300, 600)],
@@ -4596,8 +4711,9 @@ function buildScoring() {
       ['COOL OFF!', 'Ride through the spray of an open fire hydrant', fmtPts(SPRAY_PTS)]]],
     ['BONUSES', '', [
       ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
+      ['GANG BUSTED!', 'Now and then a whole rival gang races you: beat all 3 (on top of each RIVAL SMOKED!)', fmtPts(GANG_PTS)],
       ['ON THE NEWS!', 'Scatter 5 flocks of pigeons and a news drone flies in to film you', '750 × LEVEL'],
-      ['RIVAL SMOKED!', 'Now and then another rider passes you: get back past him (or ride right into him: RIVAL WIPED OUT!)', fmtPts(RIVAL_PTS)],
+      ['RIVAL SMOKED!', 'Now and then another rider passes you: take the lead from him twice (or ride right into him: RIVAL WIPED OUT!)', fmtPts(RIVAL_PTS)],
       ['RIDING', 'Just keep moving', '~5 / SEC']]],
     ['MULTIPLIERS', '', [
       ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
@@ -4696,6 +4812,7 @@ function nearMissScore(o, isStatic) {
   else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
   else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
   else if (o.type === 'ped' && o.kind === 'hotdog') { award('RELISH THE MOMENT!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(HOTDOG_BUBBLES)); }
+  else if (o.type === 'ped' && o.kind === 'robot') { award('ROBO DODGE!', ROBOT_PTS * sf * (1 + tight), 'good'); pedBubble(o, nextLine(ROBOT_BUBBLES)); }
   else if (o.type === 'ped' && o.kind === 'rat') { award('PIZZA RAT!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(RAT_BUBBLES)); }
   else if (o.type === 'ped' && o.kind === 'preacher') { award('HALLELUJAH!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(PREACHER_LINES)); }
   else if (o.type === 'ped' && o.kind === 'liberty') { award('LADY LIBERTY!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(LIBERTY_BUBBLES)); }
@@ -4704,7 +4821,7 @@ function nearMissScore(o, isStatic) {
   else if (alarmed) award('CAR ALARM!', CAR_ALARM_PTS * sf * (1 + tight), 'nm');
   else award('CLOSE SHAVE!', 60 * sf * (1 + tight), 'nm');
   Sound.whoosh(pan, isVehicle(o) ? 1 : 0.6);
-  if (o.type === 'ped' && screamCd <= 0) { Sound.scream(pan, 0.55, rand(0.9, 1.4)); screamCd = 0.7; }
+  if (o.type === 'ped' && o.kind !== 'robot' && screamCd <= 0) { Sound.scream(pan, 0.55, rand(0.9, 1.4)); screamCd = 0.7; }
   if (isVehicle(o) && o.kind !== 'carriage' && Math.random() < 0.6) Sound.honk(pan, 0.8, Math.random() < 0.5);
   Game.shake = Math.max(Game.shake, isVehicle(o) ? 0.25 : 0.1);
 }
@@ -4856,6 +4973,7 @@ const DEATH = {
   parked: ['Discovered parked cars are, in fact, solid.'],
   closed: ['Ignored the ROAD CLOSED sign.', 'The detour was RIGHT THERE.', 'Road closed. So is your casket.'],
   building: ['Tried to ride through a building. The building won.'],
+  robot: ['Tripped over a delivery robot. Your food is late.', 'The robot has filed an incident report.', 'Defeated by a cooler on wheels.'],
   rat: ['Slipped on a slice. The rat kept the rest.', 'Pizza Rat: 1. You: 0.'],
   preacher: ['The end was near. Very near.', 'Knocked the preacher off his crate. Repent.'],
   carriage: ['Trampled by a horse. In Midtown.', 'Horsepower: 1. Wheel power: 0.', 'Neigh.']
