@@ -3295,9 +3295,24 @@ function spawnPed(run, kind, x, z, mode, opts) {
 const PED_BUBBLES = ['HEY!', 'WATCH IT!', 'MY LATTE!', "I'M WALKING HERE!", 'WHOA!', 'SERIOUSLY?!', 'GET A CAR!', 'RUDE!', 'MY SHOES!', 'NOT COOL!', 'WHAT WAS THAT?!'];
 const HOTDOG_BUBBLES = ['I RELISH MY LIFE!', 'WATCH THE WIENER!', "I'M ON BREAK!"];
 // what the announcer says (now and then) when you run a red light
-const RED_JOKES = ['Red means go', 'Red is just a suggestion', 'That light was more of an orange', 'Traffic laws are for cars',
- 'Red means speed up', 
-  'The cops saw that'];
+const RED_JOKES = [
+  'Red means go',
+  'Red is just a suggestion',
+  'That light was more of an orange',
+  'Traffic laws are for cars',
+  'Red means speed up',
+  'The cops saw that',
+  'Stop signs are just red octagons of fear',
+  'Look both ways. Then send it.',
+  'Yield to nobody',
+  'That was definitely yellow when you started',
+  'Your insurance premium just went up',
+  'The dashcam footage is gonna be wild',
+  'Brake are a social construct',
+  'Your lawyer would like a word',
+  'Red light camera says hello',
+  'Red lights hate this one simple trick'
+];
 const ROBOT_BUBBLES = ['BEEP BOOP!', 'PLEASE STAND CLEAR', 'OBSTACLE DETECTED', 'YOUR ORDER IS ON ITS WAY', 'RECALCULATING ROUTE', 'HUMAN DETECTED. PAUSING.'];
 const PIGEONMAN_BUBBLES = ['COO COO!', 'I AM ONE OF THEM NOW', 'FEED ME BREAD!', 'FLAP FLAP!', "I'M NOT A REAL BIRD", 'THE FLOCK PROTECTS ME'];
 const KID_BUBBLES = ['MY BALLOON!', 'NOOO!', 'COME BACK!', 'BYE BALLOON...'];
@@ -4050,6 +4065,7 @@ window.addEventListener('keydown', (e) => {
   // cheats: '#' fills the boost to the max (unlocking it if need be), '$' locks you at 20 mph until pressed again
   if (e.key === '#' && !e.repeat && DEBUG && Game.state === 'play') { e.preventDefault(); if (!GASC.got) gotBattery(); GASC.t = GAS_MAX; updateGasUI(); popup('MAX BOOST', 'good'); return; }
   if (e.key === '$' && !e.repeat && DEBUG && Game.state === 'play') { e.preventDefault(); Game.slow20 = !Game.slow20; popup(Game.slow20 ? '20 MPH LOCK ON' : '20 MPH LOCK OFF', 'good'); return; }
+  if (e.key === '^' && !e.repeat && DEBUG && Game.state === 'play') { e.preventDefault(); spawnGang(); return; }   // cheat: a rival gang, right now
   if (Game.state === 'replay' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) { e.preventDefault(); endReplay(); return; }
   if (e.code === 'KeyP' || e.code === 'Escape') { if (Game.state === 'play') pauseGame(); else if (Game.state === 'paused') resumeGame(); }
   if (e.code === 'KeyR' && !e.repeat && Game.state === 'over' && Game.overReady && !LB.open) restart(false);   // R: back to level 1
@@ -4212,7 +4228,7 @@ window.addEventListener('gamepadconnected', (e) => {
 window.addEventListener('gamepaddisconnected', () => padToast('CONTROLLER DISCONNECTED'));
 // ?pad in the URL: a live readout of what the game reads from the controller (for troubleshooting)
 const PAD_DEBUG = /[?&]pad(&|=|$)/.test(location.search);
-// DEBUG: the cheat keys (@ # $ `) and window.WhatDo only exist with ?debug in the address (or running locally), and a debug
+// DEBUG: the cheat keys (@ # $ ^ `) and window.WhatDo only exist with ?debug in the address (or running locally), and a debug
 // session never sends scores to the leaderboard, so console hacks and cheats can't reach the board
 const DEBUG = /[?&]debug(&|=|$)/.test(location.search) || location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 if (DEBUG) { const d = document.createElement('div'); d.id = 'debugTag'; d.textContent = 'DEBUG · SCORES NOT SAVED'; document.body.appendChild(d); }
@@ -5132,8 +5148,8 @@ function buildScoring() {
       ['LADY LIBERTY!', 'Brush past the Statue of Liberty performer (one every level)', fmtPts(400, 800)],
       ['BIG AIR!', 'Launch off a tow truck ramp (ride up its tilted bed); more the longer you fly', fmtPts(BIG_AIR_PTS) + '+'],
       ['CAR JUMP!', 'Sail over cars off a ramp', fmtPts(CAR_JUMP_PTS, CAR_JUMP_PTS * 2) + ' EACH'],
-      ['ROOF LANDING!', 'Come down from a ramp jump onto a city bus or a box truck (moving or parked)', fmtPts(ROOF_PTS, ROOF_PTS * 2)],
-      ['BUS / TRUCK SURFING', 'Ride the roof, then drop off the end (or hop off)', fmtPts(BUS_SURF_PTS) + ' / SEC'],
+      ['ROOF LANDING!', 'Come down from a ramp jump onto a car, a city bus or a box truck (moving or parked)', fmtPts(ROOF_PTS, ROOF_PTS * 2)],
+      ['CAR / BUS / TRUCK SURFING', 'Ride the roof, then drop off the end (or hop off)', fmtPts(BUS_SURF_PTS) + ' / SEC'],
       ['STUCK THE LANDING!', 'Land a ramp jump riding straight (and not mid-spin: that wipes you out)', fmtPts(LANDING_PTS, LANDING_PTS * 2)],
       ['HOP OVER!', 'Bunny hop over something low: a hydrant, trash can, crates, a delivery robot, barriers…', fmtPts(HOP_OVER_PTS, HOP_OVER_PTS * 2) + ' EACH'],
       ['AIR 360!', 'Spin 360 in the middle of a bunny hop', fmtPts(AIR_SPIN_PTS, AIR_SPIN_PTS * 2)],
@@ -5798,7 +5814,7 @@ function movePlayer(dt, steer, yawCtl) {
   }
   if (player.hy > 0 || player.vy > 0) {   // airborne (a bunny hop or a ramp jump): fly, then land
     player.vy -= HOP_G * dt; player.hy += player.vy * dt; player.airT = (player.airT || 0) + dt;
-    if (player.vy <= 0 && player.hy > 1.9) { const b = roofUnder(), r = b && roofOf(b); if (r && player.hy <= r.h + 0.05 && player.hy > r.h - 0.8) { player.roofH = r.h; landOnRoof(b, r.h); player.y = gy + r.h; return; } }   // coming down onto a bus or truck
+    if (player.vy <= 0 && player.hy > 0.6) { const b = roofUnder(), r = b && roofOf(b); if (r && player.hy <= r.h + 0.05 && player.hy > r.h - 0.8) { player.roofH = r.h; landOnRoof(b, r.h); player.y = gy + r.h; return; } }   // coming down onto a bus or truck
     if (!player.jumped) { const rl = rampAt(); if (rl && player.hy <= rl.h + (player.vy <= 0 ? 0.2 : 0)) { player.hy = 0; player.vy = 0; player.onRamp = rl.r; player.rampH = rl.h; player.y = gy + rl.h; return; } }   // a hop that meets the bed lands you on it: ride on up
     if (player.hy <= 0) { player.hy = 0; player.vy = 0; landHop(); }
     player.y = gy + player.hy;
@@ -5814,7 +5830,8 @@ const VEH_H = { sedan: 1.45, taxi: 1.6, suv: 1.8, police: 1.65, truck: 3.1, bus:
 function clearH(o) {
   if (HOP_CLEAR[o.kind] !== undefined) return HOP_CLEAR[o.kind];
   if (o === player.roof) return (player.roofH || 3) - 0.25;   // the roof you're riding: whichever part of it you're on
-  if (o.kind === 'truck') return roofOf(o, PL.z).h - 0.25;   // a box truck: its cargo box, or its lower cab, whichever you're over (a little margin: rolling off an end is a drop, not a crash)
+  const rr = (o.type === 'car' || o.kind === 'parked' || o.kind === 'truck') && roofOf(o, PL.z);
+  if (rr) return rr.h - 0.25;   // anything with a roof: its height where you are (a little margin: rolling off an end is a drop, not a crash)
   if (o.type === 'car' || o.type === 'xcar') return VEH_H[o.kind] || 1.8;
   if (o.kind === 'parked' || o.kind === 'truck') return o.veh ? VEH_H[o.veh.kind] || 1.8 : 3.1;   // (a parked box truck: its roof is 3.17 m)
   if (o.type === 'ped' || o.type === 'bike') return 2.0;
@@ -5827,8 +5844,14 @@ const HOP_PTS = 80, HOP_OVER_PTS = 300, SPIN_PTS = 150, AIR_SPIN_PTS = 450, SPIN
 /* ---------- roof riding: come down from a ramp jump onto a city bus or a box truck (moving, or parked in the bike lane)
    and you ride its roof, then drop off the end or a side (or hop off) ---------- */
 const ROOF_PTS = 900, BUS_SURF_PTS = 500;
+const CAR_ROOF = { sedan: [1.04, 1.76, 2.2, 0.25], taxi: [1.04, 1.76, 2.3, 0.25], police: [1.04, 1.76, 2.2, 0.25], suv: [1.22, 2.04, 2.9, 0.4] };   // body top, cabin roof, cabin length, cabin offset toward the back
 function roofOf(o, pz = player.z) {   // the rideable top: { x, z, hw, hd, h } in the run's coordinates (or null); pz: where the rider is along it
   if (o.kind === 'bus') return { x: o.x, z: o.z, hw: 1.25, hd: o.hd - 0.1, h: 3.12 };
+  const ck = o.kind === 'parked' ? o.veh && o.veh.kind : o.kind, c = CAR_ROOF[ck];
+  if (c && (o.type === 'car' || o.kind === 'parked')) {   // a car: its cabin roof, or the hood / trunk around it, whichever you're over
+    const back = o.kind === 'parked' || o.dir > 0 ? -1 : 1, cab = { x: o.x, z: o.z + back * c[3], hw: 1.0, hd: c[2] / 2 + 0.05, h: c[1] };   // (parked cars face the other way)
+    return Math.abs(pz - cab.z) <= cab.hd ? cab : { x: o.x, z: o.z, hw: 1.05, hd: o.hd + 0.6, h: c[0] };
+  }
   if (o.kind === 'truck') {   // the cargo box (3.17 m), or the cab in front of it (2.19 m): whichever you're over
     // (the two overlap, and reach the truck's full outline at both ends, so stepping down and rolling off are seamless)
     const back = o.type === 'car' && o.dir > 0 ? -1 : 1, box = { x: o.x, z: o.z + back * 1.25, hw: 1.15, hd: 2.8, h: 3.17 };
@@ -5838,10 +5861,10 @@ function roofOf(o, pz = player.z) {   // the rideable top: { x, z, hw, hd, h } i
 }
 const onRoof = (o) => { const r = roofOf(o); return r && Math.abs(player.x - r.x) < r.hw && Math.abs(player.z - r.z) < r.hd ? r : null; };
 function roofUnder() {
-  for (const e of player.run.ents) if (e.type === 'car' && (e.kind === 'bus' || e.kind === 'truck') && onRoof(e)) return e;
+  for (const e of player.run.ents) if (e.type === 'car' && onRoof(e)) return e;   // buses, box trucks, cars (not the carriage: roofOf is null)
   for (const ch of player.run.chunks) {
     if (player.z > ch.z0 + 5 || player.z < ch.z0 - CH - 40) continue;
-    for (const st of ch.statics) if (st.kind === 'truck' && onRoof(st)) return st;   // parked in the bike lane
+    for (const st of ch.statics) if ((st.kind === 'truck' || st.kind === 'parked') && onRoof(st)) return st;   // box trucks in the bike lane, cars at the curb
   }
   return null;
 }
@@ -5862,11 +5885,12 @@ function landOnRoof(b, h) {
   award('ROOF LANDING!', ROOF_PTS * sf, 'good');
   Sound.blip(70, 0.14, 'sine', 0.4); Sound.crunch(); Game.shake = Math.max(Game.shake, 0.35);   // a metal thump
   if (b.type === 'car') setTimeout(() => Sound.honk(clamp((b.x - player.x) / 6, -1, 1), 1, true), 250);   // and the driver lays on the horn
+  else if (b.kind === 'parked') carAlarm(b);   // a parked car: off goes its alarm
 }
 function leaveRoof(vy) {   // off the end or a side (vy 0), or hopped off (vy up): a drop to the road that scores like a small jump
   const t = player.roofT || 0, b = player.roof;
   player.roof = null; player.hy = player.roofH || 3; player.vy = vy; player.jumped = true; player.airT = 0; player.carsOver = 0; player.hopOver = 0;
-  if (Game.state === 'play') award((b && b.kind === 'bus' ? 'BUS' : 'TRUCK') + ' SURFING ' + t.toFixed(1) + 's', BUS_SURF_PTS * Math.max(0.5, t) * (player.speed / player.base), 'good');
+  if (Game.state === 'play') award((b && b.kind === 'bus' ? 'BUS' : b && b.kind === 'truck' ? 'TRUCK' : 'CAR') + ' SURFING ' + t.toFixed(1) + 's', BUS_SURF_PTS * Math.max(0.5, t) * (player.speed / player.base), 'good');
 }
 function hop() {
   if (player.roof && Game.state === 'play') { leaveRoof(HOP_V + 2); Sound.blip(260, 0.05, 'square', 0.07); return; }   // hop off the roof
