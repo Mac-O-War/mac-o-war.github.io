@@ -2,7 +2,7 @@
    RELEASING AN UPDATE: VERSION below is set automatically by the repo's git pre-commit hook
    whenever game files are committed (by hand: change it to any new string).
    Players see "NEW VERSION — TAP TO UPDATE" on their next visit. */
-const VERSION = 'whatdo-20261025-021054';
+const VERSION = 'whatdo-20261025-023521';
 const ASSETS = [
   './',
   './index.html',

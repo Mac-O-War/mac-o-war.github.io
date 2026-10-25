@@ -4299,7 +4299,7 @@ function updateShouts(dt) {
 }
 /* ---------- a dollar bill blowing down the street on the wind: grab it ---------- */
 const BILL_PTS = 250;
-const MONEY = 1.2;   // how often dollar bills turn up (1 = one every 4-9 s; 1.2 = 20% more)
+const MONEY = 2.0;   // how often dollar bills turn up (1 = one every 4-9 s; 1.44 = 20% more, then another 20%)
 const BILL = { on: false, run: null, mesh: null, x: 0, y: 1, z: 0, vx: 0, vz: 0, t: 0 };
 (function buildBill() {
   BILL.mesh = new THREE.Mesh(vox([[0, 0, 0, 0.62, 0.02, 0.28, 0x86b97a], [0, 0.005, 0, 0.5, 0.02, 0.2, 0x5f9452], [0, 0.01, 0, 0.14, 0.02, 0.14, 0xb9dcae], [-0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33], [0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33]]), MAT.vox);
