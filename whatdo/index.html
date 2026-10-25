@@ -212,6 +212,7 @@ body:not(.touch) .card.tch{display:none}
 #iosHint b{color:#fff;font-weight:normal}
 #updToast{position:fixed;left:50%;top:calc(12px + var(--st));transform:translateX(-50%);z-index:60;background:#3ddc84;color:#111;border:3px solid #000;padding:10px 14px;font-size:10px;box-shadow:4px 4px 0 rgba(0,0,0,.5);pointer-events:auto;cursor:pointer;white-space:nowrap}
 .sub2{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center}
+.btnRow{display:flex;gap:14px;justify-content:center}.btnRow .btn{white-space:nowrap}   /* CONTINUE and RESTART side by side */
 /* ---------- leaderboard ---------- */
 #nmScore{font-size:clamp(20px,6vw,34px);color:#fff;margin:0 0 18px;text-shadow:3px 3px 0 #000}
 .lbHead{font-size:10px;color:var(--y);line-height:1.8}
@@ -381,10 +382,10 @@ body:not(.touch) .card.tch{display:none}
   </div>
   <div class="act">
   <div id="lbMsg"></div>
-  <button class="btn alt" id="restartBtn">RESTART</button>
+  <div class="btnRow"><button class="btn alt hidden" id="continueBtn">CONTINUE</button><button class="btn alt" id="restartBtn">RESTART</button></div>
   <div class="sub2"><button class="btn sm" id="replayBtn">&#9654; REPLAY</button><button class="btn sm dis" id="vidBtn"><span data-s="wait">VIDEO...</span><span data-s="make">MAKE VIDEO</span><span data-s="enc">SAVING...</span><span data-s="ready">SHARE VIDEO</span><span data-s="none">NO VIDEO</span></button></div>
   <div class="sub2" style="margin-top:10px"><button class="btn sm lbOpen hidden">TOP 10</button><button class="btn sm alt hidden installBtn">&#11015; INSTALL APP</button></div>
-  <div class="small">PRESS ENTER / SPACE OR TAP</div>
+  <div class="small" id="overHint">PRESS ENTER / SPACE OR TAP</div>
   </div>
 </section>
 
@@ -3846,9 +3847,10 @@ window.addEventListener('keydown', (e) => {
   if (e.key === '$' && !e.repeat && DEBUG && Game.state === 'play') { e.preventDefault(); Game.slow20 = !Game.slow20; popup(Game.slow20 ? '20 MPH LOCK ON' : '20 MPH LOCK OFF', 'good'); return; }
   if (Game.state === 'replay' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) { e.preventDefault(); endReplay(); return; }
   if (e.code === 'KeyP' || e.code === 'Escape') { if (Game.state === 'play') pauseGame(); else if (Game.state === 'paused') resumeGame(); }
+  if (e.code === 'KeyR' && !e.repeat && Game.state === 'over' && Game.overReady && !LB.open) restart(false);   // R: back to level 1
   if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) {
     if (Game.state === 'menu') startFromMenu();
-    else if (Game.state === 'over' && Game.overReady) restart();
+    else if (Game.state === 'over' && Game.overReady) restart(Game.level > 1);   // continue when there's a level to continue
     else if (Game.state === 'win' && Game.overReady) nextLevel();
     else if (Game.state === 'paused') resumeGame();
   }
@@ -4526,10 +4528,10 @@ function beginLevel() {
   Sound.startMusic(Game.level);
   updateHud(true);
 }
-function restart() {
+function restart(keepLevel) {   // after a crash: CONTINUE keeps the level, RESTART goes back to level 1; the score starts over either way
   resetFocus(); resetDroneCount(); Voice.unlock(); Game.bestCalled = false; Game.attempts = (Game.attempts || 0) + 1;
-  // after a crash you go again on the same level (only the score starts over)
-  track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.retry = true; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
+  if (!keepLevel) Game.level = 1;
+  track(keepLevel ? 'continue' : 'play-again', keepLevel ? 'Continued on level ' + Game.level : 'Played again'); if (isTouch) goFullscreen(); Game.retry = true; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 const PAUSE_LINES = [
   'TAKE A BREATH. THE CITY WILL WAIT.', 
@@ -4561,7 +4563,8 @@ function bindButton(el, fn) {
   el.addEventListener('click', (e) => e.preventDefault());
 }
 bindButton($('playBtn'), () => { if (Game.state === 'menu') startFromMenu(); });
-bindButton($('restartBtn'), () => { if (Game.state === 'over') restart(); });
+bindButton($('restartBtn'), () => { if (Game.state === 'over') restart(false); });
+bindButton($('continueBtn'), () => { if (Game.state === 'over') restart(true); });
 bindButton($('nextBtn'), () => { if (Game.state === 'win') nextLevel(); });
 bindButton($('resumeBtn'), resumeGame);
 bindButton($('pauseBtn'), () => { if (Game.state === 'play') pauseGame(); else resumeGame(); });
@@ -5478,6 +5481,11 @@ function showGameOver() {
   $('oTurns').textContent = Game.turns;
   $('oBest').textContent = Game.best.toLocaleString();
   $('newBest').classList.toggle('hidden', !Game.newBest);
+  // past level 1: CONTINUE (this level, score from 0) is the main button, RESTART (back to level 1) the second
+  const cont = Game.level > 1;
+  $('continueBtn').classList.toggle('hidden', !cont);
+  $('restartBtn').classList.toggle('alt', !cont);
+  $('overHint').textContent = cont ? 'ENTER / SPACE: CONTINUE · R: RESTART' : 'PRESS ENTER / SPACE OR TAP';
   LB.onGameOver();   // shows the name screen first when the score makes the board, else Game Over
   setTimeout(() => { Game.overReady = true; }, 250);
 }
