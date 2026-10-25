@@ -2633,6 +2633,7 @@ function updateDecor(dt) {
         s.cd -= dt;
         if (playing && s.cd <= 0 && Math.sign(PL.x) === s.sx && Math.abs(PL.x) > 6.8 && Math.abs(PL.x) < 11.6 && Math.abs(az) < 1.6) {
           s.cd = 2; Sound.steamBurst(clamp(ax / 6, -1, 1)); wetScreen();
+          FOCUS.meter = 1; popup('FOCUS REFILLED', 'good');   // a cold splash: wide awake (the FOCUS meter fills right up)
           award('COOL OFF!', SPRAY_PTS * (player.speed / player.base), 'trick', false);
         }
       }
@@ -3972,10 +3973,10 @@ function buildRig() {
 function updateRig(dt, t) {
   const sf = clamp((player.speed - player.base) / (player.max - player.base), 0, 1);
   rig.root.position.set(player.x, player.y, player.z);
-  rig.root.rotation.y = player.h - Math.atan2(player.vx, Math.max(player.speed, 1)) * 0.7;
+  rig.root.rotation.y = player.h - Math.atan2(player.vx, Math.max(player.speed, 1)) * 0.7 + (player.spinA || 0);
   player.lean = damp(player.lean, clamp(-player.vx * 0.035 + (player.yawRate || 0) * 0.25, -0.8, 0.8), 10, dt);   // lean into slides and turns
   rig.lean.rotation.z = player.lean;
-  rig.lean.rotation.x = -0.06 - sf * 0.16;
+  rig.lean.rotation.x = -0.06 - sf * 0.16 - Math.min(1, (player.hy || 0) * 1.2) * 0.22;   // tucks forward in the air
   rig.tire.rotation.x -= player.speed * dt / 0.45;
   const wave = Math.sin(t * 3.2);
   rig.armL.rotation.z = -0.45 - wave * 0.12 + player.lean * 0.6 - sf * 0.2;
@@ -4004,6 +4005,10 @@ window.addEventListener('keydown', (e) => {
   if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
   if (e.code === 'Backquote' && !e.repeat && DEBUG) { e.preventDefault(); toggleFly(); return; }   // debug: free-fly camera
   if (FLY.on) { FLY.keys.add(e.code); e.preventDefault(); return; }
+  if (Game.state === 'play' && !e.repeat) {
+    if (e.code === 'KeyE' || e.code === 'KeyJ') { e.preventDefault(); hop(); }
+    else if (e.code === 'KeyQ' || e.code === 'KeyK') { e.preventDefault(); spin360(); }
+  }
   const k = KEYMAP[e.code];
   if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') { input.mouseSteer = false; input.mouseTravel = 0; } e.preventDefault(); }
   // secret: '@' skips straight to the next level
@@ -4085,6 +4090,7 @@ function pollPad() {
   input.padPitch = dz(gp.axes[3] || 0);     // right stick Y, inverted (flight style): push up to look down, pull down to look up
   input.padGas = b(0) || b(7) || b(5);
   input.padFocus = b(6) || b(4) || b(2);
+  if (Game.state === 'play') { if (b(1) && !PAD.prev[1]) hop(); if (b(3) && !PAD.prev[3]) spin360(); }   // B: hop, Y: spin
   // menu buttons fire once per press
   const now = gp.buttons.map((x, i) => b(i)), was = PAD.prev, down = (i) => now[i] && !was[i];
   PAD.prev = now;
@@ -4470,6 +4476,7 @@ function resetWorld() {
   const diff = Game.level - 1;
   player.base = Math.min(31, 19 + diff * 1.6); player.max = player.base + 15;
   player.x = 0; player.z = 0; player.y = 0; player.vx = 0; player.h = 0; player.speed = 0; player.lean = 0; player.alive = true; player.yawRate = 0; player.turnPhase = null; player.finishing = false; player.hitWall = false;
+  player.hy = 0; player.vy = 0; player.spinT = -1; player.spinA = 0;
   updatePW();
   manageRuns(true); manageRuns(true);
   setPL(player.run);
@@ -5083,6 +5090,8 @@ function buildScoring() {
       ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
       ['RELISH THE MOMENT!', 'Brush past the guy in the hot-dog costume', fmtPts(400, 800)],
       ['LADY LIBERTY!', 'Brush past the Statue of Liberty performer (one every level)', fmtPts(400, 800)],
+      ['HOP OVER!', 'Bunny hop over something low: a hydrant, trash can, crates, a delivery robot, barriers…', fmtPts(HOP_OVER_PTS, HOP_OVER_PTS * 2) + ' EACH'],
+      ['AIR 360!', 'Spin 360 in the middle of a bunny hop', fmtPts(AIR_SPIN_PTS, AIR_SPIN_PTS * 2)],
       ['PET THE CAT!', 'Ride past close to the bodega cat on the crates (on the sidewalk)', fmtPts(CAT_PTS)],
       ['COO COO!', 'Brush past the mascot in the pigeon costume', fmtPts(350, 700)],
       ['SIGN DODGE!', 'Slip past the spinning arrow sign at the curb', fmtPts(250, 500)],
@@ -5106,9 +5115,11 @@ function buildScoring() {
       ['FULL THROTTLE', 'Stay at top speed', '45 / SEC'],
       ['TIGHTROPE', 'Ride the double yellow line for 2+ seconds (double with oncoming cars close)', '60–400 / SEC'],
       ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
+      ['BUNNY HOP', 'Hop (E / J, or gamepad B)', fmtPts(HOP_PTS)],
+      ['SPIN 360!', 'A full spin on the ground (Q / K, or gamepad Y)', fmtPts(SPIN_PTS)],
       ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
       ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)],
-      ['COOL OFF!', 'Ride through the spray of an open fire hydrant', fmtPts(SPRAY_PTS)]]],
+      ['COOL OFF!', 'Ride through the spray of an open fire hydrant (also fills FOCUS to 100%)', fmtPts(SPRAY_PTS)]]],
     ['BONUSES', '', [
       ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
       ['GANG BUSTED!', 'Now and then a whole rival gang races you: beat all 3 (on top of each RIVAL SMOKED!)', fmtPts(GANG_PTS)],
@@ -5332,6 +5343,7 @@ function checkCollisions(dt) {
       if (e.type === 'xcar') crossPass(e);   // every frame, so it always knows which side of the car's path the rider is on
       if (Math.abs(e.z - PL.z) > 14 || Math.abs(e.x - PL.x) > 14) continue;
       const res = testHit(e);
+      if (res === 2 && player.hy > (HOP_CLEAR[e.kind] ?? Infinity)) { if (!e.hopped) { e.hopped = true; player.hopOver++; } continue; }   // hopped over it
       if (res === 2) { if (e.type === 'rival') { crashRival(r, e); continue; } if (e.kind === 'rat') { squashRat(r, e); continue; } die(e.kind, e); return; }
       if (res === 1 && e.type !== 'xcar' && !(e.kind === 'rat' && Math.abs(PL.x - e.x) < P_HW + e.hw)) { e.nm = true; nearMiss(e, false); }   // riding straight at the rat isn't a near miss: you're about to squash him
       if (mine) sideGap(e);
@@ -5341,6 +5353,7 @@ function checkCollisions(dt) {
       for (const s of ch.statics) {
         if (Math.abs(s.z - PL.z) > 14 + s.hd || Math.abs(s.x - PL.x) > 14 + s.hw) continue;
         const res = testHit(s);
+        if (res === 2 && player.hy > (HOP_CLEAR[s.kind] ?? Infinity)) { if (!s.hopped) { s.hopped = true; player.hopOver++; } continue; }
         if (res === 2) { die(s.kind, s); return; }
         if (res === 1) { s.nm = true; nearMiss(s, true); }
         if (mine) sideGap(s);
@@ -5718,11 +5731,48 @@ function movePlayer(dt, steer, yawCtl) {
   player.hitWall = Math.abs(player.x) > 16.4 && Math.abs(player.h) > 0.6;
   if (player.x < -16.4) { player.x = -16.4; player.vx = Math.max(0, player.vx); }
   if (player.x > 16.4) { player.x = 16.4; player.vx = Math.min(0, player.vx); }
-  player.y = damp(player.y, groundY(player.run, player.x, player.z) - 0.02, 18, dt);
+  const gy = groundY(player.run, player.x, player.z) - 0.02;
+  if (player.hy > 0 || player.vy > 0) {   // airborne (a bunny hop): fly, then land
+    player.vy -= HOP_G * dt; player.hy += player.vy * dt;
+    if (player.hy <= 0) { player.hy = 0; player.vy = 0; landHop(); }
+    player.y = gy + player.hy;
+  } else player.y = damp(player.y, gy, 18, dt);
+}
+/* ---------- tricks: BUNNY HOP (E / J, gamepad B) and SPIN 360 (Q / K, gamepad Y): keyboard and controller only ----------
+   A hop clears low things (HOP_CLEAR: how high you need to be, by kind); a spin is a quick full turn of the rider, worth more in the air */
+const HOP_V = 4.0, HOP_G = 23;   // take-off speed and gravity (m/s, m/s²): about 1.2 m up and 0.65 s in the air
+const HOP_CLEAR = { hydrant: 0.7, trash: 1.0, crates: 0.8, rat: 0.25, robot: 0.7, barrier: 0.95 };
+const HOP_PTS = 80, HOP_OVER_PTS = 300, SPIN_PTS = 150, AIR_SPIN_PTS = 450, SPIN_TIME = 0.55;
+function hop() {
+  if (Game.state !== 'play' || player.hy > 0 || player.vy > 0) return;
+  player.vy = HOP_V; player.hopOver = 0; player.spunInAir = false;
+  Sound.blip(260, 0.05, 'square', 0.07); Sound.blip(520, 0.06, 'square', 0.05, 0.03);
+}
+function landHop() {
+  Sound.blip(95, 0.1, 'sine', 0.25); Game.shake = Math.max(Game.shake, 0.08);
+  if (Game.state !== 'play') return;
+  if (player.hopOver > 0) award('HOP OVER!' + (player.hopOver > 1 ? ' x' + player.hopOver : ''), HOP_OVER_PTS * player.hopOver * (player.speed / player.base), 'good');
+  else award('BUNNY HOP', HOP_PTS, 'trick', false);
+}
+function spin360() {
+  if (Game.state !== 'play' || player.spinT >= 0) return;
+  player.spinT = 0; player.spinAir = player.hy > 0.15;
+  Sound.whoosh(0, 0.6);
+}
+function updateTricks(dt) {
+  if (!(player.spinT >= 0)) { player.spinA = 0; return; }
+  player.spinT += dt;
+  const k = Math.min(1, player.spinT / SPIN_TIME);
+  player.spinA = k * k * (3 - 2 * k) * Math.PI * 2;   // ease in and out
+  if (k >= 1) {
+    const air = player.spinAir || player.hy > 0.15;
+    player.spinT = -1; player.spinA = 0;
+    if (air) award('AIR 360!', AIR_SPIN_PTS * (player.speed / player.base), 'good'); else award('SPIN 360!', SPIN_PTS, 'trick', false);
+  }
 }
 function updatePlay(dt) {
   Game.time += dt; Game.elapsed += dt; Game.runT += dt;
-  updateGas(dt); checkItems(); updateExtras(dt);
+  updateGas(dt); checkItems(); updateExtras(dt); updateTricks(dt);
   screamCd -= dt;
   const steer = readSteer(), gas = readGas();
   // in FOCUS your speed and gas are held as they were when it started (your thumb may have left GAS to press FOCUS)
