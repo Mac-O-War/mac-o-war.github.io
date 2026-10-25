@@ -157,6 +157,7 @@ body.touch #touch.on{display:block}
 @keyframes wetFade{0%{opacity:1}55%{opacity:.85}100%{opacity:0}}
 @keyframes featherSway{from{transform:translateX(-22px) rotate(-25deg)}to{transform:translateX(22px) rotate(25deg)}}
 #unlockMsg.show{display:block;animation:unlockIn 2.6s ease-out forwards}
+#debugTag{position:fixed;right:calc(8px + var(--sr));bottom:calc(6px + var(--sb));font-family:var(--hud);font-size:8px;color:#fff;background:rgba(211,47,47,.85);border:2px solid #000;padding:3px 6px;pointer-events:none;z-index:30}
 #flyTag{position:fixed;left:50%;top:calc(8px + var(--st));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:#d32f2f;border:3px solid #000;padding:6px 10px;pointer-events:none;z-index:30}
 #padToast{position:fixed;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:rgba(13,15,26,.85);border:3px solid #000;padding:8px 12px;pointer-events:none;opacity:0;z-index:20}
 .padFocus{outline:4px solid #fff;outline-offset:3px;box-shadow:0 0 0 7px rgba(255,210,63,.55),0 4px 0 #000 !important;animation:padFocus .8s ease-in-out infinite alternate}
@@ -3677,15 +3678,15 @@ const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'ri
 window.addEventListener('keydown', (e) => {
   if (scoringKey(e) || settingsKey(e)) return;   // the scoring and settings screens take the keyboard while open
   if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
-  if (e.code === 'Backquote' && !e.repeat) { e.preventDefault(); toggleFly(); return; }   // debug: free-fly camera
+  if (e.code === 'Backquote' && !e.repeat && DEBUG) { e.preventDefault(); toggleFly(); return; }   // debug: free-fly camera
   if (FLY.on) { FLY.keys.add(e.code); e.preventDefault(); return; }
   const k = KEYMAP[e.code];
   if (k) { input[k] = true; if (k !== 'up' && k !== 'focus') { input.mouseSteer = false; input.mouseTravel = 0; } e.preventDefault(); }
   // secret: '@' skips straight to the next level
-  if (e.key === '@' && !e.repeat && ['play', 'countdown', 'winning', 'win', 'paused'].includes(Game.state)) { e.preventDefault(); showScreen(null); Sound.resume(); nextLevel(); return; }
+  if (e.key === '@' && !e.repeat && DEBUG && ['play', 'countdown', 'winning', 'win', 'paused'].includes(Game.state)) { e.preventDefault(); showScreen(null); Sound.resume(); nextLevel(); return; }
   // cheats: '#' fills the boost to the max (unlocking it if need be), '$' locks you at 20 mph until pressed again
-  if (e.key === '#' && !e.repeat && Game.state === 'play') { e.preventDefault(); if (!GASC.got) gotBattery(); GASC.t = GAS_MAX; updateGasUI(); popup('MAX BOOST', 'good'); return; }
-  if (e.key === '$' && !e.repeat && Game.state === 'play') { e.preventDefault(); Game.slow20 = !Game.slow20; popup(Game.slow20 ? '20 MPH LOCK ON' : '20 MPH LOCK OFF', 'good'); return; }
+  if (e.key === '#' && !e.repeat && DEBUG && Game.state === 'play') { e.preventDefault(); if (!GASC.got) gotBattery(); GASC.t = GAS_MAX; updateGasUI(); popup('MAX BOOST', 'good'); return; }
+  if (e.key === '$' && !e.repeat && DEBUG && Game.state === 'play') { e.preventDefault(); Game.slow20 = !Game.slow20; popup(Game.slow20 ? '20 MPH LOCK ON' : '20 MPH LOCK OFF', 'good'); return; }
   if (Game.state === 'replay' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) { e.preventDefault(); endReplay(); return; }
   if (e.code === 'KeyP' || e.code === 'Escape') { if (Game.state === 'play') pauseGame(); else if (Game.state === 'paused') resumeGame(); }
   if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) {
@@ -3846,6 +3847,10 @@ window.addEventListener('gamepadconnected', (e) => {
 window.addEventListener('gamepaddisconnected', () => padToast('CONTROLLER DISCONNECTED'));
 // ?pad in the URL: a live readout of what the game reads from the controller (for troubleshooting)
 const PAD_DEBUG = /[?&]pad(&|=|$)/.test(location.search);
+// DEBUG: the cheat keys (@ # $ `) and window.WhatDo only exist with ?debug in the address (or running locally), and a debug
+// session never sends scores to the leaderboard, so console hacks and cheats can't reach the board
+const DEBUG = /[?&]debug(&|=|$)/.test(location.search) || location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+if (DEBUG) { const d = document.createElement('div'); d.id = 'debugTag'; d.textContent = 'DEBUG · SCORES NOT SAVED'; document.body.appendChild(d); }
 if (PAD_DEBUG) { const d = document.createElement('pre'); d.id = 'padDebug'; document.body.appendChild(d); }
 function padDebug() {
   if (!PAD_DEBUG) return;
@@ -3980,7 +3985,7 @@ function hideTicker() { clearTimeout(newsTicker.tm); $('ticker').classList.add('
    ===================================================================== */
 const LEVEL_TIME = 60;   // seconds to survive to clear a level (every level is the same length)
 const Game = { state: 'menu', level: 1, score: 0, runT: 0, best: parseInt(store.get('whatdo_best', '0'), 10) || 0, time: 0, elapsed: 0, levelTime: LEVEL_TIME, near: 0, turns: 0, bestChain: 0, shake: 0, deathT: 0, overReady: false, cd: 0, lastNear: null, startScore: 0 };
-window.WhatDo = Game;
+if (DEBUG) window.WhatDo = Game;   // the console handle (and Game.debug's god mode) only in debug sessions
 Game.debug = { player, runs, doTurn: () => doTurn(), spawnCar: (li, z, k) => spawnCar(player.run, li, z, k), get SC() { return SC; } };
 const deathPos = new THREE.Vector3();
 const camOff = new THREE.Vector3(0, 3.7, 7.4);
@@ -5439,6 +5444,9 @@ const CAM_ZOOM_BASE = 0.80;   // gameplay camera distance: 1 = original, smaller
 // the CAMERA DISTANCE setting scales it: 100% = CAM_ZOOM_BASE (remembered)
 let camDist = clamp(parseInt(store.get('whatdo_camdist', '100'), 10) || 100, 60, 150);
 let CAM_ZOOM = CAM_ZOOM_BASE * camDist / 100;
+// the camera banks into turns: some for sliding across the road, more for carving round a corner (radians, smoothed)
+const CAM_TILT_SLIDE = 0.012, CAM_TILT_TURN = 0.12, CAM_TILT_MAX = 0.22, CAM_TILT_EASE = 5;   // per m/s sideways, per rad/s of turning, max bank (~13°), how quickly it follows
+let camRoll = 0;
 let camYaw = 0, lookYaw = 0;   // gameplay camera position heading and look direction (world space), each damped
 let camLook = 0, camPitch = 0;   // controller right stick: swing around the rider to look left / right (radians), and tilt up / down (-1..1), damped
 const LOOK_MAX = 1.3;   // ~75 degrees at full stick
@@ -5496,7 +5504,11 @@ function updateCamera(dt) {
   }
   camera.fov = damp(camera.fov, fov, 6, dt); camera.updateProjectionMatrix();
   camera.lookAt(_look);
-  if (Game.state === 'play') camera.rotateZ(player.lean * 0.3);
+  if (Game.state === 'play') {
+    const want = clamp(-player.vx * CAM_TILT_SLIDE + (player.yawRate || 0) * CAM_TILT_TURN, -CAM_TILT_MAX, CAM_TILT_MAX);
+    camRoll = damp(camRoll, want, CAM_TILT_EASE, dt);
+    camera.rotateZ(camRoll);
+  } else camRoll = 0;
   const shake = Game.shake + (Game.state === 'play' && player.boost ? 0.05 * sf : 0);
   if (shake > 0.001) { camera.position.x += rand(-1, 1) * shake * 0.25; camera.position.y += rand(-1, 1) * shake * 0.25; camera.rotateZ(rand(-1, 1) * shake * 0.02); }
   Game.shake = Math.max(0, Game.shake - dt * 2.2);
@@ -5957,6 +5969,7 @@ LB.fetchBoards = (fresh) => {
 function lbQueueGet() { try { const q = JSON.parse(store.get('whatdo_lb_queue', '[]')); return Array.isArray(q) ? q : []; } catch (e) { return []; } }
 function lbQueueSet(q) { store.set('whatdo_lb_queue', JSON.stringify(q.slice(-5))); }
 function lbSend(entry) {   // → { ok, rank } | { error } (rejected, don't retry) | { retry } (offline / busy)
+  if (DEBUG) return Promise.resolve({ error: 'debug' });
   return lbFetch('/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) })
     .then((res) => res.json().catch(() => ({})).then((d) => res.ok ? { ok: true, rank: d.rank } : res.status === 400 ? { error: d.error || 'invalid' } : { retry: true }))
     .catch(() => ({ retry: true }));
@@ -5979,7 +5992,7 @@ LB.onGameOver = () => {
     const score = Math.floor(Game.score), secs = Math.round(Game.runT);
     const day = lbMakes(LB.boards.day, score), all = lbMakes(LB.boards.all, score);
     // with no board loaded (offline), offer it for a personal best and queue it
-    const makes = score > 0 && secs > 0 && (LB.boards.all ? day || all : Game.newBest);
+    const makes = !DEBUG && score > 0 && secs > 0 && (LB.boards.all ? day || all : Game.newBest);   // debug sessions never post
     LB.run = { score, level: Game.level, secs, state: makes ? 'entry' : 'none', msg: '', err: false };
     $('nmScore').textContent = score.toLocaleString();
     $('nmWhy').textContent = !LB.boards.all ? 'NEW PERSONAL BEST' : all ? 'YOU MADE THE ALL-TIME TOP 10' : "YOU MADE TODAY'S TOP 10";
@@ -6106,7 +6119,7 @@ function reportError(msg, file, line) {
   const where = (file.split('/').pop() || 'page') + ':' + (line || 0), text = String(msg || 'unknown error').replace(/\s+/g, ' ').slice(0, 160);
   const key = text + '@' + where; if (errSeen.has(key)) return; errSeen.add(key);
   const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'error';
-  track('error/' + slug + '@' + where, 'JS error: ' + text + ' (' + where + ', state ' + (window.WhatDo ? WhatDo.state : '?') + ')');
+  track('error/' + slug + '@' + where, 'JS error: ' + text + ' (' + where + ', state ' + (typeof Game !== 'undefined' ? Game.state : '?') + ')');
 }
 window.addEventListener('error', (e) => reportError(e.message || (e.error && e.error.message), e.filename, e.lineno));
 window.addEventListener('unhandledrejection', (e) => { const r = e.reason; reportError('unhandled promise: ' + (r && (r.message || r)), r && r.fileName, r && r.lineNumber); });
