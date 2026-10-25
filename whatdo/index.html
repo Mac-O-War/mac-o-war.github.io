@@ -2260,7 +2260,7 @@ function lanternParts() {
 }
 // ---------- tow-truck ramp: a rollback tow truck parked in the right lane with its bed tilted down to the road.
 // Ride up the bed from its low end and you launch off the top, over the cab (anything lower than you is cleared in the air).
-const RAMP_CHANCE = 0.25, RAMP_LEN = 7.5, RAMP_H = 2.75, RAMP_X = 6.75, RAMP_HW = 1.15;   // chance a street has one; the bed's run, rise, centre, half width
+const RAMP_CHANCE = 0.25, RAMP_LEN = 7.5, RAMP_H = 2.75, RAMP_X = 6.75, RAMP_HW = 1.55;   // chance a street has one; the bed's run, rise, centre, and how far off centre still counts as on it (all of the bed you could touch)
 const RAMP_SLOPE = RAMP_H / RAMP_LEN, RAMP_ANGLE = Math.atan(RAMP_SLOPE), RAMP_VY_MAX = 11;   // launch: up-speed = forward speed x slope, capped
 const TOW_BED_GEO = vox([[0, -0.15, 0, 2.4, 0.15, 8, 0x9aa0a6], [-1.15, -0.15, 0, 0.1, 0.35, 8, 0x444444], [1.15, -0.15, 0, 0.1, 0.35, 8, 0x444444],
   ...[-3.2, -1.6, 0, 1.6, 3.2].map((z) => [0, 0, z, 2.2, 0.02, 0.4, 0xffd23f]), [0, 0, 3.85, 2.4, 0.03, 0.3, 0x111111]]);   // deck, side rails, yellow stripes
@@ -2273,6 +2273,7 @@ function towTruck(g, p, ch, run, zr0) {
   const bed = addMesh(g, TOW_BED_GEO, MAT.vox, x, RAMP_H / 2 + 0.05, zr0 - RAMP_LEN / 2, true, true); bed.rotation.x = RAMP_ANGLE;
   for (const s of [-1, 1]) { const a = addMesh(g, GEO.amber, amberOn, x + s * 0.6, 2.74, zr0 - 8.7); run.flashers.push(a); }
   addStatic(ch, x, ch.z0 + zr0 - RAMP_LEN / 2 - 0.6, 1.25, RAMP_LEN / 2 - 0.6, 'towbed');   // ride into its side and you crash (the first 1.2 m is the way on)
+  ch.statics[ch.statics.length - 1].zLow = ch.z0 + zr0;   // (so a rider above the deck at that point isn't 'hitting' it)
   addStatic(ch, x, ch.z0 + zr0 - 8.9, 1.25, 1.35, 'towtruck');
   run.closures.push({ lane: 3, zTop: ch.z0 + zr0 - 11, zBot: ch.z0 + zr0 + 3, ch });   // traffic goes round it
   run.ramps.push({ x, zLow: ch.z0 + zr0, zHigh: ch.z0 + zr0 - RAMP_LEN });
@@ -3453,8 +3454,9 @@ const rivalGeo = (J, L, SK) => {   // legs, torso, two arms, head: separate piec
 };
 const RIVAL_GEO = rivalGeo(0x111111, 0x39ff14, 0xc68642);
 const GANG_GEO = [0xc68642, 0x8d5524, 0xf1c27d].map((sk) => rivalGeo(0x4a1a6b, 0xff2bd6, sk));   // matching jackets, different faces
-// the RIVAL GANG: now and then (GANG_CHANCE of levels) three of them race you at once; beat them all for GANG BUSTED!
-const GANG_CHANCE = 0.05, GANG_N = 3, GANG_PTS = 3000;
+// rivals come from money: every RIVAL_CASH dollar bills you grab call one in; GANG_CHANCE of the time it's the RIVAL GANG
+// (three of them racing you at once; beat them all for GANG BUSTED!)
+const RIVAL_CASH = 3, GANG_CHANCE = 0.1, GANG_N = 3, GANG_PTS = 3000;
 const GANG_LINES = ['Gang busted!', 'The whole crew, gone', 'Squad wiped', 'Gang disbanded', 'Clean sweep', 'One versus three. Easy', 'Call the whole squad next time'];
 const RIVAL_TAUNTS = ['CATCH ME IF YOU CAN!', 'TOO SLOW!', 'EAT MY DUST!', 'KEEP UP!', 'IS THAT ALL YOU GOT?', 'NICE WHEEL. IS IT A RENTAL?'];
 const RIVAL_LOSE = ['NO WAY!', 'REMATCH!', 'LAG!', 'I LET YOU WIN!', 'MY BATTERY DIED!'];
@@ -4296,12 +4298,13 @@ function updateShouts(dt) {
 }
 /* ---------- a dollar bill blowing down the street on the wind: grab it ---------- */
 const BILL_PTS = 250;
+const MONEY = 1.2;   // how often dollar bills turn up (1 = one every 4-9 s; 1.2 = 20% more)
 const BILL = { on: false, run: null, mesh: null, x: 0, y: 1, z: 0, vx: 0, vz: 0, t: 0 };
 (function buildBill() {
   BILL.mesh = new THREE.Mesh(vox([[0, 0, 0, 0.62, 0.02, 0.28, 0x86b97a], [0, 0.005, 0, 0.5, 0.02, 0.2, 0x5f9452], [0, 0.01, 0, 0.14, 0.02, 0.14, 0xb9dcae], [-0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33], [0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33]]), MAT.vox);
   BILL.mesh.scale.setScalar(1.7); BILL.mesh.castShadow = true;
 })();
-function endBill() { BILL.on = false; if (BILL.mesh.parent) BILL.mesh.parent.remove(BILL.mesh); Game.billAt = Game.elapsed + rand(12, 22); }
+function endBill() { BILL.on = false; if (BILL.mesh.parent) BILL.mesh.parent.remove(BILL.mesh); Game.billAt = Game.elapsed + rand(4, 9) / MONEY; }
 function updateBill(dt) {
   if (!BILL.on) {
     if (Game.elapsed < Game.billAt || player.turnPhase || player.finishing) return;
@@ -4321,11 +4324,17 @@ function updateBill(dt) {
   BILL.mesh.position.set(BILL.x, BILL.y, BILL.z); BILL.mesh.rotation.set(Math.sin(BILL.t * 3.1) * 0.9, BILL.t * 1.3, Math.sin(BILL.t * 2.3) * 0.6);
   if (Math.abs(BILL.x - player.x) < 1.4 && Math.abs(BILL.z - player.z) < 1.6) {
     award('COLD HARD CASH!', BILL_PTS * (player.speed / player.base), 'good'); Sound.chaching(clamp((BILL.x - player.x) / 3, -1, 1)); endBill();
+    Game.cash = (Game.cash || 0) + 1;
+    popup(Game.cash >= RIVAL_CASH ? 'RIVAL INCOMING!' : '$' + Game.cash + ' / $' + RIVAL_CASH, 'good');
   } else if (BILL.z > player.z + 20) endBill();   // it got away
 }
 function updateExtras(dt) {
   setPL(player.run);
-  if (!Game.rivalDone && Game.elapsed > Game.rivalAt && !player.turnPhase && !player.finishing) { Game.rivalDone = true; if (Game.rivalGang) spawnGang(); else spawnRival(); }
+  // enough cash: in comes a rival (or now and then the gang), as long as no race is already on
+  if (Game.cash >= RIVAL_CASH && !player.turnPhase && !player.finishing && !runs.some((r) => r.ents.some((e) => e.type === 'rival' && e.phase !== 'beaten' && !e.crashed))) {
+    Game.cash -= RIVAL_CASH;
+    if (Math.random() < GANG_CHANCE) spawnGang(); else spawnRival();
+  }
   updateBill(dt);
 }
 /* ---------- BREAKING NEWS ticker: runs along the bottom after the news drone films you ---------- */
@@ -4495,8 +4504,7 @@ function updateEagle(dt) {
 function resetWorld() {
   Game.libertyN = 0; Game.libertyAt = randi(2, 5); Game.libertyDone = false;   // which chunk of this level gets the Statue of Liberty
   Game.timesDone = false; Game.chinaDone = false;
-  const rr = Math.random(); Game.rivalGang = rr < GANG_CHANCE; Game.rivalDone = rr >= GANG_CHANCE + 0.2;   // a rival gang in 5% of levels, a lone rival in 20%  
-  Game.rivalAt = rand(8, 18); Game.billAt = rand(8, 18);   // Times Square block, the rival (in 1 level in 5), the first dollar bill
+  Game.billAt = rand(3, 7) / MONEY;   // the first dollar bill (rivals now come from collecting bills: see RIVAL_CASH)
   if (BILL.on) endBill(); BILL.on = false; clearRivalDebris(); hideTicker(); $('wet').classList.remove('show');
   for (const r of runs.slice()) removeRun(r);
   REC.length = 0; Game.replayInfo = null;
@@ -4530,7 +4538,7 @@ function startFromMenu() {
   track('play-start', 'Started a game' + (isTouch ? ' (touch)' : ' (desktop)'));
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* ignore */ }
   Sound.init(); if (isTouch) { Game.wantFs = true; goFullscreen(); }
-  Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0;
+  Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Game.cash = 0;
   resetFocus(); resetDroneCount(); Voice.unlock(); Game.bestCalled = false; Game.attempts = (Game.attempts || 0) + 1; beginLevel();
 }
 // said at the start of every 3rd attempt (never the same line twice in a row)
@@ -4735,7 +4743,7 @@ function beginLevel() {
 function restart(keepLevel) {   // after a crash: CONTINUE keeps the level, RESTART goes back to level 1; the score starts over either way
   resetFocus(); resetDroneCount(); Voice.unlock(); Game.bestCalled = false; Game.attempts = (Game.attempts || 0) + 1;
   if (!keepLevel) Game.level = 1;
-  track(keepLevel ? 'continue' : 'play-again', keepLevel ? 'Continued on level ' + Game.level : 'Played again'); if (isTouch) goFullscreen(); Game.retry = true; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
+  track(keepLevel ? 'continue' : 'play-again', keepLevel ? 'Continued on level ' + Game.level : 'Played again'); if (isTouch) goFullscreen(); Game.retry = true; Game.score = 0; Game.cash = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 const PAUSE_LINES = [
   'TAKE A BREATH. THE CITY WILL WAIT.', 
@@ -5135,7 +5143,7 @@ function buildScoring() {
       ['HALLELUJAH!', 'Brush past the preacher on his milk crate', fmtPts(300, 600)],
       ['HORSE PLAY!', 'Pass close to the horse-drawn carriage', fmtPts(300, 600)],
       ['SPIDEY SENSE!', 'Ride under Spider-Man hanging from a street light', fmtPts(SPIDEY_PTS)],
-      ['COLD HARD CASH!', 'Grab the dollar bill blowing down the street', fmtPts(BILL_PTS)],
+      ['COLD HARD CASH!', 'Grab a dollar bill blowing down the street (every 3 calls in a rival)', fmtPts(BILL_PTS)],
       ['TIGHT TURN!', 'Clip a barricade or corner', fmtPts(150)],
       ['BIKE DODGE!', 'Slip past a cyclist', fmtPts(120, 240)],
       ['PHOTOBOMB!', 'Ride between a tourist’s camera and the friend they’re photographing', fmtPts(PHOTOBOMB_PTS, PHOTOBOMB_PTS * 2)],
@@ -5156,9 +5164,9 @@ function buildScoring() {
       ['COOL OFF!', 'Ride through the spray of an open fire hydrant (also fills FOCUS to 100%)', fmtPts(SPRAY_PTS)]]],
     ['BONUSES', '', [
       ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
-      ['GANG BUSTED!', 'Now and then a whole rival gang races you: beat all 3 (on top of each RIVAL SMOKED!)', fmtPts(GANG_PTS)],
+      ['GANG BUSTED!', '1 in 10 times, your 3 dollars call a whole rival gang: beat all 3 (on top of each RIVAL SMOKED!)', fmtPts(GANG_PTS)],
       ['ON THE NEWS!', 'Scatter 5 flocks of pigeons and a news drone flies in to film you', '750 × LEVEL'],
-      ['RIVAL SMOKED!', 'Now and then another rider passes you: take the lead from him twice (or ride right into him: RIVAL WIPED OUT!)', fmtPts(RIVAL_PTS)],
+      ['RIVAL SMOKED!', 'Grab 3 dollar bills and a rival rides in: take the lead from him twice (or ride right into him: RIVAL WIPED OUT!)', fmtPts(RIVAL_PTS)],
       ['RIDING', 'Just keep moving', '~5 / SEC']]],
     ['MULTIPLIERS', '', [
       ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
@@ -5387,7 +5395,7 @@ function checkCollisions(dt) {
       for (const s of ch.statics) {
         if (Math.abs(s.z - PL.z) > 14 + s.hd || Math.abs(s.x - PL.x) > 14 + s.hw) continue;
         const res = testHit(s);
-        if (res === 2 && s.kind === 'towbed' && (player.onRamp || player.hy > RAMP_H)) continue;   // on the ramp (or above it), not into its side
+        if (res === 2 && s.kind === 'towbed' && (player.onRamp || airH() >= clamp((s.zLow - player.z) / RAMP_LEN, 0, 1) * RAMP_H - 0.15)) continue;   // on the ramp, or above the deck where you are (dropping off its side)
         if (res === 2 && airH() > clearH(s)) { if (!s.hopped) { s.hopped = true; if (s.kind === 'parked') player.carsOver++; else player.hopOver++; } continue; }
         if (res === 2) { die(s.kind, s); return; }
         if (res === 1) { s.nm = true; nearMiss(s, true); }
@@ -5782,6 +5790,7 @@ function movePlayer(dt, steer, yawCtl) {
   }
   if (player.hy > 0 || player.vy > 0) {   // airborne (a bunny hop or a ramp jump): fly, then land
     player.vy -= HOP_G * dt; player.hy += player.vy * dt; player.airT = (player.airT || 0) + dt;
+    if (!player.jumped) { const rl = rampAt(); if (rl && player.hy <= rl.h + (player.vy <= 0 ? 0.2 : 0)) { player.hy = 0; player.vy = 0; player.onRamp = rl.r; player.rampH = rl.h; player.y = gy + rl.h; return; } }   // a hop that meets the bed lands you on it: ride on up
     if (player.hy <= 0) { player.hy = 0; player.vy = 0; landHop(); }
     player.y = gy + player.hy;
   } else player.y = damp(player.y, gy, 18, dt);
