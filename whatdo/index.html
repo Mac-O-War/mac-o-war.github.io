@@ -1454,6 +1454,20 @@ const Sound = (() => {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.18 * vol, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0005, t + 1);
     os.connect(bp); bp.connect(g); g.connect(o); os.start(t); vib.start(t); os.stop(t + 1.05); vib.stop(t + 1.05);
   }
+  // an elevated train going over: a low rumble swelling and fading, with the clack-clack of the rail joints
+  function train(pan) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan);
+    const n = noise(t, 5), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = 'lowpass'; lp.frequency.value = 220; lp.Q.value = 0.8;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.55, t + 1.6); g.gain.linearRampToValueAtTime(0.45, t + 3); g.gain.exponentialRampToValueAtTime(0.001, t + 5);
+    n.connect(lp); lp.connect(g); g.connect(o);
+    for (let k = 0; k < 16; k++) {
+      const tt = t + 0.6 + k * 0.24 + (k % 2) * 0.07, c = noise(tt, 0.06), bp = ctx.createBiquadFilter(), cg = ctx.createGain();
+      bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 3;
+      cg.gain.setValueAtTime(0.0001, tt); cg.gain.linearRampToValueAtTime(0.18, tt + 0.004); cg.gain.exponentialRampToValueAtTime(0.001, tt + 0.05);
+      c.connect(bp); bp.connect(cg); cg.connect(o);
+    }
+  }
   // bicycle bell: ding-ding
   function bell(pan, vol) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
@@ -1817,7 +1831,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, clop, neigh, chaching, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, train, clop, neigh, chaching, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -1990,7 +2004,7 @@ function makeRun(theta, ox, oz, base, turnIn, prev) {
   const r = {
     root, theta, cos: Math.cos(theta), sin: Math.sin(theta), ox, oz, base, nextChunkZ: base, chunkCount: 0, length,
     turnDir: Math.random() < 0.5 ? -1 : 1, endZc: base - (length - 1) * CH - 90, next: null, prev, turnIn,
-    chunks: [], inters: [], closures: [], ents: [], flashers: [], spawnCd: 0
+    chunks: [], inters: [], closures: [], ents: [], flashers: [], spawnCd: 0, el: Math.random() < EL_CHANCE
   };
   runs.push(r);
   return r;
@@ -2134,6 +2148,126 @@ function bannerMat(text) {
   m = new THREE.MeshLambertMaterial({ map: tex }); bannerMats.set(text, m); return m;
 }
 GEO.banner = new THREE.BoxGeometry(12, 2, 0.06).translate(0, -1, 0);
+// ---------- neon shop signs: flat over the shop or a blade sticking out from the wall; some flicker ----------
+const NEON_WORDS = ['PIZZA', 'DELI', '24 HR', 'NAILS', 'BAR', 'OPEN', 'BODEGA', 'LAUNDRY', 'TATTOO', 'CAFE', 'HOT DOGS', 'KARAOKE', 'LIQUORS', 'BAGELS', 'RAMEN', 'PAWN', 'DINER', 'SUSHI', 'BARBER', 'PHONES'];
+const NEON_CN = ['\u98ef\u5e97', '\u8336', '\u9eb5', '\u798f', '\u9f8d', '\u9903\u5b50', '\u4e2d\u83ef', '\u6d77\u9bae', '\u9ede\u5fc3', '\u597d\u904b'];   // restaurant, tea, noodles, luck, dragon, dumplings, Chinese, seafood, dim sum, good fortune
+const NEON_COLS = ['#ff2bd6', '#39ff14', '#00e5ff', '#ff3b3b', '#ffd23f', '#ff8c00', '#b36bff'];
+const NEON_FONT = '"Arial Black", Impact, "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif';
+const neonMats = new Map();
+function neonMat(text, vertical) {   // { on, off }: the lit sign, and the same sign with the tubes out (for flicker)
+  const key = text + (vertical ? '|v' : ''); let m = neonMats.get(key); if (m) return m;
+  const col = pick(NEON_COLS), W = vertical ? 128 : 512, H = vertical ? 512 : 128;
+  const make = (lit) => {
+    const tex = canvasTex(W, H, (x, w, h) => {
+      x.fillStyle = '#0d0d12'; x.fillRect(0, 0, w, h);
+      x.strokeStyle = lit ? col : '#2e2e33'; x.lineWidth = 6; x.shadowColor = col; x.shadowBlur = lit ? 16 : 0; x.strokeRect(10, 10, w - 20, h - 20);
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      const chars = vertical ? [...text] : [text];
+      let fs = vertical ? Math.min(100, (h - 40) / chars.length * 0.9) : 84;
+      x.font = 'bold ' + fs + 'px ' + NEON_FONT;
+      if (!vertical) while (x.measureText(text).width > w - 50 && fs > 24) { fs -= 4; x.font = 'bold ' + fs + 'px ' + NEON_FONT; }
+      const at = (i) => vertical ? 20 + (h - 40) * (i + 0.5) / chars.length : h / 2 + 4;
+      for (let pass = 0; pass < 2; pass++) {   // a coloured glow, then a bright core
+        x.shadowBlur = lit && !pass ? 26 : 0; x.fillStyle = lit ? (pass ? '#ffffff' : col) : '#3a3a40'; x.globalAlpha = lit && pass ? 0.55 : 1;
+        chars.forEach((c, i) => x.fillText(c, w / 2, at(i)));
+      }
+      x.globalAlpha = 1;
+    });
+    tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter;
+    return new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+  };
+  m = { on: make(true), off: make(false) }; neonMats.set(key, m); return m;
+}
+function decorNeon(g, p, ch, sx, cz, bw) {
+  const china = !!ch.china, text = nextLine(china ? NEON_CN : NEON_WORDS);
+  let m;
+  if (china || Math.random() < 0.45) {   // a blade sign on a bracket, facing along the street
+    const hgt = china ? 3.2 : 2.4, y = rand(4.4, china ? 6.6 : 5.4) + hgt / 2, z = cz + rand(-bw / 4, bw / 4);
+    m = addMesh(g, GEO.board, neonMat(text, true).on, sx * 16.15, y, z); m.scale.set(1, hgt, 1);
+    p.push([sx * 16.8, y + hgt / 2 - 0.1, z, 0.5, 0.06, 0.06, 0x222222], [sx * 16.8, y - hgt / 2 + 0.05, z, 0.5, 0.06, 0.06, 0x222222]);
+  } else {   // flat over the shop, above the awning
+    const w = Math.min(bw * 0.6, 5);
+    m = addMesh(g, GEO.board, neonMat(text, false).on, sx * 16.9, 4.3, cz); m.rotation.y = -sx * Math.PI / 2; m.scale.set(w, w / 4, 1);
+  }
+  ch.anims.push({ kind: 'neon', m, mats: neonMat(text, m.scale.y > m.scale.x), ph: rand(0, 6), fl: Math.random() < 0.3 });
+}
+// ---------- fire escapes: iron landings every floor with zig-zag stairs between them ----------
+function fireEscape(p, sx, fz, h) {
+  const I = 0x2a2a2a, top = Math.min(h - 3, 26);
+  let dir = 1;
+  for (let y = 4.6; y <= top; y += 4) {
+    p.push([sx * 16.5, y, fz, 0.95, 0.08, 3.4, I], [sx * 16.05, y + 0.95, fz, 0.05, 0.05, 3.4, I]);   // landing and its rail
+    for (const dz of [-1.68, 0, 1.68]) p.push([sx * 16.05, y, fz + dz, 0.05, 0.95, 0.05, I]);
+    for (const dz of [-1.68, 1.68]) p.push([sx * 16.5, y + 0.95, fz + dz, 0.95, 0.05, 0.05, I]);
+    if (y + 4 <= top) for (let k = 0; k < 8; k++) p.push([sx * 16.62, y + 0.08 + k * 0.49, fz + dir * (-1.3 + k * 0.37), 0.55, 0.05, 0.28, I]);   // stairs up to the next landing
+    dir = -dir;
+  }
+}
+// ---------- Chinatown: a gate over the street, lanterns strung across it, Chinese neon (at most one block a level) ----------
+let chinaPlaqueMat = null;
+function chinatown(g, p, ch) {
+  const R = 0xb71c1c, GOLD = 0xd4af37, GRN = 0x1e6b4a;
+  for (const sx of [-1, 1]) { p.push([sx * 12.6, 0.25, -5, 0.8, 9.3, 0.8, R], [sx * 12.6, 0.25, -5, 1.2, 0.6, 1.2, 0x555555]); addStatic(ch, sx * 12.6, ch.z0 - 5, 0.4, 0.4, 'gate'); }
+  p.push([0, 8.3, -5, 27, 0.5, 0.6, R], [0, 9.4, -5, 27, 0.4, 0.5, R], [0, 8.8, -5, 27, 0.2, 0.55, GOLD]);   // beams
+  p.push([0, 9.8, -5, 29, 0.35, 2.4, GRN], [0, 10.15, -5, 26, 0.35, 1.8, GRN], [0, 10.5, -5, 22, 0.2, 0.6, GOLD]);   // green tiled roof
+  for (const sx of [-1, 1]) p.push([sx * 14.3, 10.1, -5, 0.6, 0.5, 2.4, GRN], [sx * 14.7, 10.5, -5, 0.3, 0.3, 0.6, GOLD]);   // upturned ends
+  if (!chinaPlaqueMat) {
+    const tex = canvasTex(256, 72, (x, w, h) => { x.fillStyle = '#b71c1c'; x.fillRect(0, 0, w, h); x.strokeStyle = '#d4af37'; x.lineWidth = 6; x.strokeRect(4, 4, w - 8, h - 8);
+      x.fillStyle = '#ffd54f'; x.font = 'bold 48px ' + NEON_FONT; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('\u4e2d\u83ef\u8857', w / 2, h / 2 + 2); });   // "Chinatown"
+    chinaPlaqueMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+  }
+  const pl = addMesh(g, GEO.board, chinaPlaqueMat, 0, 8.85, -4.62); pl.scale.set(4.6, 1.3, 1);
+  for (const lz of [-20, -36, -52, -68]) {   // strings of red lanterns that sway as you ride under
+    const m = addMesh(g, decoGeo('lanterns', () => vox(lanternParts())), MAT.vox, 0, 8.0, lz, false, true);
+    ch.anims.push({ kind: 'banner', m, z: ch.z0 + lz, ph: rand(0, 6), gust: 0 });
+  }
+}
+function lanternParts() {
+  const p = [[0, 0, 0, 33.8, 0.05, 0.05, 0x333333]];
+  for (let x = -15; x <= 15.1; x += 2.5) p.push([x, -0.5, 0, 0.03, 0.5, 0.03, 0x333333], [x, -0.62, 0, 0.36, 0.1, 0.36, 0xd4af37], [x, -1.32, 0, 0.6, 0.7, 0.6, 0xd32f2f], [x, -1.42, 0, 0.36, 0.1, 0.36, 0xd4af37], [x, -1.85, 0, 0.06, 0.42, 0.06, 0xffc107]);
+  return p;
+}
+// ---------- the El: an elevated subway on green steel columns over the avenue, for a whole street; trains rumble over ----------
+const EL_CHANCE = 0.25, EL_COL = 0x3e5a43;
+function elevated(p, ch, run, isEnd) {
+  const zB = isEnd ? (run.endZc - 45) - ch.z0 : -100, mid = zB / 2, len = -zB;   // the last stretch runs into the building past the closure
+  for (const sx of [-1, 1]) p.push([sx * 8.6, 6.4, mid, 0.7, 1.4, len, EL_COL], [sx * 8.95, 7.8, mid, 0.08, 0.9, len, EL_COL]);   // side girders, railings
+  for (let z = -0.6; z > zB; z -= 1.2) p.push([0, 7.8, z, 17.9, 0.22, 0.42, 0x4a4f45]);   // the ties: they throw striped shadows on the road
+  for (const tx of [-2.6, 2.6]) for (const r of [-0.72, 0.72]) p.push([tx + r, 8.02, mid, 0.12, 0.16, len, 0x8f8f8f]);   // two tracks
+  for (let z = -7; z > zB + 2; z -= 15) {
+    if (z < -74 && z > -106) continue;   // none in the cross street
+    for (const sx of [-1, 1]) {
+      const x = sx * 8.6, wz = ch.z0 + z;
+      if (ch.statics.some((o) => Math.abs(o.x - x) < o.hw + 0.5 && Math.abs(o.z - wz) < o.hd + 0.5)) continue;   // not through a parked car or truck
+      p.push([x, 0, z, 0.6, 6.4, 0.6, EL_COL], [x, 0, z, 0.9, 0.5, 0.9, 0x555555]);
+      addStatic(ch, x, wz, 0.32, 0.32, 'pillar');
+    }
+    p.push([0, 6.0, z, 17.8, 0.45, 0.5, EL_COL]);   // cross beam
+  }
+}
+const TRAIN_GEO = (() => {   // four silver subway cars (front toward -z)
+  const p = [], S = 0xb9bec4, D = 0x1c2733;
+  for (let c = 0; c < 4; c++) {
+    const z0 = (c - 1.5) * 15.2;
+    p.push([0, 0, z0, 2.4, 0.4, 13.6, 0x2a2a2a], [0, 0.4, z0, 2.9, 3.3, 14.6, S], [0, 3.7, z0, 2.6, 0.22, 14.2, 0x9aa0a6]);
+    for (const sx of [-1, 1]) {
+      for (let w = -5.6; w <= 5.7; w += 2.2) p.push([sx * 1.46, 1.8, z0 + w, 0.02, 0.95, 1.3, D]);
+      for (const dz of [-3.6, 3.6]) p.push([sx * 1.46, 0.55, z0 + dz, 0.03, 2.7, 1.3, 0x8d9399]);
+    }
+  }
+  p.push([0, 2.4, -30.4, 1.6, 0.9, 0.05, D], [0, 3.4, -30.42, 0.5, 0.5, 0.03, 0xff8c00], [0, 2.4, 30.4, 1.6, 0.9, 0.05, D]);
+  return vox(p);
+})();
+function spawnTrain(run, z, dir) {   // dir > 0 comes toward you on the far track; dir < 0 overtakes you on the near one
+  const m = new THREE.Mesh(TRAIN_GEO, MAT.vox), x = dir > 0 ? -2.6 : 2.6;
+  if (dir > 0) m.rotation.y = Math.PI;
+  m.position.set(x, 8.1, z);
+  return addEnt(run, { type: 'train', kind: 'train', mesh: m, x, z, dir, v: dir > 0 ? 20 : player.base + 14, hw: 1.5, hd: 30, nm: true, lethal: false, rumbled: false });
+}
+function updTrain(run, e, dt) {
+  e.z += e.dir * e.v * dt; e.mesh.position.z = e.z;
+  if (!e.rumbled && Game.state === 'play' && Math.abs(e.z - PL.z) < 70) { e.rumbled = true; Sound.train(clamp((e.x - PL.x) / 8, -1, 1)); }
+}
 // Times Square: giant glowing billboards (unlit, so they shine), one material per ad
 const TS_ADS = ['WHAT DO?', 'I \u2665 NY', 'COLA', 'BROADWAY', 'EUC 4 LIFE', 'NOW SHOWING', 'TAXI!', 'HOT DOGS $2', 'PIGEON: THE MUSICAL', 'ONE WHEEL. NO FEAR.',
   'SALE 50% OFF', 'TKTS', 'BIG APPLE', 'NO CAP', 'MAIN CHARACTER', 'PIZZA RAT LIVE', 'SKYLINE', 'HELMETS ARE COOL', 'OPEN 24 HRS', 'RIZZ COLA'];
@@ -2471,8 +2605,13 @@ function updateDecor(dt) {
           award('COOL OFF!', SPRAY_PTS * (player.speed / player.base), 'trick', false);
         }
       }
+      if (ch.china && !ch.chinaSaid && playing && PL.z < ch.z0 - 2 && PL.z > ch.z0 - 40) { ch.chinaSaid = true; bigMsg('CHINATOWN!', '#ff5252'); }
       if (ch.times && !ch.timesSaid && playing && PL.z < ch.z0 - 2 && PL.z > ch.z0 - 40) { ch.timesSaid = true; bigMsg('TIMES SQUARE!', '#ffd23f'); }
       for (const a of ch.anims) {
+        if (a.kind === 'neon') {   // a few signs flicker: a burst of off-on every few seconds
+          if (a.fl) { const t = (animT + a.ph) % 6, mm = t < 0.5 && Math.sin(t * 60) > 0 ? a.mats.off : a.mats.on; if (a.m.material !== mm) a.m.material = mm; }
+          continue;
+        }
         if (a.kind === 'flag') { a.m.rotation.x = Math.sin(animT * 3.1 + a.ph) * 0.28 + Math.sin(animT * 7.7 + a.ph * 2) * 0.08; continue; }
         const near = playing && Math.abs(a.z - PL.z) < (a.kind === 'banner' ? 4 : 5) && (a.kind === 'banner' || Math.abs(a.x - PL.x) < 4);
         if (near) a.gust = Math.min(1, a.gust + dt * 6); else a.gust = Math.max(0, a.gust - dt * 1.5);
@@ -2652,6 +2791,7 @@ function genChunk(run, z0, idx) {
   const landmarkType = (idx + runs.length) % 4;
   // Times Square: at most one block a level, billboards up both sides and crowds of tourists
   if (!plazaSide && !isEnd && !isFirst && idx > 1 && !Game.timesDone && Math.random() < 0.3) { Game.timesDone = true; ch.times = true; }
+  else if (!plazaSide && !isEnd && !isFirst && idx > 1 && !run.el && !Game.chinaDone && Math.random() < 0.25) { Game.chinaDone = true; ch.china = true; }   // Chinatown (not under the El: the gate is in the way)
 
   for (const sx of [-1, 1]) {
     // ---------- buildings ----------
@@ -2683,7 +2823,12 @@ function genChunk(run, z0, idx) {
           decorAwning(g, ch, sx, cz, aw, ac);   // the front flap flutters
           ch.perches.push({ x: sx * 16.3, y: 3.42, z: z0 + cz, len: aw });
         }
-        if (h >= 16 && !ch.times && Math.random() < 0.22) decorFlag(g, p, ch, sx, cz, h);
+        const flagged = h >= 16 && !ch.times && !ch.china && Math.random() < 0.22;
+        if (flagged) decorFlag(g, p, ch, sx, cz, h);
+        if (!ch.times) {   // a fire escape, or a neon sign (never both: they'd overlap)
+          if (!flagged && !ch.china && h >= 16 && bw >= 8 && Math.random() < 0.3) fireEscape(p, sx, cz + rand(-bw / 2 + 2.2, bw / 2 - 2.2), h);
+          else if (Math.random() < (ch.china ? 0.75 : 0.35)) decorNeon(g, p, ch, sx, cz, bw);
+        }
         if (h <= 28) ch.perches.push({ x: sx * 16.85, y: h + 0.6, z: z0 + cz, len: bw * 0.8 });   // low rooftops, visible from the street
         if (h < 70 && Math.random() < 0.3) {
           const wx = sx * (17 + depth / 2 + rand(-2, 2)), wz = cz + rand(-bw / 4, bw / 4);
@@ -2784,6 +2929,7 @@ function genChunk(run, z0, idx) {
     run.closures.push({ lane: li, zTop: z0 + zt - 1, zBot: z0 + zb + 1, ch });
   }
 
+  if (run.el) elevated(p, ch, run, isEnd);
   // ---------- END OF RUN: road closed, detour forces a turn ----------
   if (isEnd) {
     const detMat = td > 0 ? SIGN.detR : SIGN.detL;
@@ -2827,7 +2973,8 @@ function genChunk(run, z0, idx) {
     p.push([cs * 4.5, 0, -9, 9, 0.03, 0.4, WHITE]);
   }
 
-  if (!isEnd && !isFirst && !plazaSide && Math.random() < 0.3) decorBanner(g, p, ch);
+  if (ch.china) chinatown(g, p, ch);
+  else if (!isEnd && !isFirst && !plazaSide && !run.el && Math.random() < 0.3) decorBanner(g, p, ch);   // (no banners under the El)
   if (glowP.length) {
     const gh = addMesh(g, vox(glowP), MAT.lampHead, 0, 0, 0); const gp = addMesh(g, quadsGeo(pools, 0.05), MAT.lampPool, 0, 0, 0);
     gp.renderOrder = 2; ch.glow.push(gh.geometry, gp.geometry);
@@ -3574,6 +3721,14 @@ function spawnTraffic(run, dt, playing) {
     if (z > lim && laneFree(run, li, z, 12)) spawnCar(run, li, z);
   }
   if (!playing || run !== player.run) return;
+  if (run.el) {   // now and then a train on the El: coming toward you, or overtaking from behind
+    run.trainT = (run.trainT === undefined ? rand(2, 6) : run.trainT) - 0.25;
+    if (run.trainT <= 0 && !run.ents.some((o) => o.type === 'train')) {
+      run.trainT = rand(10, 18);
+      const dir = Math.random() < 0.5 ? 1 : -1, z = dir > 0 ? Math.max(PL.z - 330, run.endZc - 75) : PL.z + 120;
+      if (z < run.base + 30 && (dir < 0 || PL.z - z > 100)) spawnTrain(run, z, dir);
+    }
+  }
   for (const I of run.inters) {
     I.red = Game.time < I.redUntil;
     const dist = PL.z - I.zc;
@@ -3602,14 +3757,16 @@ function updateRunEntities(run, dt) {
       case 'bike': updBike(run, e, dt); break;
       case 'pigeon': updPigeon(run, e, dt); break;
       case 'busker': updBusker(e, dt); break;
+      case 'train': updTrain(run, e, dt); break;
     }
     // traffic turns at the closure into the next run (and oncoming traffic comes back out)
     if (e.type === 'car' || e.type === 'bike' || e.type === 'rival') {
       if (e.dir < 0 && e.z < run.endZc + 2) { if (run.next) transferEnt(run, i, run.next); else killEnt(run, i); continue; }
       if (e.dir > 0 && run.turnIn && e.z > -2) { if (run.prev && runs.includes(run.prev)) transferEnt(run, i, run.prev); else killEnt(run, i); continue; }
     }
-    const behind = e.z > PL.z + 35, farAhead = e.z < PL.z - 420;
-    if (behind || farAhead || (e.type === 'xcar' && Math.abs(e.x) > 150) || (e.type === 'pigeon' && e.life <= 0)) killEnt(run, i);
+    const behind = e.z > PL.z + (e.type === 'train' ? 150 : 35), farAhead = e.z < PL.z - 420;
+    const offEl = e.type === 'train' && (e.z > run.base + 40 || e.z < run.endZc - 78);   // a train leaves the El at either end
+    if (behind || farAhead || offEl || (e.type === 'xcar' && Math.abs(e.x) > 150) || (e.type === 'pigeon' && e.life <= 0)) killEnt(run, i);
   }
   for (const I of run.inters) {
     I.red = Game.time < I.redUntil;
@@ -4092,7 +4249,7 @@ function startEagle() {
   // glide along a cross street, from one side to the other, so it never flies through a building.
   // It picks the intersection that will be 25-40 m in front of you when it's halfway across, however fast you're riding
   // (false if there's no suitable one yet, e.g. coming up to a road closure: try again shortly)
-  const r = player.run, side = Math.random() < 0.5 ? -1 : 1, dur = rand(6.5, 9), h = rand(8, 13);
+  const r = player.run, side = Math.random() < 0.5 ? -1 : 1, dur = rand(6.5, 9), h = rand(10, 14);   // (above the El's deck)
   const run = (Game.state === 'play' ? player.speed : 0) * dur * 0.5, want = rand(25, 40) + run;
   setPL(r);
   let best = null, bestD = Infinity;
@@ -4132,7 +4289,7 @@ function updateEagle(dt) {
 }
 function resetWorld() {
   Game.libertyN = 0; Game.libertyAt = randi(2, 5); Game.libertyDone = false;   // which chunk of this level gets the Statue of Liberty
-  Game.timesDone = false; 
+  Game.timesDone = false; Game.chinaDone = false;
   const rr = Math.random(); Game.rivalGang = rr < GANG_CHANCE; Game.rivalDone = rr >= GANG_CHANCE + 0.2;   // a rival gang in 5% of levels, a lone rival in 20%  
   Game.rivalAt = rand(8, 18); Game.billAt = rand(8, 18);   // Times Square block, the rival (in 1 level in 5), the first dollar bill
   if (BILL.on) endBill(); BILL.on = false; clearRivalDebris(); hideTicker(); $('wet').classList.remove('show');
@@ -4365,13 +4522,14 @@ function beginLevel() {
   showScreen(null); setHudVisible(true);
   Game.state = 'countdown'; Game.cd = 3.2; Game.lastCd = -1;
   resetGas(); $('unlockMsg').classList.remove('show'); Game.redJoke = false; Game.mericaJoke = false;
-  if ((Game.level === 1) && (Game.attempts > 1)) { Voice.say(againLine(), 2, 'joke');  }
+  if (Game.retry || (Game.level === 1 && Game.attempts > 1)) { Game.retry = false; Voice.say(againLine(), 2, 'joke'); }   // a line when you go again after a crash
   Sound.startMusic(Game.level);
   updateHud(true);
 }
 function restart() {
   resetFocus(); resetDroneCount(); Voice.unlock(); Game.bestCalled = false; Game.attempts = (Game.attempts || 0) + 1;
-  track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.level = 1; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
+  // after a crash you go again on the same level (only the score starts over)
+  track('play-again', 'Played again'); if (isTouch) goFullscreen(); Game.retry = true; Game.score = 0; Game.runT = 0; Game.near = 0; Game.turns = 0; Game.bestChain = 0; Sound.init(); beginLevel(); }
 function nextLevel() { if (isTouch) goFullscreen(); Game.level++; Sound.init(); beginLevel(); }
 const PAUSE_LINES = [
   'TAKE A BREATH. THE CITY WILL WAIT.', 
@@ -5042,6 +5200,8 @@ const DEATH = {
   parked: ['Discovered parked cars are, in fact, solid.'],
   closed: ['Ignored the ROAD CLOSED sign.', 'The detour was RIGHT THERE.', 'Road closed. So is your casket.'],
   building: ['Tried to ride through a building. The building won.'],
+  pillar: ['Hugged an El column. The El hugged back.', 'Met the elevated train. From below.'],
+  gate: ['Rode into the Chinatown gate. Bad luck for a year.', 'The gate was decorative. You were not.'],
   robot: ['Tripped over a delivery robot. Your food is late.', 'The robot has filed an incident report.', 'Defeated by a cooler on wheels.'],
   preacher: ['The end was near. Very near.', 'Knocked the preacher off his crate. Repent.'],
   carriage: ['Trampled by a horse. In Midtown.', 'Horsepower: 1. Wheel power: 0.', 'Neigh.']
