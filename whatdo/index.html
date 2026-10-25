@@ -2035,7 +2035,7 @@ function makeRun(theta, ox, oz, base, turnIn, prev) {
   const r = {
     root, theta, cos: Math.cos(theta), sin: Math.sin(theta), ox, oz, base, nextChunkZ: base, chunkCount: 0, length,
     turnDir: Math.random() < 0.5 ? -1 : 1, endZc: base - (length - 1) * CH - 90, next: null, prev, turnIn,
-    chunks: [], inters: [], closures: [], ents: [], flashers: [], spawnCd: 0, el: Math.random() < EL_CHANCE
+    chunks: [], inters: [], closures: [], ents: [], flashers: [], spawnCd: 0, el: Math.random() < EL_CHANCE, ramp: Math.random() < RAMP_CHANCE, ramps: []
   };
   runs.push(r);
   return r;
@@ -2257,6 +2257,31 @@ function lanternParts() {
   const p = [[0, 0, 0, 33.8, 0.05, 0.05, 0x333333]];
   for (let x = -15; x <= 15.1; x += 2.5) p.push([x, -0.5, 0, 0.03, 0.5, 0.03, 0x333333], [x, -0.62, 0, 0.36, 0.1, 0.36, 0xd4af37], [x, -1.32, 0, 0.6, 0.7, 0.6, 0xd32f2f], [x, -1.42, 0, 0.36, 0.1, 0.36, 0xd4af37], [x, -1.85, 0, 0.06, 0.42, 0.06, 0xffc107]);
   return p;
+}
+// ---------- tow-truck ramp: a rollback tow truck parked in the right lane with its bed tilted down to the road.
+// Ride up the bed from its low end and you launch off the top, over the cab (anything lower than you is cleared in the air).
+const RAMP_CHANCE = 0.25, RAMP_LEN = 7.5, RAMP_H = 2.75, RAMP_X = 6.75, RAMP_HW = 1.15;   // chance a street has one; the bed's run, rise, centre, half width
+const RAMP_SLOPE = RAMP_H / RAMP_LEN, RAMP_ANGLE = Math.atan(RAMP_SLOPE), RAMP_VY_MAX = 11;   // launch: up-speed = forward speed x slope, capped
+const TOW_BED_GEO = vox([[0, -0.15, 0, 2.4, 0.15, 8, 0x9aa0a6], [-1.15, -0.15, 0, 0.1, 0.35, 8, 0x444444], [1.15, -0.15, 0, 0.1, 0.35, 8, 0x444444],
+  ...[-3.2, -1.6, 0, 1.6, 3.2].map((z) => [0, 0, z, 2.2, 0.02, 0.4, 0xffd23f]), [0, 0, 3.85, 2.4, 0.03, 0.3, 0x111111]]);   // deck, side rails, yellow stripes
+function towTruck(g, p, ch, run, zr0) {
+  const x = RAMP_X, C = 0xf2c230;
+  for (const z of [zr0 - 3.2, zr0 - 4.8, zr0 - 9.4]) for (const s of [-1, 1]) p.push([x + s * 1.1, 0, z, 0.35, 0.9, 0.9, 0x161616]);   // wheels
+  p.push([x, 0.45, zr0 - 6.4, 2.1, 0.45, 7.6, 0x333333]);   // chassis (starting where the bed is clear of it)
+  p.push([x, 0.6, zr0 - 8.9, 2.4, 2.0, 2.6, C], [x, 1.7, zr0 - 10.21, 2.0, 0.7, 0.02, 0x1c2733], [x, 2.6, zr0 - 8.7, 1.7, 0.12, 0.35, 0x333333]);   // cab, windscreen, light bar
+  p.push([x, 0.5, zr0 - 4.5, 0.25, 1.0, 0.25, 0x666666], [x, 0.5, zr0 - 6.2, 0.25, 1.6, 0.25, 0x666666]);   // the hydraulic rams under the bed
+  const bed = addMesh(g, TOW_BED_GEO, MAT.vox, x, RAMP_H / 2 + 0.05, zr0 - RAMP_LEN / 2, true, true); bed.rotation.x = RAMP_ANGLE;
+  for (const s of [-1, 1]) { const a = addMesh(g, GEO.amber, amberOn, x + s * 0.6, 2.74, zr0 - 8.7); run.flashers.push(a); }
+  addStatic(ch, x, ch.z0 + zr0 - RAMP_LEN / 2 - 0.6, 1.25, RAMP_LEN / 2 - 0.6, 'towbed');   // ride into its side and you crash (the first 1.2 m is the way on)
+  addStatic(ch, x, ch.z0 + zr0 - 8.9, 1.25, 1.35, 'towtruck');
+  run.closures.push({ lane: 3, zTop: ch.z0 + zr0 - 11, zBot: ch.z0 + zr0 + 3, ch });   // traffic goes round it
+  run.ramps.push({ x, zLow: ch.z0 + zr0, zHigh: ch.z0 + zr0 - RAMP_LEN });
+}
+function rampAt() {   // the ramp under the rider, and its height there
+  for (const r of player.run.ramps) {
+    if (Math.abs(player.x - r.x) < RAMP_HW && player.z <= r.zLow + 0.3 && player.z >= r.zHigh) return { r, h: clamp((r.zLow - player.z) / RAMP_LEN, 0, 1) * RAMP_H };
+  }
+  return null;
 }
 // ---------- the El: an elevated subway on green steel columns over the avenue, for a whole street; trains rumble over ----------
 const EL_CHANCE = 0.25, EL_COL = 0x3e5a43;
@@ -2961,6 +2986,10 @@ function genChunk(run, z0, idx) {
     run.closures.push({ lane: li, zTop: z0 + zt - 1, zBot: z0 + zb + 1, ch });
   }
 
+  if (run.ramp && !run.rampDone && idx >= 1 && !isEnd && !isFirst && !ch.times) {   // one tow-truck ramp on this street
+    const zr0 = rand(-58, -18);
+    if (!run.closures.some((c) => c.lane === 3 && c.zTop < z0 + zr0 + 4 && c.zBot > z0 + zr0 - 12)) { run.rampDone = true; towTruck(g, p, ch, run, zr0); }
+  }
   if (run.el) elevated(p, ch, run, isEnd);
   // ---------- END OF RUN: road closed, detour forces a turn ----------
   if (isEnd) {
@@ -3977,6 +4006,8 @@ function updateRig(dt, t) {
   player.lean = damp(player.lean, clamp(-player.vx * 0.035 + (player.yawRate || 0) * 0.25, -0.8, 0.8), 10, dt);   // lean into slides and turns
   rig.lean.rotation.z = player.lean;
   rig.lean.rotation.x = -0.06 - sf * 0.16 - Math.min(1, (player.hy || 0) * 1.2) * 0.22;   // tucks forward in the air
+  const pitchT = player.onRamp ? RAMP_ANGLE : player.jumped ? clamp((player.vy || 0) * 0.03, -0.35, 0.35) : 0;
+  player.pitch = damp(player.pitch || 0, pitchT, 10, dt); rig.root.rotation.x = player.pitch;   // nose up the ramp, then following the arc
   rig.tire.rotation.x -= player.speed * dt / 0.45;
   const wave = Math.sin(t * 3.2);
   rig.armL.rotation.z = -0.45 - wave * 0.12 + player.lean * 0.6 - sf * 0.2;
@@ -4476,7 +4507,7 @@ function resetWorld() {
   const diff = Game.level - 1;
   player.base = Math.min(31, 19 + diff * 1.6); player.max = player.base + 15;
   player.x = 0; player.z = 0; player.y = 0; player.vx = 0; player.h = 0; player.speed = 0; player.lean = 0; player.alive = true; player.yawRate = 0; player.turnPhase = null; player.finishing = false; player.hitWall = false;
-  player.hy = 0; player.vy = 0; player.spinT = -1; player.spinA = 0;
+  player.hy = 0; player.vy = 0; player.spinT = -1; player.spinA = 0; player.onRamp = null; player.rampH = 0; player.jumped = false; player.airT = 0; player.carsOver = 0; player.hopOver = 0; player.airSpins = 0; player.pitch = 0;
   updatePW();
   manageRuns(true); manageRuns(true);
   setPL(player.run);
@@ -5090,6 +5121,9 @@ function buildScoring() {
       ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
       ['RELISH THE MOMENT!', 'Brush past the guy in the hot-dog costume', fmtPts(400, 800)],
       ['LADY LIBERTY!', 'Brush past the Statue of Liberty performer (one every level)', fmtPts(400, 800)],
+      ['BIG AIR!', 'Launch off a tow truck ramp (ride up its tilted bed); more the longer you fly', fmtPts(BIG_AIR_PTS) + '+'],
+      ['CAR JUMP!', 'Sail over cars off a ramp', fmtPts(CAR_JUMP_PTS, CAR_JUMP_PTS * 2) + ' EACH'],
+      ['STUCK THE LANDING!', 'Land a ramp jump riding straight (and not mid-spin: that wipes you out)', fmtPts(LANDING_PTS, LANDING_PTS * 2)],
       ['HOP OVER!', 'Bunny hop over something low: a hydrant, trash can, crates, a delivery robot, barriers…', fmtPts(HOP_OVER_PTS, HOP_OVER_PTS * 2) + ' EACH'],
       ['AIR 360!', 'Spin 360 in the middle of a bunny hop', fmtPts(AIR_SPIN_PTS, AIR_SPIN_PTS * 2)],
       ['PET THE CAT!', 'Ride past close to the bodega cat on the crates (on the sidewalk)', fmtPts(CAT_PTS)],
@@ -5343,7 +5377,7 @@ function checkCollisions(dt) {
       if (e.type === 'xcar') crossPass(e);   // every frame, so it always knows which side of the car's path the rider is on
       if (Math.abs(e.z - PL.z) > 14 || Math.abs(e.x - PL.x) > 14) continue;
       const res = testHit(e);
-      if (res === 2 && player.hy > (HOP_CLEAR[e.kind] ?? Infinity)) { if (!e.hopped) { e.hopped = true; player.hopOver++; } continue; }   // hopped over it
+      if (res === 2 && airH() > clearH(e)) { if (!e.hopped) { e.hopped = true; if (isVehicle(e)) player.carsOver++; else player.hopOver++; } continue; }   // over it in the air
       if (res === 2) { if (e.type === 'rival') { crashRival(r, e); continue; } if (e.kind === 'rat') { squashRat(r, e); continue; } die(e.kind, e); return; }
       if (res === 1 && e.type !== 'xcar' && !(e.kind === 'rat' && Math.abs(PL.x - e.x) < P_HW + e.hw)) { e.nm = true; nearMiss(e, false); }   // riding straight at the rat isn't a near miss: you're about to squash him
       if (mine) sideGap(e);
@@ -5353,7 +5387,8 @@ function checkCollisions(dt) {
       for (const s of ch.statics) {
         if (Math.abs(s.z - PL.z) > 14 + s.hd || Math.abs(s.x - PL.x) > 14 + s.hw) continue;
         const res = testHit(s);
-        if (res === 2 && player.hy > (HOP_CLEAR[s.kind] ?? Infinity)) { if (!s.hopped) { s.hopped = true; player.hopOver++; } continue; }
+        if (res === 2 && s.kind === 'towbed' && (player.onRamp || player.hy > RAMP_H)) continue;   // on the ramp (or above it), not into its side
+        if (res === 2 && airH() > clearH(s)) { if (!s.hopped) { s.hopped = true; if (s.kind === 'parked') player.carsOver++; else player.hopOver++; } continue; }
         if (res === 2) { die(s.kind, s); return; }
         if (res === 1) { s.nm = true; nearMiss(s, true); }
         if (mine) sideGap(s);
@@ -5393,6 +5428,9 @@ const DEATH = {
   pigeonman: ['Flattened a man dressed as a pigeon. The pigeons will remember.', 'Coo coo... crunch.'],
   sign: ['Took a SALE sign to the face.', 'Everything must go. Including you.', 'Spun out by a sign spinner.'],
   skate: ['Got kickflipped.', 'Skater: 1. Wheel: 0.', 'Grinded. By a skater.'],
+  towtruck: ['Rode into the tow truck. Now you need one.', 'Towed. Permanently.'],
+  towbed: ['Hit the side of the ramp. Wrong way on.', 'The ramp is at the BACK.'],
+  midspin: ['Landed mid-spin. The street was not impressed.', 'Over-rotated. Under-survived.'],
   pillar: ['Hugged an El column. The El hugged back.', 'Met the elevated train. From below.'],
   gate: ['Rode into the Chinatown gate. Bad luck for a year.', 'The gate was decorative. You were not.'],
   robot: ['Tripped over a delivery robot. Your food is late.', 'The robot has filed an incident report.', 'Defeated by a cooler on wheels.'],
@@ -5536,6 +5574,7 @@ function die(kind, ent) {
   if (SC.chainN > 1) popup('CHAIN LOST!', 'red');
   resetScoring(); $('chainBox').classList.add('hidden'); $('tricks').innerHTML = '';
   Game.cause = nextLine(DEATH[kind] || ['Splattered across the avenue.']);
+  if (player.jumped && player.hy > 0.2 && kind !== 'midspin') Game.cause = nextLine(LANDING_DEATHS);   // came down on something
   if (ent && ent.kind === 'liberty') Game.cause = nextLine(['Knocked over Lady Liberty. Unpatriotic.', 'Liberty and justice for none.', 'The torch has been dropped.']);
   if (ent && ent.kind === 'hotdog') Game.cause = nextLine(['Took out a hot dog. Hold the mustard.', 'Ran over the wiener.', 'Bun voyage.']);
   track('crash/' + (kind || 'unknown'), 'Crashed: ' + (kind || 'unknown') + ' (level ' + Game.level + ')');
@@ -5732,8 +5771,17 @@ function movePlayer(dt, steer, yawCtl) {
   if (player.x < -16.4) { player.x = -16.4; player.vx = Math.max(0, player.vx); }
   if (player.x > 16.4) { player.x = 16.4; player.vx = Math.min(0, player.vx); }
   const gy = groundY(player.run, player.x, player.z) - 0.02;
-  if (player.hy > 0 || player.vy > 0) {   // airborne (a bunny hop): fly, then land
-    player.vy -= HOP_G * dt; player.hy += player.vy * dt;
+  const ra = !(player.hy > 0 || player.vy > 0) ? rampAt() : null;
+  if (ra && !player.onRamp && player.z > ra.r.zLow - 1.2) { player.onRamp = ra.r; Sound.blip(140, 0.08, 'square', 0.12); }   // onto the bed from its low end
+  if (player.onRamp && ra && ra.r === player.onRamp) { player.rampH = ra.h; player.y = gy + ra.h; return; }   // riding up the bed
+  if (player.onRamp) {   // just came off the bed: over the top (a launch), or off the side (a drop)
+    const top = player.z < player.onRamp.zHigh + 0.3;
+    player.hy = player.rampH; player.vy = top ? Math.min(player.run.el ? 6 : RAMP_VY_MAX, player.speed * RAMP_SLOPE) : 0;   // (lower under the El: the deck is overhead)
+    player.onRamp = null; player.rampH = 0;
+    if (top) { player.jumped = true; player.airT = 0; player.carsOver = 0; player.hopOver = 0; player.airSpins = 0; Sound.whoosh(0, 1.1); Sound.blip(180, 0.12, 'square', 0.1); }
+  }
+  if (player.hy > 0 || player.vy > 0) {   // airborne (a bunny hop or a ramp jump): fly, then land
+    player.vy -= HOP_G * dt; player.hy += player.vy * dt; player.airT = (player.airT || 0) + dt;
     if (player.hy <= 0) { player.hy = 0; player.vy = 0; landHop(); }
     player.y = gy + player.hy;
   } else player.y = damp(player.y, gy, 18, dt);
@@ -5741,16 +5789,39 @@ function movePlayer(dt, steer, yawCtl) {
 /* ---------- tricks: BUNNY HOP (E / J, gamepad B) and SPIN 360 (Q / K, gamepad Y): keyboard and controller only ----------
    A hop clears low things (HOP_CLEAR: how high you need to be, by kind); a spin is a quick full turn of the rider, worth more in the air */
 const HOP_V = 4.0, HOP_G = 23;   // take-off speed and gravity (m/s, m/s²): about 1.2 m up and 0.65 s in the air
-const HOP_CLEAR = { hydrant: 0.7, trash: 1.0, crates: 0.8, rat: 0.25, robot: 0.7, barrier: 0.95 };
+const HOP_CLEAR = { hydrant: 0.7, trash: 1.0, crates: 0.8, rat: 0.25, robot: 0.7, barrier: 0.95, towtruck: 2.5, cart: 3.0, news: 3.0, subway: 1.5, rival: 2.4 };
+const VEH_H = { sedan: 1.45, taxi: 1.6, suv: 1.8, police: 1.65, truck: 3.4, bus: 3.4, tourbus: 3.7, carriage: 2.6 };
+// how high you have to be to pass over something in the air (Infinity: lamps, trees, buildings... never)
+function clearH(o) {
+  if (HOP_CLEAR[o.kind] !== undefined) return HOP_CLEAR[o.kind];
+  if (o.type === 'car' || o.type === 'xcar') return VEH_H[o.kind] || 1.8;
+  if (o.kind === 'parked' || o.kind === 'truck') return o.veh ? VEH_H[o.veh.kind] || 1.8 : 3.4;
+  if (o.type === 'ped' || o.type === 'bike') return 2.0;
+  return Infinity;
+}
+const airH = () => Math.max(player.hy || 0, player.onRamp ? player.rampH || 0 : 0);   // how high the rider is off the road (in the air, or up the ramp)
+const BIG_AIR_PTS = 600, CAR_JUMP_PTS = 700, LANDING_PTS = 400;
+const LANDING_DEATHS = ['Landed on a taxi. The taxi did not agree.', 'Stuck the landing. In a windshield.', 'Air mail: return to sender.', 'Flew too close to the traffic.'];
 const HOP_PTS = 80, HOP_OVER_PTS = 300, SPIN_PTS = 150, AIR_SPIN_PTS = 450, SPIN_TIME = 0.55;
 function hop() {
-  if (Game.state !== 'play' || player.hy > 0 || player.vy > 0) return;
+  if (Game.state !== 'play' || player.hy > 0 || player.vy > 0 || player.onRamp) return;
   player.vy = HOP_V; player.hopOver = 0; player.spunInAir = false;
   Sound.blip(260, 0.05, 'square', 0.07); Sound.blip(520, 0.06, 'square', 0.05, 0.03);
 }
 function landHop() {
-  Sound.blip(95, 0.1, 'sine', 0.25); Game.shake = Math.max(Game.shake, 0.08);
+  const big = player.jumped; player.jumped = false;
+  Sound.blip(95, 0.1, 'sine', big ? 0.45 : 0.25); Game.shake = Math.max(Game.shake, big ? 0.4 : 0.08);
   if (Game.state !== 'play') return;
+  if (big) {   // down from a ramp jump
+    if (player.spinT >= 0) { die('midspin', null); return; }   // still spinning when you land: wipe out
+    const sf = player.speed / player.base;
+    award('BIG AIR! ' + player.airT.toFixed(1) + 's', BIG_AIR_PTS * player.airT * player.airT * sf, 'good');
+    if (player.carsOver > 0) award('CAR JUMP!' + (player.carsOver > 1 ? ' x' + player.carsOver : ''), CAR_JUMP_PTS * player.carsOver * sf, 'good');
+    if (player.hopOver > 1) award('CLEARED x' + player.hopOver, HOP_OVER_PTS * player.hopOver * sf, 'good');   // (the tow truck's cab is always one)
+    if (Math.abs(player.vx) < 5) award('STUCK THE LANDING!', LANDING_PTS * sf, 'good');
+    player.airSpins = 0;
+    return;
+  }
   if (player.hopOver > 0) award('HOP OVER!' + (player.hopOver > 1 ? ' x' + player.hopOver : ''), HOP_OVER_PTS * player.hopOver * (player.speed / player.base), 'good');
   else award('BUNNY HOP', HOP_PTS, 'trick', false);
 }
@@ -5767,7 +5838,8 @@ function updateTricks(dt) {
   if (k >= 1) {
     const air = player.spinAir || player.hy > 0.15;
     player.spinT = -1; player.spinA = 0;
-    if (air) award('AIR 360!', AIR_SPIN_PTS * (player.speed / player.base), 'good'); else award('SPIN 360!', SPIN_PTS, 'trick', false);
+    if (air) { player.airSpins = (player.airSpins || 0) + 1; const n = player.airSpins; award('AIR ' + n * 360 + '!', AIR_SPIN_PTS * n * (player.speed / player.base), 'good'); }   // AIR 360, 720, 1080...
+    else award('SPIN 360!', SPIN_PTS, 'trick', false);
   }
 }
 function updatePlay(dt) {
@@ -5867,7 +5939,7 @@ function updateCamera(dt) {
   if (Game.state === 'play' || Game.state === 'countdown') {
     // chase distance: CAM_ZOOM scales the offset toward the rider's chest (y 1.2), keeping the same downward angle
     const back = ((portrait ? 9.5 : 7.4) - sf * 1.2) * CAM_ZOOM, up = 1.2 + ((portrait ? 5.2 : 3.7) + sf * 0.3 - 1.2) * CAM_ZOOM;
-    let lx = -player.x * 0.18, lz = back, ly = up, lookZ = -14;
+    let lx = -player.x * 0.18, lz = back, ly = up + Math.max(player.hy || 0, player.rampH || 0) * 0.65, lookZ = -14;   // rises with a jump
     if (Game.state === 'countdown') { const k = clamp(Game.cd / 3.2, 0, 1), a = k * 2.2; lx = Math.sin(a) * 8 * k + lx * (1 - k); lz = Math.cos(a) * 8 * k + back * (1 - k); ly = up + k * 1.5; lookZ = -14 * (1 - k); }
     // first half of a turn the camera only leans slightly with you; after the hand-off it swings to the new street
     const ct = CAM_TURN[player.turnPhase || 'none'], yawT = R.theta + player.h * ct.cam, lookT = R.theta + player.h * ct.look;
@@ -5882,7 +5954,7 @@ function updateCamera(dt) {
     camera.position.set(PW.x + camOff.x, camOff.y, PW.z + camOff.z);
     rotXZ(-player.x * 0.12 + player.vx * 0.06, lookZ, lookYaw + camLook, _o2);
     // up: aim at the skyline; down: aim at the road and lift the camera a little for a more overhead view
-    _look.set(PW.x + _o2.x, 1.5 + (camPitch > 0 ? camPitch * 9 : camPitch * 6), PW.z + _o2.z);
+    _look.set(PW.x + _o2.x, 1.5 + Math.max(player.hy || 0, player.rampH || 0) * 0.8 + (camPitch > 0 ? camPitch * 9 : camPitch * 6), PW.z + _o2.z);
     if (camPitch < 0) camera.position.y -= camPitch * 1.6;
     fov = (portrait ? 80 : 66) + sf * 18 + (player.speed / player.max) * 4 - FOCUS.k * 7;
   } else if (Game.state === 'menu') {
