@@ -869,7 +869,7 @@ function pedParts(v, ph) {
   if (v.briefcase) p.push([0.4, 0.4, 0, 0.1, 0.38, 0.5, 0x3e2723]);
   return p;
 }
-const PEDS = { ped: [], tourist: [], business: [], hotdog: [], liberty: [], rat: [], preacher: [], spidey: [], robot: [] };
+const PEDS = { ped: [], tourist: [], business: [], hotdog: [], liberty: [], rat: [], preacher: [], spidey: [], robot: [], pigeonman: [] };
 // a person in a giant hot-dog costume: a sausage with mustard in a bun, a face hole, red tights
 function hotdogParts(ph) {
   const p = [], lz = ph === 1 ? -0.14 : ph === 2 ? 0.14 : 0;
@@ -935,6 +935,17 @@ function robotParts() {
   p.push([0.22, 0.76, 0.3, 0.025, 0.95, 0.025, 0x9a9a9a], [0.28, 1.56, 0.3, 0.12, 0.15, 0.02, 0xff6a00]);   // flag
   return p;
 }
+// a mascot in a giant pigeon costume: grey body, a green-and-purple sheen on the neck, orange beak and feet, wing arms
+function pigeonmanParts(ph) {
+  const p = [], G = 0x8a8f99, a = ph === 1 ? 0.12 : ph === 2 ? -0.12 : 0;
+  for (const s of [-1, 1]) { const z = s < 0 ? a : -a; p.push([s * 0.18, 0, z, 0.12, 0.55, 0.12, 0xd9774a], [s * 0.18, 0, z - 0.12, 0.14, 0.05, 0.3, 0xd9774a]); }   // pink-orange legs and toes
+  p.push([0, 0.5, 0.02, 0.95, 1.15, 0.85, G], [0, 1.25, -0.05, 0.8, 0.45, 0.75, 0x4a7a6a], [0, 1.5, -0.04, 0.76, 0.12, 0.71, 0x7a4a8a]);   // body, sheen
+  p.push([0, 1.62, -0.05, 0.58, 0.55, 0.58, 0x9aa0aa], [0, 1.85, -0.4, 0.14, 0.1, 0.22, 0xe8a33d], [0, 1.95, -0.36, 0.16, 0.06, 0.12, 0xf2f2f2]);   // head, beak, cere
+  for (const s of [-1, 1]) p.push([s * 0.2, 1.92, -0.33, 0.13, 0.13, 0.02, 0xff8c00], [s * 0.2, 1.95, -0.345, 0.06, 0.06, 0.02, 0x111111]);   // orange eyes
+  for (const s of [-1, 1]) p.push([s * 0.56, 0.65, 0.05, 0.14, 0.95, 0.65, 0x7a808a], [s * 0.64, 0.9, 0.05, 0.02, 0.1, 0.6, 0x333333], [s * 0.64, 1.1, 0.05, 0.02, 0.1, 0.6, 0x333333]);   // wings with dark bars
+  p.push([0, 0.45, 0.5, 0.55, 0.15, 0.45, 0x6a7080], [0, 0.45, 0.72, 0.55, 0.08, 0.06, 0x333333]);   // tail
+  return p;
+}
 (function buildPeds() {
   const mk = (kind, v) => PEDS[kind].push({ kind, geo: [vox(pedParts(v, 0)), vox(pedParts(v, 1)), vox(pedParts(v, 2))] });
   PEDS.hotdog.push({ kind: 'hotdog', geo: [vox(hotdogParts(0)), vox(hotdogParts(1)), vox(hotdogParts(2))] });
@@ -942,6 +953,7 @@ function robotParts() {
   PEDS.rat.push({ kind: 'rat', geo: [vox(ratParts(0)), vox(ratParts(1)), vox(ratParts(2))], flat: vox(ratParts(0).map((q) => [q[0], q[1] * 0.25, q[2], q[3] * 1.15, q[4] * 0.25, q[5] * 1.1, q[6]])) });
   const pr = vox(preacherParts()); PEDS.preacher.push({ kind: 'preacher', geo: [pr, pr, pr] });
   const rb = vox(robotParts()); PEDS.robot.push({ kind: 'robot', geo: [rb, rb, rb] });
+  PEDS.pigeonman.push({ kind: 'pigeonman', geo: [vox(pigeonmanParts(0)), vox(pigeonmanParts(1)), vox(pigeonmanParts(2))] });
   PEDS.spidey.push({ kind: 'spidey', geo: [vox(spideyParts(0)), vox(spideyParts(1)), vox(spideyParts(2))] });
   for (let i = 0; i < 14; i++) {
     const shirt = pick(SHIRTS);
@@ -971,9 +983,18 @@ function bikeParts(v) {
   if (v.box) { p.push([0, 1.2, 0.36, 0.64, 0.62, 0.52, v.box]); p.push([0, 1.42, 0.36, 0.66, 0.1, 0.54, 0xffffff]); }
   return p;
 }
-const BIKES = { bike: [], delivery: [] };
+const BIKES = { bike: [], delivery: [], skate: [] };
+// a skateboarder: standing sideways on the board (the body turned 90 degrees), front of the board toward -z
+function skaterParts(v) {
+  const p = [[0, 0.07, 0, 0.26, 0.05, 0.9, v.deck], [0, 0.12, 0, 0.26, 0.01, 0.86, 0x222222], [0, 0.1, -0.47, 0.24, 0.03, 0.08, v.deck], [0, 0.1, 0.47, 0.24, 0.03, 0.08, v.deck]];
+  for (const x of [-0.09, 0.09]) for (const z of [-0.3, 0.3]) p.push([x, 0, z, 0.06, 0.07, 0.07, 0xf2f2f2]);
+  const body = pedParts({ skin: v.skin, hair: v.hair, shirt: v.shirt, sleeve: v.shirt, pants: v.pants, shoe: 0x111111, cap: v.cap }, 0);
+  for (const q of body) p.push([q[2], q[1] + 0.13, -q[0], q[5], q[4], q[3], q[6]]);   // turned to face sideways
+  return p;
+}
 (function buildBikes() {
   for (let i = 0; i < 5; i++) BIKES.bike.push({ kind: 'bike', geo: vox(bikeParts({ frame: pick([0xe53935, 0x1e88e5, 0x43a047, 0x212121, 0x00bcd4]), pants: pick(PANTS), shirt: pick(SHIRTS), skin: pick(SKINS), helmet: pick([0xffffff, 0x111111, 0xff9800, 0x3f51b5]) })) });
+  for (let i = 0; i < 4; i++) BIKES.skate.push({ kind: 'skate', geo: vox(skaterParts({ deck: pick([0x5a3a1a, 0xd32f2f, 0x1e88e5, 0x111111]), skin: pick(SKINS), hair: pick(HAIRS), shirt: pick(SHIRTS), pants: pick([0x2c3e50, 0x1a1a1a, 0x6d6d6d, 0x3e5f8a]), cap: pick([0, 0x111111, 0xd32f2f, 0x2e7d32]) })) });
   for (let i = 0; i < 4; i++) BIKES.delivery.push({ kind: 'delivery', geo: vox(bikeParts({ frame: 0x333333, pants: 0x222222, shirt: pick([0x111111, 0x2e7d32, 0xc62828, 0xff6f00]), skin: pick(SKINS), helmet: 0x111111, box: pick([0xd32f2f, 0x00a19a, 0xff7a00, 0x111111]) })) });
 })();
 // ---------- pigeons ----------
@@ -1435,6 +1456,15 @@ const Sound = (() => {
     // a few coins jingling in the drawer
     for (let k = 0; k < 5; k++) { const at = tb + 0.12 + k * rand(0.05, 0.09); tone(at, rand(5200, 7600), 0.05, 0.09); }
   }
+  // a cat's meow: a nasal rise and fall ("mrr-OW")
+  function meow(pan, vol) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
+    const os = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    os.type = 'sawtooth'; os.frequency.setValueAtTime(520, t); os.frequency.linearRampToValueAtTime(820, t + 0.18); os.frequency.exponentialRampToValueAtTime(430, t + 0.55);
+    bp.type = 'bandpass'; bp.Q.value = 3; bp.frequency.setValueAtTime(900, t); bp.frequency.linearRampToValueAtTime(1800, t + 0.2); bp.frequency.linearRampToValueAtTime(1000, t + 0.55);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.16 * vol, t + 0.06); g.gain.linearRampToValueAtTime(0.12 * vol, t + 0.35); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.6);
+    os.connect(bp); bp.connect(g); g.connect(o); os.start(t); os.stop(t + 0.65);
+  }
   // horse hooves: a hollow double knock (clip-clop)
   function clop(pan, vol) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
@@ -1832,7 +1862,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, train, clop, neigh, chaching, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, train, meow, clop, neigh, chaching, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -3237,6 +3267,8 @@ const RED_JOKES = ['Red means go', 'Red is just a suggestion', 'That light was m
  'Red means speed up', 
   'The cops saw that'];
 const ROBOT_BUBBLES = ['BEEP BOOP!', 'PLEASE STAND CLEAR', 'OBSTACLE DETECTED', 'YOUR ORDER IS ON ITS WAY', 'RECALCULATING ROUTE', 'HUMAN DETECTED. PAUSING.'];
+const PIGEONMAN_BUBBLES = ['COO COO!', 'I AM ONE OF THEM NOW', 'FEED ME BREAD!', 'FLAP FLAP!', "I'M NOT A REAL BIRD", 'THE FLOCK PROTECTS ME'];
+const KID_BUBBLES = ['MY BALLOON!', 'NOOO!', 'COME BACK!', 'BYE BALLOON...'];
 const RAT_BUBBLES = ['SQUEAK!', 'MY SLICE!', 'DOLLAR SLICE, BABY!', 'NOT THE PIZZA!'];
 const PREACHER_LINES = ['THE END IS NEAR!', 'REPENT!', 'THE L TRAIN IS NEVER COMING!', 'TURN BACK NOW!', 'ONE WHEEL TO DOOM!', 'BLESSED ARE THE PEDESTRIANS!', 'THE RENT IS TOO HIGH!', 'BIKE LANES ARE A SIGN!', 'I SEE YOU, WHEEL BOY!', 'GET A SECOND WHEEL!'];
 const LIBERTY_BUBBLES = ['GIVE ME YOUR TIRED!', 'LET FREEDOM RIDE!', 'TIPS APPRECIATED!', 'WATCH THE TORCH!', "I'M A NATIONAL MONUMENT!"];
@@ -3264,6 +3296,8 @@ function updPed(run, e, dt) {
   e.t += dt;
   if (e.mode === 'hifive') { updHiFive(e, dt); return; }
   if (e.mode === 'hang') { updSpidey(e, dt); return; }
+  if (e.mode === 'kid') { updKid(run, e, dt); return; }
+  if (e.mode === 'cat') { updCat(e, dt); return; }
   if (e.mode === 'squashed') return;
   if (e.mode === 'robot') { updRobot(run, e, dt); return; }
   if (e.mode === 'fallen') {
@@ -3325,7 +3359,7 @@ function updBike(run, e, dt) {
   e.t += dt; e.swT -= dt;
   if (Game.state === 'play') {
     const d = Math.hypot(e.x - PL.x, e.z - PL.z);
-    if (!e.rang && d < 10) { e.rang = true; Sound.bell(clamp((e.x - PL.x) / 6, -1, 1), clamp(1.2 - d / 12, 0.3, 1)); }
+    if (!e.rang && d < 10 && e.kind !== 'skate') { e.rang = true; Sound.bell(clamp((e.x - PL.x) / 6, -1, 1), clamp(1.2 - d / 12, 0.3, 1)); }
     else if (e.rang && d > 30) e.rang = false;
   }
   if (e.swT <= 0) { e.swT = rand(3, 9); e.tx = Math.random() < 0.3 + 0.05 * (Game.level - 1) ? 6.75 : e.homeX + rand(-0.6, 0.6); }
@@ -3339,6 +3373,13 @@ function updBike(run, e, dt) {
   e.mesh.position.set(e.x, Math.abs(Math.sin(e.t * 7)) * 0.03, e.z);
   e.mesh.rotation.y = (e.dir > 0 ? Math.PI : 0) + e.turnYaw;
   e.mesh.rotation.z = Math.sin(e.t * 3.5) * 0.05;
+  if (e.kind === 'skate') {   // carving side to side, and an ollie every few seconds
+    e.tx = e.homeX + Math.sin(e.t * 1.3) * 0.7;
+    e.ollieT = (e.ollieT === undefined ? rand(1, 3) : e.ollieT) - dt;
+    if (e.ollieT < 0) { const k = -e.ollieT / 0.55; if (k >= 1) e.ollieT = rand(2, 4.5); else { e.mesh.position.y = Math.sin(k * Math.PI) * 0.55; e.mesh.rotation.x = Math.sin(k * Math.PI * 2) * 0.25; } }
+    else e.mesh.rotation.x = 0;
+    e.mesh.rotation.y += Math.sin(e.t * 1.3 + 1.2) * 0.25;
+  }
 }
 // ---------- horse-drawn carriage: a slow 'car' in the right lane (no lane changes, no honking), legs trotting ----------
 const CARRIAGE_GEO = [0, 1].map((ph) => {
@@ -3550,6 +3591,111 @@ function updRobot(run, e, dt) {
   e.mesh.position.set(e.x, groundY(run, e.x, e.z) + (moving ? Math.abs(Math.sin(e.t * 14)) * 0.015 : 0), e.z);
   e.mesh.rotation.z = moving ? Math.sin(e.t * 9) * 0.015 : 0;
 }
+// ---------- bodega cat: lounging on a stack of crates outside a corner shop; ride past close to pet it ----------
+const CAT_PTS = 400, CAT_REACH = 2.2;   // points, and how close (m, sideways) you have to pass
+const CAT_COATS = [[0xe08a3c, 0xf3c48a], [0xd9772a, 0xf6d3a1]];   // orange: two shades of ginger, with a cream chest and paws
+const CAT_BUBBLES = ['PURRR...', 'MRROW!', '\u2665 PURR \u2665', 'MEOW.', '*SLOW BLINK*'];
+function catGeo(c) {   // body, head, tail as three pieces (the head turns, the tail swishes); front faces -z
+  const [A, B] = CAT_COATS[c];
+  return decoGeo('cat' + c, () => ({
+    body: vox([[0, 0, 0.02, 0.28, 0.3, 0.42, A], [0, 0.04, -0.1, 0.2, 0.18, 0.06, B], [-0.08, 0, -0.17, 0.07, 0.06, 0.08, B], [0.08, 0, -0.17, 0.07, 0.06, 0.08, B]]),
+    head: vox([[0, -0.01, 0, 0.26, 0.22, 0.22, A], [-0.08, 0.21, 0.02, 0.07, 0.08, 0.05, A], [0.08, 0.21, 0.02, 0.07, 0.08, 0.05, A], [0, 0.02, -0.12, 0.1, 0.06, 0.03, B],
+      [-0.06, 0.09, -0.115, 0.05, 0.035, 0.02, 0x9bd16a], [0.06, 0.09, -0.115, 0.05, 0.035, 0.02, 0x9bd16a], [0, 0.04, -0.13, 0.03, 0.02, 0.02, 0xd98a9a]]),
+    tail: vox([[0, 0, 0.02, 0.06, 0.06, 0.32, A], [0, 0, 0.3, 0.06, 0.22, 0.06, A]])
+  }));
+}
+const CRATES_GEO = vox([[0, 0, 0, 0.75, 0.42, 0.55, 0x8a5a2b], [0, 0.42, 0, 0.75, 0.42, 0.55, 0x9c6b33], [0, 0.4, 0, 0.77, 0.03, 0.57, 0x5a3a1a],
+  [0, 0, 0.62, 0.75, 0.42, 0.55, 0x8a5a2b], [0, 0.4, 0.62, 0.7, 0.08, 0.5, 0xf28c28], [0, 0.4, -0.62, 0.7, 0.08, 0.5, 0xd32f2f], [0, 0, -0.62, 0.75, 0.42, 0.55, 0x9c6b33]]);   // crates, oranges, apples
+function spawnCat(run, ch, sx, z) {
+  const x = sx * 16.2, gy = groundY(run, x, ch.z0 + z);
+  addMesh(ch.g, CRATES_GEO, MAT.vox, x, gy, z, true, true);
+  addStatic(ch, x, ch.z0 + z, 0.4, 0.95, 'crates');
+  const geo = catGeo(randi(0, CAT_COATS.length - 1)), root = new THREE.Group();
+  root.position.set(x, gy + 0.84, ch.z0 + z); root.rotation.y = sx * Math.PI / 2; root.scale.setScalar(1.5);   // on top of the crates, facing the street
+  const body = new THREE.Mesh(geo.body, MAT.vox), head = new THREE.Mesh(geo.head, MAT.vox), tail = new THREE.Mesh(geo.tail, MAT.vox);
+  head.position.set(0, 0.32, -0.12); tail.position.set(0.1, 0.04, 0.16); root.add(body, head, tail);   // tail from the back corner, curled round to the side (not into the wall behind)
+  for (const m of root.children) m.castShadow = true;
+  return addEnt(run, { type: 'ped', kind: 'cat', mode: 'cat', mesh: root, head, tail, x, z: ch.z0 + z, sx, hw: 0.3, hd: 0.3, t: rand(0, 6), nm: true, lethal: false, petted: false, bubbleY: 2.2 });
+}
+function updCat(e, dt) {
+  e.tail.rotation.y = 1.35 + Math.sin(e.t * (e.petted ? 4 : 1.6)) * 0.35; e.tail.rotation.x = e.petted ? -0.6 : 0;   // swishing out to the side; up when happy
+  const dx = PL.x - e.x, dz = PL.z - e.z, near = Game.state === 'play' && Math.hypot(dx, dz) < 25;
+  const look = near ? clamp(normAng(Math.atan2(-dx, -dz) - e.mesh.rotation.y), -1, 1) : Math.sin(e.t * 0.3) * 0.3;   // watches you go by
+  e.head.rotation.y = damp(e.head.rotation.y, look, 4, dt);
+  e.head.scale.y = (e.t % 4.5) < 0.12 ? 0.85 : 1;   // a slow blink, now and then
+  const side = dz > 0 ? 1 : -1, was = e.pSide; e.pSide = side;
+  if (!e.petted && was !== undefined && was !== side && Game.state === 'play' && Math.abs(dx) < CAT_REACH) {
+    e.petted = true;
+    award('PET THE CAT!', CAT_PTS * (player.speed / player.base), 'good');
+    Sound.meow(clamp(-dx / 4, -1, 1), 1); pedBubble(e, nextLine(CAT_BUBBLES)); buzz(20);
+  }
+}
+// ---------- escaped balloon: a kid by the shop windows lets go of a balloon as you ride up, and it floats away on the wind ----------
+const BALLOON_COLS = [0xe53935, 0xffd23f, 0x1e88e5, 0xff6fae, 0x43a047];
+const balloonGeo = (c) => decoGeo('balloon' + c, () => vox([[0, 1.0, 0, 0.5, 0.62, 0.5, c], [0, 1.08, 0, 0.62, 0.44, 0.62, c], [0, 0.96, 0, 0.1, 0.06, 0.1, c], [0, 0, 0, 0.02, 0.96, 0.02, 0xdddddd]]));   // string from y 0 up to the balloon
+function spawnKid(run, x, z) {
+  const e = spawnPed(run, 'ped', x, z, 'kid', { nm: true, lethal: false, bubbleY: 1.9, freed: false, bt: 0 });   // (a kid: never hit, never in a crash)
+  e.mesh.scale.setScalar(0.62); e.mesh.rotation.y = Math.sign(x) * Math.PI / 2;   // facing the street
+  const b = new THREE.Mesh(balloonGeo(pick(BALLOON_COLS)), MAT.vox); b.castShadow = true;
+  b.position.set(x - Math.sign(x) * 0.25, groundY(run, x, z) + 0.6, z); run.root.add(b);
+  e.balloon = b; e.bvx = 0; e.bvz = 0; e.by = b.position.y;
+  return e;
+}
+function updKid(run, e, dt) {
+  const b = e.balloon; if (!b) return;
+  const ahead = PL.z - e.z;
+  if (!e.freed) {
+    b.rotation.z = Math.sin(e.t * 1.7) * 0.08;
+    if (Game.state === 'play' && ahead > 0 && ahead < 26) { e.freed = true; pedBubble(e, nextLine(KID_BUBBLES)); }
+    return;
+  }
+  e.bt += dt;
+  const wx = WIND.x * run.cos - WIND.z * run.sin, wz = WIND.x * run.sin + WIND.z * run.cos;   // the wind in this street's frame
+  e.bvx += (wx * 0.8 - e.bvx) * dt; e.bvz += (wz * 0.8 - e.bvz) * dt;
+  e.by += Math.min(1.8, 0.6 + e.bt) * dt;
+  b.position.set(b.position.x + (e.bvx + Math.sin(e.bt * 1.9) * 0.4) * dt, e.by, b.position.z + e.bvz * dt);
+  b.rotation.z = Math.sin(e.bt * 2.3) * 0.25; b.rotation.x = Math.sin(e.bt * 1.7) * 0.15;
+  if (e.by > 70) { run.root.remove(b); e.balloon = null; }
+}
+// ---------- sign spinner: twirls a big arrow sign at the curb, sweeping it out over the bike lane ----------
+const SPINNER_WORDS = ['SALE!', 'CONDOS', 'PIZZA', 'WE BUY GOLD', 'GRAND OPENING', 'MATTRESSES', 'PHONES 50% OFF', 'OPEN HOUSE'];
+const spinMats = new Map();
+function spinnerMat(text) {
+  let m = spinMats.get(text); if (m) return m;
+  const tex = canvasTex(512, 140, (x, w, h) => {
+    x.fillStyle = '#ffd23f'; x.beginPath(); x.moveTo(0, 20); x.lineTo(w - 70, 20); x.lineTo(w - 70, 0); x.lineTo(w, h / 2); x.lineTo(w - 70, h); x.lineTo(w - 70, h - 20); x.lineTo(0, h - 20); x.closePath(); x.fill();
+    x.lineWidth = 6; x.strokeStyle = '#111'; x.stroke();
+    let fs = 64; x.font = 'bold ' + fs + 'px Impact, "Arial Black", sans-serif'; while (x.measureText(text).width > w - 120 && fs > 26) { fs -= 4; x.font = 'bold ' + fs + 'px Impact, "Arial Black", sans-serif'; }
+    x.fillStyle = '#d32f2f'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, (w - 60) / 2, h / 2 + 3);
+  });
+  m = new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, alphaTest: 0.5 }); spinMats.set(text, m); return m;
+}
+GEO.spinSign = new THREE.PlaneGeometry(2.3, 0.63).translate(1.15, 0, 0);   // held at one end
+const SPIN_R = 1.15;   // from the hand to the middle of the sign
+function spawnSpinner(run, sx, z) {
+  const x = sx * 11.9, guy = spawnPed(run, 'ped', x, z, 'stand');
+  guy.mesh.rotation.y = sx * Math.PI / 2;   // facing the street
+  const piv = new THREE.Group(); piv.position.set(x, groundY(run, x, z) + 1.25, z);
+  const sign = new THREE.Mesh(GEO.spinSign, spinnerMat(nextLine(SPINNER_WORDS))); sign.castShadow = true; piv.add(sign);
+  return addEnt(run, { type: 'sign', kind: 'sign', mesh: piv, px: x, pz: z, x, z, hw: 0.45, hd: 0.45, ang: rand(0, 6.28), t: rand(0, 5), nm: false, lethal: true });
+}
+function updSign(e, dt) {
+  e.t += dt;
+  const spd = 3.2 + Math.sin(e.t * 0.7) * 1.6 + (Math.sin(e.t * 2.9) > 0.92 ? 5 : 0);   // twirls, speeds up, now and then a flashy fast spin
+  e.ang += spd * dt; e.mesh.rotation.y = e.ang;
+  e.mesh.rotation.x = Math.sin(e.t * 5) * 0.15;
+  e.x = e.px + Math.cos(e.ang) * SPIN_R; e.z = e.pz - Math.sin(e.ang) * SPIN_R;   // the middle of the sign (what you can hit)
+}
+// ---------- pigeon mascot: walks the sidewalk with a flock of real pigeons trotting after them ----------
+function spawnPigeonman(run, sx, z0) {
+  const e = spawnPed(run, 'pigeonman', sx * rand(13, 14.5), z0 + rand(-70, -12), 'walk', { zMax: z0 - 2, zMin: z0 - 78, hw: 0.45, hd: 0.4, bubbleY: 3 });
+  e.vz = (Math.random() < 0.5 ? -1 : 1) * rand(0.8, 1.2);
+  for (let i = 0; i < randi(5, 8); i++) {
+    const a = rand(0, 6.28), r = rand(0.8, 2.2), pg = spawnPigeon(run, e.x + Math.cos(a) * r, e.z + Math.sin(a) * r);
+    pg.leader = e; pg.ox = Math.cos(a) * r; pg.oz = Math.sin(a) * r;
+  }
+  return e;
+}
 // ---------- Spider-Man hangs upside down on a web from a street light over the bike lane; ride under him ----------
 const SPIDEY_PTS = 600, SPIDEY_BUBBLES = ['WITH GREAT POWER...', 'NICE MOVES!', 'MY SPIDEY SENSE IS TINGLING!', 'PHOTOS ARE $5!', 'THWIP!'];
 const WEB_GEO = vox([[0, -1.0, 0, 0.04, 1.0, 0.04, 0xf2f2f2]]);
@@ -3602,6 +3748,11 @@ function updPigeon(run, e, dt) {
       }
       if (Math.random() < 0.5) { toWorld(run, e.x, e.z, _t); for (let k = 0; k < 3; k++) emit(_t.x, e.y + 0.2, _t.z, rand(-1, 1), rand(0.5, 2), rand(-1, 1), 0xb0b4bc, 0.06, 3, 3); }
     } else {
+      if (e.leader) {   // trotting after the pigeon mascot
+        const L = e.leader, tx = L.x + e.ox, tz = L.z + e.oz, dx = tx - e.x, dz2 = tz - e.z, d = Math.hypot(dx, dz2);
+        if (d > 0.2) { const sp = Math.min(d * 1.5, 2.6) * dt / d; e.x += dx * sp; e.z += dz2 * sp; e.mesh.rotation.y = Math.atan2(-dx, -dz2); }
+        e.mesh.position.x = e.x; e.mesh.position.z = e.z;
+      }
       e.mesh.position.y = e.y + (Math.sin(e.t * 6) > 0.85 ? 0.06 : 0);
       if (Math.random() < dt * 0.6) e.mesh.rotation.y += rand(-1, 1);
       e.mesh.rotation.x = Math.sin(e.t * 4) > 0.7 ? 0.4 : 0;
@@ -3672,6 +3823,20 @@ function populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst) {
   }
   // a horse-drawn carriage clip-clopping along the right lane
   if (roadHazards && !isEnd && Math.random() < 0.1) { const z = z0 + rand(-60, -20); if (laneFree(run, 3, z, 14)) spawnCarriage(run, z); }
+  // a bodega cat on the crates outside a shop
+  if (!isStart && !isEnd && Math.random() < 0.15) {
+    const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1);
+    let z = rand(-66, -16); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4;
+    spawnCat(run, ch, sx, z);
+  }
+  // a kid with a balloon by the shop windows
+  if (!isStart && !isEnd && Math.random() < 0.15) { const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1); spawnKid(run, sx * 15.9, z0 + rand(-70, -14)); }
+  // a sign spinner at the curb
+  if (!isStart && !isEnd && Math.random() < 0.12) { const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1); let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4; spawnSpinner(run, sx, z0 + z); }
+  // a mascot in a pigeon costume with a following
+  if (!isStart && !isEnd && Math.random() < 0.06) spawnPigeonman(run, plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1), z0);
+  // a skateboarder in the bike lane
+  if (roadHazards && Math.random() < 0.15) spawnBike(run, 10 + rand(-0.3, 0.3), z0 + rand(-70, -16), Math.random() < 0.5 ? 1 : -1, 'skate');
   // a delivery robot in the bike lane
   if (roadHazards && !isEnd && Math.random() < 0.15) spawnRobot(run, z0 + rand(-70, -15));
   // Spider-Man hanging upside down from a street light over the bike lane
@@ -3759,6 +3924,7 @@ function updateRunEntities(run, dt) {
       case 'pigeon': updPigeon(run, e, dt); break;
       case 'busker': updBusker(e, dt); break;
       case 'train': updTrain(run, e, dt); break;
+      case 'sign': updSign(e, dt); break;
     }
     // traffic turns at the closure into the next run (and oncoming traffic comes back out)
     if (e.type === 'car' || e.type === 'bike' || e.type === 'rival') {
@@ -4844,7 +5010,7 @@ const ANNOUNCE = [
   [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
   [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
   [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^PHOTOBOMB/, 'Photobomb!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1],
-  [/^PIZZA RAT/, 'Respect the rat!', 2], [/^ROBO DODGE/, 'Robo dodge!', 2], [/^HALLELUJAH/, 'Hallelujah!', 2], [/^HORSE PLAY/, 'Horse play!', 2], [/^SPIDEY SENSE/, 'Spidey sense!', 2],
+  [/^PIZZA RAT/, 'Respect the rat!', 2], [/^ROBO DODGE/, 'Robo dodge!', 2], [/^PET THE CAT/, 'Pet the cat!', 2], [/^HALLELUJAH/, 'Hallelujah!', 2], [/^HORSE PLAY/, 'Horse play!', 2], [/^SPIDEY SENSE/, 'Spidey sense!', 2],
    [/^COLD HARD CASH/, 'Cha-ching!', 2]
 ];
 function announce(label) {
@@ -4917,6 +5083,10 @@ function buildScoring() {
       ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
       ['RELISH THE MOMENT!', 'Brush past the guy in the hot-dog costume', fmtPts(400, 800)],
       ['LADY LIBERTY!', 'Brush past the Statue of Liberty performer (one every level)', fmtPts(400, 800)],
+      ['PET THE CAT!', 'Ride past close to the bodega cat on the crates (on the sidewalk)', fmtPts(CAT_PTS)],
+      ['COO COO!', 'Brush past the mascot in the pigeon costume', fmtPts(350, 700)],
+      ['SIGN DODGE!', 'Slip past the spinning arrow sign at the curb', fmtPts(250, 500)],
+      ['SKATE DODGE!', 'Slip past a skateboarder', fmtPts(150, 300)],
       ['ROBO DODGE!', 'Just miss a delivery robot in the bike lane', fmtPts(ROBOT_PTS, ROBOT_PTS * 2)],
       ['PIZZA RAT!', 'Just miss the rat dragging a slice across the crosswalk', fmtPts(300, 600)],
       ['HALLELUJAH!', 'Brush past the preacher on his milk crate', fmtPts(300, 600)],
@@ -5040,8 +5210,11 @@ function nearMissScore(o, isStatic) {
     award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? 800 : 500) * sf * (1 + t * 2), 'nm');
   } else if (o.kind === 'carriage') { award('HORSE PLAY!', 300 * sf * (1 + tight), 'good'); Sound.neigh(pan, 1); }
   else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
+  else if (o.type === 'bike' && o.kind === 'skate') award('SKATE DODGE!', 150 * sf * (1 + tight), 'nm');
   else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
+  else if (o.type === 'sign') award('SIGN DODGE!', 250 * sf * (1 + tight), 'good');
   else if (o.type === 'ped' && o.kind === 'hotdog') { award('RELISH THE MOMENT!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(HOTDOG_BUBBLES)); }
+  else if (o.type === 'ped' && o.kind === 'pigeonman') { award('COO COO!', 350 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(PIGEONMAN_BUBBLES)); Sound.coo(pan, 1); }
   else if (o.type === 'ped' && o.kind === 'robot') { award('ROBO DODGE!', ROBOT_PTS * sf * (1 + tight), 'good'); pedBubble(o, nextLine(ROBOT_BUBBLES)); }
   else if (o.type === 'ped' && o.kind === 'rat') { award('PIZZA RAT!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(RAT_BUBBLES)); }
   else if (o.type === 'ped' && o.kind === 'preacher') { award('HALLELUJAH!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(PREACHER_LINES)); }
@@ -5203,6 +5376,10 @@ const DEATH = {
   parked: ['Discovered parked cars are, in fact, solid.'],
   closed: ['Ignored the ROAD CLOSED sign.', 'The detour was RIGHT THERE.', 'Road closed. So is your casket.'],
   building: ['Tried to ride through a building. The building won.'],
+  crates: ['Wiped out on a stack of bodega crates.', 'Crate expectations: crushed.', 'The cat saw everything.'],
+  pigeonman: ['Flattened a man dressed as a pigeon. The pigeons will remember.', 'Coo coo... crunch.'],
+  sign: ['Took a SALE sign to the face.', 'Everything must go. Including you.', 'Spun out by a sign spinner.'],
+  skate: ['Got kickflipped.', 'Skater: 1. Wheel: 0.', 'Grinded. By a skater.'],
   pillar: ['Hugged an El column. The El hugged back.', 'Met the elevated train. From below.'],
   gate: ['Rode into the Chinatown gate. Bad luck for a year.', 'The gate was decorative. You were not.'],
   robot: ['Tripped over a delivery robot. Your food is late.', 'The robot has filed an incident report.', 'Defeated by a cooler on wheels.'],
