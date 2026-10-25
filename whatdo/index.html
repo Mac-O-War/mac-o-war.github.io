@@ -158,6 +158,7 @@ body.touch #touch.on{display:block}
 @keyframes featherSway{from{transform:translateX(-22px) rotate(-25deg)}to{transform:translateX(22px) rotate(25deg)}}
 #unlockMsg.show{display:block;animation:unlockIn 2.6s ease-out forwards}
 #debugTag{position:fixed;right:calc(8px + var(--sr));bottom:calc(6px + var(--sb));font-family:var(--hud);font-size:8px;color:#fff;background:rgba(211,47,47,.85);border:2px solid #000;padding:3px 6px;pointer-events:none;z-index:30}
+#dbgList{display:flex;flex-direction:column;align-items:stretch;gap:10px;margin:16px 0 4px;min-width:min(78vw,300px)}
 #flyTag{position:fixed;left:50%;top:calc(8px + var(--st));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:#d32f2f;border:3px solid #000;padding:6px 10px;pointer-events:none;z-index:30}
 #padToast{position:fixed;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);white-space:nowrap;font-family:var(--hud);font-size:10px;color:#fff;background:rgba(13,15,26,.85);border:3px solid #000;padding:8px 12px;pointer-events:none;opacity:0;z-index:20}
 .padFocus{outline:4px solid #fff;outline-offset:3px;box-shadow:0 0 0 7px rgba(255,210,63,.55),0 4px 0 #000 !important;animation:padFocus .8s ease-in-out infinite alternate}
@@ -451,8 +452,23 @@ body:not(.touch) .card.tch{display:none}
   <h2 class="big g">PAUSED</h2>
   <p class="cause" id="pauseLine">TAKE A BREATH. THE CITY WILL WAIT.</p>
   <button class="btn alt" id="resumeBtn">RESUME</button>
-  <div class="sub2" style="margin-top:18px"><button class="btn sm scoreOpen">SCORING</button><button class="btn sm setOpen">SETTINGS</button></div>
+  <div class="sub2" style="margin-top:18px"><button class="btn sm scoreOpen">SCORING</button><button class="btn sm setOpen">SETTINGS</button><button class="btn sm hidden" id="dbgOpen">DEBUG</button></div>
   <div class="small">PRESS P / ESC OR TAP</div>
+</section>
+
+<section id="debugScreen" class="screen hidden">
+  <h2 class="big g">DEBUG</h2>
+  <div id="dbgList">
+    <button class="btn sm dbgBtn" data-act="ufo">UFO</button>
+    <button class="btn sm dbgBtn" data-act="eagle">EAGLE</button>
+    <button class="btn sm dbgBtn" data-act="rival">RIVAL</button>
+    <button class="btn sm dbgBtn" data-act="gang">RIVAL GANG</button>
+    <button class="btn sm dbgBtn" data-act="god" id="dbgGod">GOD MODE: OFF</button>
+    <button class="btn sm dbgBtn" data-act="boost">FULL BOOST &amp; FOCUS</button>
+  </div>
+  <p class="cause" id="dbgMsg">THESE HAPPEN WHEN YOU RESUME</p>
+  <button class="btn alt" id="dbgBack">BACK</button>
+  <div class="small">ESC: BACK</div>
 </section>
 
 <script src="vendor/three.min.js"></script>
@@ -1499,6 +1515,19 @@ const Sound = (() => {
       c.connect(bp); bp.connect(cg); cg.connect(o);
     }
   }
+  // a UFO: a wobbling theremin "woo-ee-oo" over a low tractor-beam hum (about 3.5 s)
+  function ufo(pan) {
+    if (!ctx) return; const t = ctx.currentTime, o = out(pan);
+    const os = ctx.createOscillator(), g = ctx.createGain(), vib = ctx.createOscillator(), vd = ctx.createGain();
+    os.type = 'sine'; os.frequency.setValueAtTime(620, t); os.frequency.linearRampToValueAtTime(940, t + 0.9); os.frequency.linearRampToValueAtTime(520, t + 2.0); os.frequency.linearRampToValueAtTime(880, t + 3.2);
+    vib.frequency.value = 6.5; vd.gain.value = 45; vib.connect(vd); vd.connect(os.frequency);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.11, t + 0.3); g.gain.setValueAtTime(0.11, t + 3); g.gain.exponentialRampToValueAtTime(0.0005, t + 3.5);
+    os.connect(g); g.connect(o); os.start(t); vib.start(t); os.stop(t + 3.6); vib.stop(t + 3.6);
+    const hum = ctx.createOscillator(), hg = ctx.createGain(); hum.type = 'sawtooth'; hum.frequency.value = 72;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300;
+    hg.gain.setValueAtTime(0.0001, t + 0.8); hg.gain.linearRampToValueAtTime(0.06, t + 1.2); hg.gain.setValueAtTime(0.06, t + 3.4); hg.gain.exponentialRampToValueAtTime(0.0005, t + 3.9);
+    hum.connect(lp); lp.connect(hg); hg.connect(o); hum.start(t + 0.8); hum.stop(t + 4);
+  }
   // bicycle bell: ding-ding
   function bell(pan, vol) {
     if (!ctx) return; const t = ctx.currentTime, o = out(pan); vol = vol || 1;
@@ -1862,7 +1891,7 @@ const Sound = (() => {
     });
   }
   function setMusicState(chain, squeeze, boost, metal, final) { MS.chain = chain; MS.squeeze = squeeze; MS.boost = boost; MS.metal = metal; MS.final = final; }
-  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, train, meow, clop, neigh, chaching, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, honk, scream, whoosh, splat, crunch, flap, blip, shutter, setMusicState, jingle, setEngine, startMusic, stopMusic, replayMusic, replayHit, replayStop, setMuted, suspend, resume, recStream, setSiren, boom, setChopper, setDrone, screech, setBusker, carAlarm, slap, setFocus, deny, setVolume, get volume() { return { music: vol.music, sfx: vol.sfx }; }, setSteam, steamBurst, bell, coo, train, meow, ufo, clop, neigh, chaching, get muted() { return muted; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 /* =====================================================================
@@ -3335,7 +3364,7 @@ function updateBubbles(dt) {
     const vis = _bv.z < 1 && Math.abs(_bv.x) < 1.1 && Math.abs(_bv.y) < 1.1;
     b.el.style.display = vis ? 'block' : 'none';
     if (vis) { b.el.style.left = ((_bv.x + 1) / 2 * viewW) + 'px'; b.el.style.top = ((1 - _bv.y) / 2 * viewH) + 'px'; }
-    b.el.style.opacity = b.t > 1.1 ? (1.4 - b.t) / 0.3 : 1;
+    b.el.style.opacity = (e.type === 'rival' ? 0.5 : 1) * (b.t > 1.1 ? (1.4 - b.t) / 0.3 : 1);   // (the rivals' taunts are half see-through)
   }
 }
 function clearBubbles() { for (const b of BUBBLES) { b.el.remove(); b.e.bubble = null; } BUBBLES.length = 0; }
@@ -3474,7 +3503,21 @@ const GANG_GEO = [0xc68642, 0x8d5524, 0xf1c27d].map((sk) => rivalGeo(0x4a1a6b, 0
 // (three of them racing you at once; beat them all for GANG BUSTED!)
 const RIVAL_CASH = 3, GANG_CHANCE = 0.1, GANG_N = 3, GANG_PTS = 3000;
 const GANG_LINES = ['Gang busted!', 'The whole crew, gone', 'Squad wiped', 'Gang disbanded', 'Clean sweep', 'One versus three. Easy', 'Call the whole squad next time'];
-const RIVAL_TAUNTS = ['CATCH ME IF YOU CAN!', 'TOO SLOW!', 'EAT MY DUST!', 'KEEP UP!', 'IS THAT ALL YOU GOT?', 'NICE WHEEL. IS IT A RENTAL?'];
+// lines said my rival EUC riders
+const RIVAL_TAUNTS = [
+  'CATCH ME IF YOU CAN!',
+  'TOO SLOW!',
+  'EAT MY DUST!',
+  'KEEP UP!',
+  'IS THAT ALL YOU GOT?',
+  'NICE WHEEL. IS IT A RENTAL?',
+  'DID YOU FORGET TO CHARGE?',
+  'HOPE YOU LIKE MY TAILLIGHT!',
+  'SKILL ISSUE!',
+  "IN TROLLEY MODE?",
+  'NOT EVEN',
+  'YOUR BATTERY LOOKS NERVOUS!'
+];
 const RIVAL_LOSE = ['NO WAY!', 'REMATCH!', 'LAG!', 'I LET YOU WIN!', 'MY BATTERY DIED!'];
 // what the announcer says when you beat the rival (heard on every voice setting but OFF)
 const RIVAL_WIN_LINES = ['Rival smoked!', 'Too easy', 'Sit down, rival', 'Who was that guy?', 'Get rekt', 'Not even close', 'Better luck next time',
@@ -3530,6 +3573,7 @@ function squashRat(run, e) {
   RIVAL_CRASHES.push(c); if (RIVAL_CRASHES.length > 4) RIVAL_CRASHES.shift();
   ratBlood(c); Game.shake = Math.max(Game.shake, 0.2); buzz(40);
   popup('RIP PIZZA RAT', 'red'); Voice.say(nextLine(RAT_RIP_LINES), 5, 'joke');
+  if (UFO.state === 'off' && !UFO.pending) { UFO.pending = true; UFO.cd = 1.5; }   // ...and the mothership has noticed
 }
 function rivalBlood(c) {   // the blood burst and the pool (world space), plus the sounds
   for (let i = 0; i < 420; i++) {
@@ -3779,6 +3823,7 @@ function spawnPigeon(run, x, z, perchY) {   // perchY: sitting on an awning or r
 let flapCd = 0, cooCd = 0;
 const PIGEON_PTS = 50;   // riding through a flock (a trick: keeps the chain, doesn't add to it)
 function updPigeon(run, e, dt) {
+  if (e.abducted) { e.t += dt; return; }   // under the UFO: its beam moves this one (see updateUfo)
   e.t += dt;
   if (!e.fly) {
     const dz = e.z - PL.z, dx = Math.abs(e.x - PL.x);
@@ -4050,7 +4095,7 @@ function doTurn() {
 const input = { left: false, right: false, up: false, mouseGas: false, mouseX: null, mouseSteer: false, lastMouseMove: 0, tL: false, tR: false, tGas: false, canvasTouchGas: false };
 const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', Space: 'up', ArrowDown: 'focus', KeyS: 'focus', ShiftLeft: 'focus', ShiftRight: 'focus' };
 window.addEventListener('keydown', (e) => {
-  if (scoringKey(e) || settingsKey(e)) return;   // the scoring and settings screens take the keyboard while open
+  if (scoringKey(e) || settingsKey(e) || debugKey(e)) return;   // the scoring and settings screens take the keyboard while open
   if (LB.key(e)) return;   // name entry / leaderboard screen take the keyboard
   if (e.code === 'Backquote' && !e.repeat && DEBUG) { e.preventDefault(); toggleFly(); return; }   // debug: free-fly camera
   if (FLY.on) { FLY.keys.add(e.code); e.preventDefault(); return; }
@@ -4355,7 +4400,7 @@ function updateExtras(dt) {
   updateBill(dt);
 }
 /* ---------- BREAKING NEWS ticker: runs along the bottom after the news drone films you ---------- */
-const NEWS_LINES = ['LOCAL RIDER CONTINUES TO RIDE', 'ONE-WHEELED MENACE SPOTTED IN MIDTOWN', 'PIGEONS DEMAND ANSWERS', 'EXPERTS ASK: "WHAT DO?"', 'TAXI UNION CALLS EMERGENCY MEETING',
+const NEWS_LINES = ['UFO ABDUCTS LOCAL PIGEON, OTHER PIGEONS UNBOTHERED', 'LOCAL RIDER CONTINUES TO RIDE', 'ONE-WHEELED MENACE SPOTTED IN MIDTOWN', 'PIGEONS DEMAND ANSWERS', 'EXPERTS ASK: "WHAT DO?"', 'TAXI UNION CALLS EMERGENCY MEETING',
   'HOT DOG GUY UNAVAILABLE FOR COMMENT', 'MAYOR TO RIDER: "PLEASE STOP"', 'RIDER REFUSES TO USE A SECOND WHEEL', 'TRAFFIC REPORT: IT\'S BAD', 'SCIENTISTS BAFFLED BY RIDER\'S BALANCE',
   'PIZZA RAT SIGNS BOOK DEAL', 'STATUE OF LIBERTY SEEN WAITING FOR THE BUS', 'SUBWAY PREACHER WAS RIGHT, SAYS SUBWAY PREACHER', 'LOCAL HORSE UNIMPRESSED', 'FIRE HYDRANT OPENED, CITY COOLS OFF'];
 function newsTicker() {
@@ -4496,6 +4541,76 @@ function startEagle() {
   EAGLE.on = true; EAGLE.t = 0; EAGLE.dur = dur; EAGLE.cried = false; EAGLE.mesh.visible = true;
   return true;
 }
+/* ---------- UFO: squash Pizza Rat and, a moment later, a flying saucer stops over a pigeon ahead, beams it up and zips off (any time of day).
+   Ride through the beam while it's on: CLOSE ENCOUNTER! ---------- */
+const UFO_PTS = 600;
+const UFO_LINES = ['Is that a UFO?', 'They took a pigeon!', 'Nobody is going to believe this', 'The truth is out there', 'Abduction in progress', 'Not the pigeon!'];
+const UFO = { state: 'off', t: 0, cd: 0, pending: false, mesh: null, beam: null, lights: [], pg: null, run: null, from: new THREE.Vector3(), at: new THREE.Vector3(), to: new THREE.Vector3(), met: false };
+(function buildUfo() {
+  const g = new THREE.Group(), S = 0xb0b8c4;
+  g.add(new THREE.Mesh(vox([[0, 0, 0, 6, 0.5, 6, S], [0, 0.5, 0, 4.6, 0.35, 4.6, 0x9aa2ae], [0, -0.3, 0, 3.4, 0.3, 3.4, 0x6d7480], [0, -0.42, 0, 1.6, 0.14, 1.6, 0xb6ffb0],
+    [0, 0.85, 0, 2.2, 1.0, 2.2, 0x7fe3ff], [0, 1.05, 0, 0.5, 0.55, 0.5, 0x58d68d], [-0.11, 1.3, -0.26, 0.12, 0.1, 0.02, 0x111111], [0.11, 1.3, -0.26, 0.12, 0.1, 0.02, 0x111111]]), MAT.vox));   // saucer, dome, a little green pilot
+  const LCOL = [0xff3b3b, 0xffd23f, 0x3ddc84, 0x3dafff];
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2, m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.4), new THREE.MeshBasicMaterial({ color: LCOL[i % 4] }));
+    m.position.set(Math.cos(a) * 2.9, 0.25, Math.sin(a) * 2.9); g.add(m); UFO.lights.push(m);
+  }
+  g.scale.setScalar(1.5); g.visible = false; scene.add(g); UFO.mesh = g;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 3.2, 1, 20, 1, true).translate(0, -0.5, 0),
+    new THREE.MeshBasicMaterial({ color: 0x9cff9c, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beam.visible = false; beam.renderOrder = 4; scene.add(beam); UFO.beam = beam;
+})();
+function startUfo() {   // pick (or put) a pigeon on the ground ahead, timed so you arrive while the beam is on
+  const r = player.run; setPL(r);
+  const want = PL.z - (player.speed * 3.6 + 25);
+  let pg = null, best = Infinity;
+  for (const e of r.ents) if (e.type === 'pigeon' && !e.fly && !e.perch && !e.leader && Math.abs(e.z - want) < best && e.z < PL.z - 40) { best = Math.abs(e.z - want); pg = e; }
+  if (!pg || best > 40) { if (want < r.endZc + 20) return false; pg = spawnPigeon(r, (Math.random() < 0.5 ? -1 : 1) * rand(2, 13), want); }
+  pg.abducted = 'wait'; UFO.pg = pg; UFO.run = r; UFO.state = 'in'; UFO.t = 0; UFO.met = false;
+  toWorld(r, pg.x, pg.z, _t); UFO.at.set(_t.x, 15, _t.z);
+  const side = Math.random() < 0.5 ? -1 : 1; toWorld(r, pg.x + side * 70, pg.z - 30, _t); UFO.from.set(_t.x, 45, _t.z);
+  toWorld(r, pg.x - side * 90, pg.z - 60, _t); UFO.to.set(_t.x, 70, _t.z);
+  UFO.mesh.position.copy(UFO.from); UFO.mesh.visible = true;
+  const rx = UFO.at.x - camera.position.x, rz = UFO.at.z - camera.position.z, cy = Math.cos(camYaw), sy = Math.sin(camYaw);
+  Sound.ufo(clamp((rx * cy - rz * sy) / 30, -1, 1)); Voice.say(nextLine(UFO_LINES), 3, 'joke');
+  return true;
+}
+function endUfo() { UFO.state = 'off'; UFO.mesh.visible = false; UFO.beam.visible = false; if (UFO.pg && UFO.pg.abducted) { UFO.pg.life = 0; UFO.pg.mesh.visible = false; } UFO.pg = null; }
+function updateUfo(dt) {
+  if (UFO.state === 'off') {
+    if (Game.state === 'play' && UFO.pending) { UFO.cd -= dt; if (UFO.cd <= 0) { if (startUfo()) UFO.pending = false; else UFO.cd = 1; } }   // called in by a squashed Pizza Rat (tries again shortly if there's no room ahead)
+    return;
+  }
+  if (!runs.includes(UFO.run)) { endUfo(); return; }
+  UFO.t += dt;
+  const m = UFO.mesh, pg = UFO.pg;
+  m.rotation.y += dt * 2.5;
+  for (let i = 0; i < UFO.lights.length; i++) UFO.lights[i].visible = Math.floor(UFO.t * 8 + i) % 2 === 0;   // chasing rim lights
+  if (UFO.state === 'in') {   // swoop in and stop over the pigeon
+    const k = Math.min(1, UFO.t / 1.8), e = 1 - Math.pow(1 - k, 3);
+    m.position.lerpVectors(UFO.from, UFO.at, e); m.rotation.z = (1 - k) * 0.35;
+    if (k >= 1) { UFO.state = 'beam'; UFO.t = 0; if (pg) pg.abducted = 'up'; }
+  } else if (UFO.state === 'beam') {   // the tractor beam: up goes the pigeon, spinning
+    m.position.set(UFO.at.x, UFO.at.y + Math.sin(UFO.t * 3) * 0.3, UFO.at.z); m.rotation.z = Math.sin(UFO.t * 2) * 0.05;
+    const b = UFO.beam, h = m.position.y - 0.6; b.visible = true; b.position.set(m.position.x, m.position.y - 0.6, m.position.z); b.scale.set(1, h, 1);
+    b.material.opacity = 0.25 + Math.sin(UFO.t * 14) * 0.07;
+    if (pg && UFO.run) {
+      pg.y = Math.min(UFO.at.y - 1, (pg.y0 === undefined ? (pg.y0 = pg.y) : pg.y0) + UFO.t * UFO.t * 2.2);
+      pg.mesh.position.y = pg.y; pg.mesh.rotation.y += dt * 9; pg.mesh.geometry = PIGEON_GEO[1]; pg.mesh.scale.x = Math.sin(UFO.t * 30) > 0 ? 1 : 0.35;
+      // ride through the beam: a close encounter (once)
+      setPL(UFO.run);
+      if (!UFO.met && Game.state === 'play' && UFO.run === player.run && Math.hypot(PL.x - pg.x, PL.z - pg.z) < 2.6) {
+        UFO.met = true; award('CLOSE ENCOUNTER!', UFO_PTS * (player.speed / player.base), 'good'); Sound.blip(1200, 0.12, 'sine', 0.1); Sound.blip(1600, 0.2, 'sine', 0.08, 0.1);
+      }
+      setPL(player.run);
+    }
+    if (UFO.t > 3.2) { UFO.state = 'out'; UFO.t = 0; UFO.beam.visible = false; if (pg) { pg.life = 0; pg.mesh.visible = false; } UFO.from.copy(m.position); }
+  } else {   // zip away
+    const k = Math.min(1, UFO.t / 1.1);
+    m.position.lerpVectors(UFO.from, UFO.to, k * k); m.rotation.z = -k * 0.4;
+    if (k >= 1) endUfo();
+  }
+}
 function updateEagle(dt) {
   if (!EAGLE.on) {
     if (Game.state === 'play' || Game.state === 'menu') { EAGLE.cd -= dt; if (EAGLE.cd <= 0) EAGLE.cd = startEagle() ? rand(40, 90) : 3; }
@@ -4503,7 +4618,7 @@ function updateEagle(dt) {
   }
   EAGLE.t += dt;
   const k = EAGLE.t / EAGLE.dur, m = EAGLE.mesh;
-  if (k >= 1 || Game.state === 'replay') { EAGLE.on = false; m.visible = false; return; }
+  if (k >= 1) { EAGLE.on = false; m.visible = false; return; }
   m.position.lerpVectors(EAGLE.from, EAGLE.to, k);
   m.position.y += Math.sin(k * Math.PI) * 2;   // a shallow arc
   m.rotation.y = Math.atan2(-(EAGLE.to.x - EAGLE.from.x), -(EAGLE.to.z - EAGLE.from.z));
@@ -4522,7 +4637,7 @@ function resetWorld() {
   Game.libertyN = 0; Game.libertyAt = randi(2, 5); Game.libertyDone = false;   // which chunk of this level gets the Statue of Liberty
   Game.timesDone = false; Game.chinaDone = false;
   Game.billAt = rand(3, 7) / MONEY;   // the first dollar bill (rivals now come from collecting bills: see RIVAL_CASH)
-  if (BILL.on) endBill(); BILL.on = false; clearRivalDebris(); hideTicker(); $('wet').classList.remove('show');
+  if (BILL.on) endBill(); BILL.on = false; clearRivalDebris(); if (UFO.state !== 'off') endUfo(); UFO.pending = false; hideTicker(); $('wet').classList.remove('show');
   for (const r of runs.slice()) removeRun(r);
   REC.length = 0; Game.replayInfo = null;
   runs.length = 0;
@@ -4544,7 +4659,7 @@ function resetWorld() {
 function showScreen(id) {
   // a button that switches screens never sees its own pointerup, so it would stay pressed in (5px lower) when shown again
   document.querySelectorAll('.btn.press').forEach((b) => b.classList.remove('press'));
-  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen', 'scoreScreen', 'settingsScreen']) $(s).classList.toggle('hidden', s !== id);
+  for (const s of ['startScreen', 'overScreen', 'winScreen', 'pauseScreen', 'boardScreen', 'nameScreen', 'scoreScreen', 'settingsScreen', 'debugScreen']) $(s).classList.toggle('hidden', s !== id);
 }
 function setHudVisible(on) {
   $('hud').classList.toggle('on', on);
@@ -5127,6 +5242,35 @@ function settingsKey(e) {
 }
 document.querySelectorAll('.setOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'paused') openSettings(); }));
 bindButton($('setBack'), closeSettings);
+/* ---------- DEBUG menu (pause screen, debug sessions only): call in things to test, god mode, a full tank ---------- */
+const DBG_UI = { open: false };
+if (DEBUG) $('dbgOpen').classList.remove('hidden');
+function openDebug() { DBG_UI.open = true; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); $('dbgMsg').textContent = 'THESE HAPPEN WHEN YOU RESUME'; showScreen('debugScreen'); }
+function closeDebug() { DBG_UI.open = false; showScreen('pauseScreen'); }
+function debugKey(e) {
+  if (!DBG_UI.open) return false;
+  if (['Escape', 'Backspace'].includes(e.code)) { e.preventDefault(); if (!e.repeat) closeDebug(); }
+  return true;
+}
+function debugAction(act) {
+  let msg = '';
+  if (act === 'ufo') {
+    if (UFO.state !== 'off') msg = 'A UFO IS ALREADY HERE';
+    else if (startUfo()) msg = 'UFO INCOMING: RESUME TO WATCH';
+    else { UFO.pending = true; UFO.cd = 0.5; msg = 'NO ROOM AHEAD YET: IT COMES AS SOON AS THERE IS'; }
+  } else if (act === 'eagle') {
+    if (EAGLE.on) msg = 'THE EAGLE IS ALREADY FLYING';
+    else if (startEagle()) { EAGLE.cd = rand(40, 90); msg = 'EAGLE INCOMING: RESUME TO WATCH'; }
+    else { EAGLE.cd = 0.5; msg = 'NO CROSS STREET AHEAD YET: IT COMES AS SOON AS THERE IS'; }
+  } else if (act === 'rival') { spawnRival(); msg = 'A RIVAL IS ON THE WAY'; }
+  else if (act === 'gang') { spawnGang(); msg = 'THE RIVAL GANG IS ON THE WAY'; }
+  else if (act === 'god') { Game.debug.god = !Game.debug.god; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); msg = Game.debug.god ? "YOU CAN'T CRASH" : 'CRASHES ARE BACK ON'; }
+  else if (act === 'boost') { GASC.got = Math.max(1, GASC.got); GASC.t = GAS_MAX; FOCUS.meter = 1; updateGasUI(); msg = 'BOOST AND FOCUS FULL'; }   // (quietly: no ACCELERATOR UNLOCKED message)
+  $('dbgMsg').textContent = msg; Sound.blip(880, 0.06, 'square', 0.1);
+}
+bindButton($('dbgOpen'), () => { if (DEBUG && Game.state === 'paused') openDebug(); });
+bindButton($('dbgBack'), closeDebug);
+document.querySelectorAll('.dbgBtn').forEach((b) => bindButton(b, () => { if (Game.state === 'paused') debugAction(b.dataset.act); }));
 bindButton($('soundSet'), () => toggleMute());
 /* ---------- SCORING screen: every award, built from the live point values so it never goes stale ---------- */
 const SCORING_UI = { open: false, back: 'startScreen' };
@@ -5178,6 +5322,7 @@ function buildScoring() {
       ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
       ['BUNNY HOP', 'Hop (E / J, or gamepad B)', fmtPts(HOP_PTS)],
       ['SPIN 360!', 'A full spin on the ground (Q / K, or gamepad Y)', fmtPts(SPIN_PTS)],
+      ['CLOSE ENCOUNTER!', 'Squash Pizza Rat and a UFO comes for a pigeon: ride through its tractor beam', fmtPts(UFO_PTS, UFO_PTS * 2)],
       ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
       ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)],
       ['COOL OFF!', 'Ride through the spray of an open fire hydrant (also fills FOCUS to 100%)', fmtPts(SPRAY_PTS)]]],
@@ -6090,24 +6235,28 @@ function updateCamera(dt) {
 const REC = [], REC_SPAN = 3.2, REC_RADIUS = 140;   // seconds kept, and how far around the rider traffic is recorded
 const RP = { frames: null, t: 0, tEnd: 0, i: 0, phase: 'pre', post: 0, side: 1, ax: 0, az: 0, orbit: 0, ang: 0, rx: 0, rz: 0 };
 const _v3 = new THREE.Vector3();
+const REC_STRIDE = 10;   // numbers stored per recorded object (see rec in recordFrame)
 function recordFrame() {
   if (!rig) return;
   updatePW();
   const meshes = [], geos = [], parents = [], data = [];
+  const rec = (m, parent, vis) => {   // one object's state: position, rotation, shown or not, scale (REC_STRIDE numbers)
+    meshes.push(m); geos.push(m.geometry); parents.push(parent);
+    data.push(m.position.x, m.position.y, m.position.z, m.rotation.x, m.rotation.y, m.rotation.z, vis === undefined ? (m.visible ? 1 : 0) : vis, m.scale.x, m.scale.y, m.scale.z);
+  };
   for (const r of runs) {
     setPL(r);
     for (const e of r.ents) {
       const dx = e.x - PL.x, dz = e.z - PL.z; if (dx * dx + dz * dz > REC_RADIUS * REC_RADIUS) continue;
-      const m = e.mesh; meshes.push(m); geos.push(m.geometry); parents.push(r.root);
-      data.push(m.position.x, m.position.y, m.position.z, m.rotation.x, m.rotation.y, m.rotation.z, m.visible ? 1 : 0, m.scale.x);
+      rec(e.mesh, r.root);
+      if (e.balloon) rec(e.balloon, r.root);   // a kid's balloon, floating off
     }
   }
-  for (const d of RIVAL_DEBRIS) {   // the rival's flying pieces (world space)
-    const m = d.m; meshes.push(m); geos.push(m.geometry); parents.push(scene);
-    data.push(m.position.x, m.position.y, m.position.z, m.rotation.x, m.rotation.y, m.rotation.z, 1, m.scale.x);
-  }
+  for (const d of RIVAL_DEBRIS) rec(d.m, scene, 1);   // the rival's flying pieces (world space)
+  if (BILL.mesh.parent) rec(BILL.mesh, BILL.mesh.parent); else if (BILL.run) rec(BILL.mesh, BILL.run.root, 0);   // the dollar bill
+  rec(DRONE.mesh, scene); rec(EAGLE.mesh, scene); rec(UFO.mesh, scene); rec(UFO.beam, scene);   // things in the sky
   REC.push({ t: Game.time, run: player.run,
-    rig: [player.x, player.y, player.z, rig.root.rotation.y, rig.lean.rotation.z, rig.lean.rotation.x, rig.tire.rotation.x, rig.armL.rotation.z, rig.armR.rotation.z, rig.armL.rotation.x, rig.head.rotation.y],
+    rig: [player.x, player.y, player.z, rig.root.rotation.y, rig.lean.rotation.z, rig.lean.rotation.x, rig.tire.rotation.x, rig.armL.rotation.z, rig.armR.rotation.z, rig.armL.rotation.x, rig.head.rotation.y, rig.root.rotation.x],
     meshes, geos, parents, data: Float32Array.from(data) });
   while (REC.length > 2 && REC[0].t < Game.time - REC_SPAN) REC.shift();
 }
@@ -6118,18 +6267,18 @@ function applyFrame(a, b, k) {
   rig.root.position.set(L(0), L(1), L(2));
   rig.root.rotation.y = A[3] + normAng(B[3] - A[3]) * k;
   rig.lean.rotation.z = L(4); rig.lean.rotation.x = L(5); rig.tire.rotation.x = L(6);
-  rig.armL.rotation.z = L(7); rig.armR.rotation.z = L(8); rig.armL.rotation.x = rig.armR.rotation.x = L(9); rig.head.rotation.y = L(10);
+  rig.armL.rotation.z = L(7); rig.armR.rotation.z = L(8); rig.armL.rotation.x = rig.armR.rotation.x = L(9); rig.head.rotation.y = L(10); rig.root.rotation.x = L(11);   // (11: nose up on a ramp)
   shadowMesh.visible = true; shadowMesh.position.y = 0.03;
   RP.ang = a.run.theta + rig.root.rotation.y;
   toWorld(a.run, L(0), L(2), _t); RP.rx = _t.x; RP.rz = _t.z;
   const D = a.data, E = b.data, same = a.meshes.length === b.meshes.length;
   for (let i = 0; i < a.meshes.length; i++) {
-    const m = a.meshes[i], o = i * 8, interp = same && b.meshes[i] === m ? k : 0;
+    const m = a.meshes[i], o = i * REC_STRIDE, interp = same && b.meshes[i] === m ? k : 0;
     if (m.parent !== a.parents[i]) a.parents[i].add(m);   // a car since cleaned up, or moved to another street, comes back for the replay
     const f = (j) => D[o + j] + (E[o + j] - D[o + j]) * interp;
     m.position.set(f(0), f(1), f(2));
     m.rotation.set(f(3), D[o + 4] + normAng((interp ? E[o + 4] : D[o + 4]) - D[o + 4]) * interp, f(5));
-    m.visible = D[o + 6] > 0.5; m.scale.x = D[o + 7];
+    m.visible = D[o + 6] > 0.5; m.scale.set(f(7), f(8), f(9));
     m.geometry = interp > 0.5 ? b.geos[i] : a.geos[i];
   }
 }
@@ -6142,7 +6291,7 @@ function applyAt(t) {
 function startReplay(auto) {
   const info = Game.replayInfo;
   if (REC.length < 8 || !info) { vidBtnState('none'); showGameOver(); return; }
-  Game.state = 'replay'; Game.overReady = false;
+  Game.state = 'replay'; Game.overReady = false; Sound.setDrone(0, 0);
   RP.home = new Map();   // mesh -> its parent now (null if it has been cleaned up), restored when the replay ends
   for (const f of REC) for (const m of f.meshes) if (!RP.home.has(m)) { RP.home.set(m, m.parent); if (m.userData.rivalDebris) m.visible = false; }
   RP.frames = REC.slice(); RP.i = 0; RP.t = RP.frames[0].t; RP.tEnd = RP.frames[RP.frames.length - 1].t; RP.phase = 'pre'; RP.post = 0;
@@ -6227,6 +6376,8 @@ function endReplay() {
   const complete = RP.phase === 'post' && RP.post > REPLAY_AFTER;   // false when the player skipped
   if (RP.phase === 'pre') { applyAt(RP.tEnd); replayImpact(true); }
   if (RP.home) { for (const [m, par] of RP.home) if (m.parent !== par) { if (par) par.add(m); else m.parent.remove(m); } RP.home = null; }
+  // the sky things go back to how they really are now (the replay left them wherever its last frame had them)
+  DRONE.mesh.visible = DRONE.state !== 'off'; EAGLE.mesh.visible = EAGLE.on; UFO.mesh.visible = UFO.state !== 'off'; UFO.beam.visible = UFO.state === 'beam';
   $('replayUI').classList.add('hidden');
   Sound.replayStop(false);
   VID.stop(complete);
@@ -6489,7 +6640,8 @@ function frame(now) {
   Sound.setEngine(player.speed, st === 'play', player.boost);
   if (st === 'play') { updateSiren(); updateBuskers(); updateShouts(dt); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
   if (st !== 'replay') updateRivalDebris(dt);   // in the replay the pieces follow the recording (then tumble on after the impact)
-  updateDecor(dt); updateItems(dt); updateDrone(dt); updateEagle(dt); updateBubbles(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
+  updateDecor(dt); updateItems(dt);
+  if (st !== 'replay') { updateDrone(dt); updateEagle(dt); updateUfo(dt); }   // (in the replay the recording moves them) updateBubbles(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
   if (Game.state === 'replay' && VID.cap) VID.capture();   // the tall video frame first: the normal frame then covers it
   renderer.render(scene, camera);
 }
