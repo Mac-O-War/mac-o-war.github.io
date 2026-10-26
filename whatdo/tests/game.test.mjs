@@ -254,6 +254,98 @@ export default (test) => {
     await g.until("!$('winScreen').classList.contains('hidden')", 4);
   }, { quiet: true, speed: 19 });
 
+  // ---------- the detour lane at road closures ----------
+  test('detour lane: empty when you get there, and riding it round the corner always works (20 levels)', async (g) => {
+    const res = await g.js(`(() => {
+      const fails = [];
+      for (let seed = 1; seed <= 20; seed++) {
+        __reset({ seed, speed: 19, god: true });
+        const r = player.run, td = r.turnDir, lx = -td * 6.75;
+        player.z = r.endZc + 70; __pin(lx);
+        __until(() => player.z - r.endZc <= DETOUR_IN, 6);
+        const inLane = r.ents.filter((e) => e.lethal && Math.abs(e.x - lx) < 2.25 + e.hw && e.z < r.endZc + DETOUR_IN - 3 && e.z > r.endZc - 12);
+        if (inLane.length) fails.push('seed ' + seed + ': in the lane: ' + inLane.map((e) => e.kind).join(', '));
+        for (let i = r.ents.length - 1; i >= 0; i--) { const e = r.ents[i]; if (e.lethal && Math.abs(e.z - player.z) < e.hd + 1.5 && Math.abs(e.x - player.x) < e.hw + 1) killEnt(r, i); }   // (not handed back on top of something)
+        Game.debug.god = false; Game.turns = 0;
+        __until(() => { const go = Game.turns === 0 && player.z - r.endZc <= DETOUR_START; if (go) __pin(null); input.right = go && td > 0; input.left = go && td < 0; return Game.state !== 'play' || (Game.turns > 0 && !player.finishing); }, 6);
+        __pin(null); input.right = input.left = false;
+        __until(() => Game.state !== 'play', 2);
+        if (Game.state !== 'play') fails.push('seed ' + seed + ': crashed into ' + __log.deaths[0]);
+      }
+      return fails;
+    })()`);
+    g.ok(!res.length, res.join('; '));
+  });
+
+  test('detour lane: riding into a traffic cone knocks it flying for CONE BOWLING!, and you ride on', async (g) => {
+    await g.js(`(() => { const r = player.run, z = player.z - 12, ch = r.chunks.find((c) => z <= c.z0 && z > c.z0 - CH); addCone(ch, player.x, z - ch.z0); window.__cone = ch.cones[ch.cones.length - 1]; })()`);
+    await g.step(2.5);
+    await g.expectAlive();
+    await g.expectAward(/^CONE BOWLING!/);
+    await g.expect('__cone.st === 2 && Math.hypot(__cone.x - player.x, __cone.y) > 0', 'knocked over and lying where it landed');
+  }, { quiet: true, speed: 19, x: 0 });
+
+  // ---------- road works ----------
+  // road works in lane 2 of the block ahead: you ride its side line of cones, or straight into its front barricade
+  const WORKS = `(() => { const r = player.run, ch = r.chunks.find((c) => c.z0 < player.z - 30); roadWorks([], ch, r, 2); return ch.z0; })()`;
+  test('road works: the cones round it are harmless (CONE BOWLING!)', async (g) => {
+    await g.js(WORKS); await g.js('__pin(LANES[2] + 2.3)');   // (just outside the barricades, clipping every cone on that side)
+    await g.step(5);
+    await g.expectAlive();
+    await g.expectAward(/^CONE BOWLING!/);
+  }, { quiet: true, speed: 19 });
+  test('road works: its barricade still stops you', async (g) => {
+    await g.js(WORKS); await g.js('__pin(LANES[2])');
+    await g.step(5);
+    await g.expectDeath('barrier');
+  }, { quiet: true, speed: 19 });
+  test('road works: the dig inside still stops you (hopped over the front barricade)', async (g) => {
+    const z0 = await g.js(WORKS);
+    await g.js('__pin(LANES[2]); player.z = ' + (z0 - 22 - 3));   // (dropped in just past the front barricade)
+    await g.step(2);
+    await g.expectDeath('barrier');
+  }, { quiet: true, speed: 19 });
+
+  // ---------- path prediction (debug) ----------
+  test('path prediction: most of an empty road is green, a car ahead closes some paths, and it changes nothing', async (g) => {
+    await g.js("debugAction('pred'); __step(0.3)");
+    await g.expect('PRED.on && PRED.mesh.visible', 'drawn');
+    const open = await g.js('PRED.paths');
+    g.ok(open > 50 && open <= 5 + 25 + 125, 'most ways are open on an empty road (the hardest swerves reach the sidewalk lamps): ' + open);
+    await g.js("spawnCar(player.run, 2, player.z - 25, 'bus'); Object.assign(player.run.ents[player.run.ents.length - 1], { v: 0, vBase: 0 }); PRED.t = 0; __step(0.05)");
+    const fewer = await g.js('PRED.paths');
+    g.ok(fewer < open, 'a stopped bus in the lane closes some: ' + fewer);
+    await g.js("debugAction('pred'); __step(0.1)");
+    await g.expect('!PRED.mesh.visible', 'hidden when off');
+  }, { quiet: true, speed: 19, x: 2.25 });
+
+  test('path prediction doesn’t change the game', async (g) => {
+    const run = (on) => g.js(`(() => { __reset({ seed: 3, god: true }); PRED.on = ${on}; __step(8); PRED.on = false; return Math.round(Game.score) + ' ' + player.z.toFixed(3); })()`);
+    g.eq(await run(true), await run(false));
+  });
+
+  test('auto drive: steers round a stopped bus in its lane', async (g) => {
+    await g.js("__pin(null); debugAction('auto'); spawnCar(player.run, 2, player.z - 45, 'bus'); Object.assign(player.run.ents[player.run.ents.length - 1], { v: 0, vBase: 0 })");
+    await g.step(4);
+    await g.expectAlive();
+    await g.expect('Math.abs(player.x - 2.25) > 1', 'it moved out of the bus lane');
+    await g.js("debugAction('auto')");
+    await g.expect('!PRED.auto', 'off again');
+  }, { quiet: true, speed: 19, x: 2.25 });
+
+  test('auto drive: takes the corner at a road closure by itself', async (g) => {
+    await g.js("__pin(null); PRED.auto = true; player.z = player.run.endZc + 80; Game.turns = 0");
+    await g.until('Game.turns > 0', 8);
+    await g.until('!player.finishing', 4);
+    await g.expectAlive();
+    await g.js('PRED.auto = false');
+  }, { quiet: true, speed: 19, x: 2.25 });
+
+  test('auto drive: 20 s of real traffic on a fixed seed', async (g) => {
+    await g.js('PRED.auto = true; __step(20); PRED.auto = false');
+    await g.expectAlive();
+  }, { seed: 1 });
+
   // ---------- menus with a controller ----------
   test('controller: pause, reach DEBUG, its first button is UFO, BACK and resume', async (g) => {
     await g.js('__press(9)');

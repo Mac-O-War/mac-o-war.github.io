@@ -466,6 +466,8 @@ body:not(.touch) .card.tch{display:none}
     <button class="btn sm dbgBtn" data-act="gang">RIVAL GANG</button>
     <button class="btn sm dbgBtn" data-act="god" id="dbgGod">GOD MODE: OFF</button>
     <button class="btn sm dbgBtn" data-act="boost">FULL BOOST &amp; FOCUS</button>
+    <button class="btn sm dbgBtn" data-act="pred" id="dbgPred">PATH PREDICTION: OFF</button>
+    <button class="btn sm dbgBtn" data-act="auto" id="dbgAuto">AUTO DRIVE: OFF</button>
   </div>
   <p class="cause" id="dbgMsg">THESE HAPPEN WHEN YOU RESUME</p>
   <button class="btn alt" id="dbgBack">BACK</button>
@@ -520,6 +522,7 @@ if (!window.THREE) {
    TRICKS & ROOFS
    MAIN UPDATE
    INSTANT REPLAY
+   PATH PREDICTION
    DEBUG FLY
    FRAME LOOP
    LEADERBOARD
@@ -2158,6 +2161,7 @@ function spawnNextRun(A) {
   toWorld(A, 0, A.endZc, _t);
   const B = makeRun(A.theta - A.turnDir * Math.PI / 2, _t.x, _t.z, -11, A.turnDir, A);
   A.next = B;
+  B.closures.push({ lane: detourLane(A.turnDir), zTop: -DETOUR_OUT, zBot: 3, ch: null, detour: 'out' });   // the detour lane you come out into
   for (let z = -40; z > -280; z -= rand(16, 30) / TRAFFIC) { const li = randi(0, 3); if (laneFree(B, li, z, 10)) spawnCar(B, li, z); }
   return B;
 }
@@ -2201,6 +2205,90 @@ function treeParts(p, x, z) {
   p.push([x + 0.9, 3.3, z - 0.6, 1.2, 1.0, 1.2, 0x2e7d32]);
 }
 // striped barrier running along X (faces ±Z)
+// ---------- the DETOUR LANE: a clear way round every road closure. The lane on the outside of the corner is kept empty for the last
+// DETOUR_IN m before the cross street, and so is the lane you come out into for the first DETOUR_OUT m of the new street: no cars
+// (they merge out, as for any closed lane), nobody crossing. Ride it and start the turn about DETOUR_START m before the middle of the
+// cross street: the wide line lands you in the new street's clear lane (the turn's start, not your lane, sets where you land).
+const DETOUR_IN = 40, DETOUR_OUT = 50, DETOUR_START = 3, DETOUR_HOLD = 70;   // ...and DETOUR_HOLD: from this far out, the new street's oncoming traffic waits short of the corner until you're round (it would cross the wide line)
+const detourLane = (td) => (td > 0 ? 0 : 3);   // the lane on the outside of a turn toward td (x = -td * 6.75)
+// it looks like road works: fresh blacktop, and orange cones along its edge with traffic (a taper of them across it where it
+// starts, `taper`: true). The cones are just props: ride into one and it bounces away (see updateCones). Chunk-relative z, zA > zB.
+function detourWorks(p, ch, x, zA, zB, taper) {
+  p.push([x, 0, (zA + zB) / 2, 4.1, 0.02, zA - zB, 0x2b2b2e]);   // fresh asphalt (lower than the lane lines, which stay on top)
+  const inner = x - Math.sign(x) * 2.15;   // the edge toward the middle of the road
+  for (let z = zA - (taper ? 6 : 2); z > zB + 1; z -= 4) addCone(ch, inner, z);
+  if (taper) for (let k = 1; k <= 3; k++) addCone(ch, inner + Math.sign(x) * k * 1.05, zA - 6 + k * 2);   // the taper: out across the lane
+}
+/* ---------- traffic cones (detour lanes, road works): knock them flying for CONE BOWLING!. Each is { m, x, y, z (chunk-relative), vx, vy, vz, spin, st }:
+   st 0 standing, 1 flying, 2 lying where it landed. They never hurt you; hitting one is a rule (checkCones, it scores),
+   how it flies is just looks (updateCones, fxRnd). ---------- */
+const CONE_GEO = vox([[0, 0, 0, 0.5, 0.08, 0.5, 0x222222], [0, 0.08, 0, 0.34, 0.4, 0.34, 0xff6a00], [0, 0.48, 0, 0.22, 0.3, 0.22, 0xff6a00], [0, 0.36, 0, 0.36, 0.1, 0.36, 0xffffff]]);
+function addCone(ch, x, z) {
+  const m = new THREE.Mesh(CONE_GEO, MAT.vox); m.position.set(x, 0, z); m.scale.setScalar(1.3); m.castShadow = true; ch.g.add(m);   // (a bit big: easy to see at speed)
+  (ch.cones || (ch.cones = [])).push({ m, x, y: 0, z, vx: 0, vy: 0, vz: 0, spin: 0, st: 0 });
+}
+function checkCones() {
+  if (Game.state !== 'play') return;
+  const P = player.run;
+  const lx = -Math.sin(player.h) * player.speed + player.vx, lz = -Math.cos(player.h) * player.speed;   // the rider's velocity in their street...
+  const wx = lx * P.cos + lz * P.sin, wz = -lx * P.sin + lz * P.cos;   // ...in the world
+  for (const r of runs) {
+    setPL(r);
+    const fx = wx * r.cos - wz * r.sin, fz = wx * r.sin + wz * r.cos;   // ...and in this street
+    for (const ch of r.chunks) {
+      if (!ch.cones || PL.z > ch.z0 + 30 || PL.z < ch.z0 - CH - 30) continue;
+      for (const c of ch.cones) {
+        if (c.st === 0) {
+          if (player.hy > 0.9 || Math.abs(PL.x - c.x) > 0.65 || Math.abs(PL.z - (ch.z0 + c.z)) > 0.75) continue;
+          // knocked flying: mostly the way you're going, kicked out to the side you hit it from, spinning
+          const side = Math.sign(c.x - PL.x) || 1;
+          c.vx = fx * frand(0.6, 0.9) + side * frand(2, 4.5); c.vz = fz * frand(0.6, 0.9); c.vy = frand(4.5, 7.5); c.spin = frand(8, 16) * (fxRnd() < 0.5 ? -1 : 1); c.st = 1;
+          Sound.blip(170, 0.07, 'square', 0.09); Sound.blip(95, 0.1, 'sine', 0.12, 0.02);
+          give('CONE BOWLING!', player.speed / player.base);
+        }
+      }
+    }
+  }
+  setPL(player.run);
+}
+function updateCones(dt) {   // the flying (looks only)
+  for (const r of runs) for (const ch of r.chunks) {
+    if (!ch.cones) continue;
+    for (const c of ch.cones) {
+      if (c.st !== 1) continue;
+      c.vy -= 22 * dt; c.x += c.vx * dt; c.y += c.vy * dt; c.z += c.vz * dt;
+      c.m.rotation.x += c.spin * dt; c.m.rotation.z += c.spin * 0.6 * dt;
+      if (c.y <= 0) {   // bounce, then settle on its side
+        c.y = 0; c.vy = -c.vy * 0.35; c.vx *= 0.55; c.vz *= 0.55; c.spin *= 0.5;
+        if (c.vy < 1.2) { c.st = 2; c.m.rotation.set(0, frand(0, 6.28), Math.PI / 2); c.y = 0.22; }
+      }
+      c.m.position.set(c.x, c.y, c.z);
+    }
+  }
+}
+// nobody crossing the road through it, and (before the corner) no cyclists already in that stretch: they'd turn the corner across it
+// (run-coordinate z range; a cyclist coming up later waits where it starts: see updBike)
+function clearDetour(run, zTop, zBot, bikes) {
+  for (let i = run.ents.length - 1; i >= 0; i--) {
+    const e = run.ents[i];
+    if (e.z > zTop - 2 && e.z < zBot + 2 && ((e.type === 'ped' && e.mode === 'cross') || (bikes && e.type === 'bike'))) killEnt(run, i);
+  }
+}
+// mid-block road works closing lane li: barricades across it at the front and back and a dig inside (dirt pile, equipment box)
+// are solid; the cones along both sides are the knock-over kind (see addCone). Traffic goes round it.
+function roadWorks(p, ch, run, li) {
+  const lx = LANES[li], zb = -22, zt = -52, z0 = ch.z0, mid = (zb + zt) / 2;
+  for (let z = zb; z >= zt; z -= 3) {
+    if (z === zb || z <= zt + 2) barrierX(p, lx - 1.8, lx + 1.8, z);
+    for (const sxx of [-1.7, 1.7]) addCone(ch, lx + sxx, z);
+  }
+  p.push([lx, 0, mid, 1.5, 0.3, 4, 0x6b5a45], [lx, 0.3, mid + 3, 1.2, 0.6, 1.2, 0xa0a0a0]);
+  addStatic(ch, lx, z0 + zb, 1.85, 0.3, 'barrier');   // the front barricade...
+  addStatic(ch, lx, z0 + zt + 1.5, 1.85, 1.8, 'barrier');   // ...the back ones...
+  addStatic(ch, lx, z0 + mid, 0.8, 2.05, 'barrier');   // ...the dirt pile...
+  addStatic(ch, lx, z0 + mid + 3, 0.65, 0.65, 'barrier');   // ...and the equipment box
+  run.closures.push({ lane: li, zTop: z0 + zt - 1, zBot: z0 + zb + 1, ch });
+}
 function barrierX(p, x0, x1, z) {
   const a = Math.min(x0, x1), b = Math.max(x0, x1);
   for (let x = a; x < b - 0.01; x += 2.4) {
@@ -3105,16 +3193,7 @@ function genChunk(run, z0, idx) {
     run.closures.push({ lane: 4, zTop: z0 + z - v.hd - 1, zBot: z0 + z + v.hd + 1, ch });
   }
   // mid-block construction lane closure
-  if (idx > 1 && !isEnd && !isFirst && rnd() < 0.16 + 0.05 * diff) {
-    const li = randi(0, 3), lx = LANES[li], zb = -22, zt = -52;
-    for (let z = zb; z >= zt; z -= 3) {
-      if (z === zb || z <= zt + 2) barrierX(p, lx - 1.8, lx + 1.8, z);
-      for (const sxx of [-1.7, 1.7]) cone(p, lx + sxx, z);
-    }
-    p.push([lx, 0, (zb + zt) / 2, 1.5, 0.3, 4, 0x6b5a45], [lx, 0.3, (zb + zt) / 2 + 3, 1.2, 0.6, 1.2, 0xa0a0a0]);
-    addStatic(ch, lx, z0 + (zb + zt) / 2, 1.85, (zb - zt) / 2 + 0.3, 'barrier');
-    run.closures.push({ lane: li, zTop: z0 + zt - 1, zBot: z0 + zb + 1, ch });
-  }
+  if (idx > 1 && !isEnd && !isFirst && rnd() < 0.16 + 0.05 * diff) roadWorks(p, ch, run, randi(0, 3));
 
   if (run.ramp && !run.rampDone && idx >= 1 && !isEnd && !isFirst && !ch.times) {   // one tow-truck ramp on this street
     const zr0 = rand(-58, -18);
@@ -3133,6 +3212,9 @@ function genChunk(run, z0, idx) {
       const b = addMesh(g, buildingGeo(40, randi(8, 22) * 4, 30), STYLE_MATS[randi(0, STYLES.length - 1)], -td * (37 + k * 40), 0, -116, false, true);
       b.matrixAutoUpdate = false; b.updateMatrix();
     }
+    // the detour lane: the outside lane's last DETOUR_IN m (and on into the intersection) kept clear
+    detourWorks(p, ch, -td * 6.75, -90 + DETOUR_IN, -80, true);
+    run.closures.push({ lane: detourLane(td), zTop: z0 - 104, zBot: z0 - 90 + DETOUR_IN, ch, detour: 'in' });
     // main barricade across the avenue
     barrierX(p, -td * 17, td * 11, -100.6);
     for (let x = -14; x <= 8; x += 5.5) { const ax = -td * 3 + x; const a = addMesh(g, GEO.amber, amberOn, ax, 1.32, -100.6); run.flashers.push(a); }
@@ -3170,12 +3252,15 @@ function genChunk(run, z0, idx) {
     const gh = addMesh(g, vox(glowP), MAT.lampHead, 0, 0, 0); const gp = addMesh(g, quadsGeo(pools, 0.05), MAT.lampPool, 0, 0, 0);
     gp.renderOrder = 2; ch.glow.push(gh.geometry, gp.geometry);
   }
+  if (isFirst) detourWorks(p, ch, -cs * 6.75, -6 - z0, -DETOUR_OUT - z0, false);   // the detour lane you come out into (see DETOUR_IN)
   const geo = vox(p);
   ch.detail = addMesh(g, geo, MAT.vox, 0, 0, 0, true, true);
   ch.detail.matrixAutoUpdate = false; ch.detail.updateMatrix();
   run.chunks.push(ch);
   populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst);
   decorPopulate(run, ch, isEnd, isFirst, plazaSide);
+  if (isEnd) clearDetour(run, z0 - 104, z0 - 90 + DETOUR_IN, true);   // (the detour lanes: see DETOUR_IN)
+  if (isFirst) clearDetour(run, -DETOUR_OUT, 3, false);
   // a level's first three blocks have no pickups, and the 4th always has a battery
   if (run.turnIn || idx >= 3) placeItems(ch, !run.turnIn && idx === 3); else ch.items = [];
 }
@@ -3423,6 +3508,11 @@ function updCar(run, e, dt) {
       if (d > -0.6 && d < 38) target = Math.min(target, Math.max(0, d * 0.85));
     }
   }
+  // the mouth of the next street: while you ride up to the corner and round it, its oncoming traffic waits short of it (see DETOUR_HOLD)
+  if (e.dir > 0 && run.turnIn && ((run === player.run.next && player.z - player.run.endZc < DETOUR_HOLD) || (run === player.run && player.finishing))) {
+    const d = -14 - e.hd - e.z;
+    if (d > -0.6) target = Math.min(target, Math.max(0, d * 0.85));
+  }
   for (const o of run.ents) {
     if (o === e || o.type !== 'car' || o.dir !== e.dir) continue;
     if (Math.abs(o.x - e.x) > 2.3) continue;
@@ -3611,12 +3701,15 @@ function updBike(run, e, dt) {
     else if (e.rang && d > 30) e.rang = false;
   }
   if (e.swT <= 0) { e.swT = rand(3, 9); e.tx = rnd() < 0.3 + 0.05 * (Game.level - 1) ? 6.75 : e.homeX + rand(-0.6, 0.6); }
+  if (e.tx < 9 && run.closures.some((c) => c.detour && c.lane === 3 && e.z > c.zTop - 4 && e.z - 30 < c.zBot)) e.tx = e.homeX;   // (stays out of a detour lane)
   for (const c of run.closures) if (c.lane === 4 && Math.abs(e.x - 10) < 1.5) {
     const ahead = e.dir < 0 ? e.z - c.zBot : c.zTop - e.z;
     if (ahead > -1 && ahead < 14) { e.tx = 7.2; e.swT = 3; }
   }
+  // at a road closure cyclists wait where the detour lane starts: one turning the corner cuts right across the way round it
+  const wait = e.dir < 0 && run.closures.some((c) => c.detour === 'in' && e.z > c.zBot - 1 && e.z - c.zBot < 3);
   e.x += clamp((e.tx - e.x) * 1.6, -2.5, 2.5) * dt;
-  e.z += e.dir * e.v * dt;
+  if (!wait) e.z += e.dir * e.v * dt;
   if (e.turnYaw !== 0) { const s = Math.sign(e.turnYaw); e.turnYaw = s * Math.max(0, Math.abs(e.turnYaw) - 3 * dt); }
   e.mesh.position.set(e.x, Math.abs(Math.sin(e.t * 7)) * 0.03, e.z);
   e.mesh.rotation.y = (e.dir > 0 ? Math.PI : 0) + e.turnYaw;
@@ -4750,7 +4843,7 @@ const UFO = { state: 'off', t: 0, cd: 0, pending: false, mesh: null, beam: null,
   }
   g.scale.setScalar(1.5); g.visible = false; scene.add(g); UFO.mesh = g;
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 3.2, 1, 20, 1, true).translate(0, -0.5, 0),
-    new THREE.MeshBasicMaterial({ color: 0x9cff9c, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    new THREE.MeshBasicMaterial({ color: 0x4dff6a, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide, fog: false }));   // (no fog, not additive: it stays green against a bright sky)
   beam.visible = false; beam.renderOrder = 4; scene.add(beam); UFO.beam = beam;
 })();
 function startUfo() {   // pick (or put) a pigeon on the ground ahead, timed so you arrive while the beam is on
@@ -4787,7 +4880,7 @@ function updateUfo(dt) {
   } else if (UFO.state === 'beam') {   // the tractor beam: up goes the pigeon, spinning
     m.position.set(UFO.at.x, UFO.at.y + Math.sin(UFO.t * 3) * 0.3, UFO.at.z); m.rotation.z = Math.sin(UFO.t * 2) * 0.05;
     const b = UFO.beam, h = m.position.y - 0.6; b.visible = true; b.position.set(m.position.x, m.position.y - 0.6, m.position.z); b.scale.set(1, h, 1);
-    b.material.opacity = 0.25 + Math.sin(UFO.t * 14) * 0.07;
+    b.material.opacity = 0.4 + Math.sin(UFO.t * 14) * 0.06;
     if (pg && UFO.run) {
       pg.y = Math.min(UFO.at.y - 1, (pg.y0 === undefined ? (pg.y0 = pg.y) : pg.y0) + UFO.t * UFO.t * 2.2);
       pg.mesh.position.y = pg.y; pg.mesh.rotation.y += dt * 9; pg.mesh.geometry = PIGEON_GEO[1]; pg.mesh.scale.x = Math.sin(UFO.t * 30) > 0 ? 1 : 0.35;
@@ -5278,7 +5371,7 @@ const AWARDS = {
   'NEAR MISS!': { group: 'MOVES', pts: 100, cls: 'nm', top: 2, how: 'Pass close to a car going your way' },
   'CLOSE SHAVE!': { group: 'MOVES', pts: 60, cls: 'nm', top: 2, how: 'Pass close to lamps, trees, hydrants…' },
   'BIKE LANE HERO!': { group: 'MOVES', pts: 400, unit: '+', how: 'Ride a whole block (80 m) in the bike lane; more for each block in a row', say: ['Bike lane hero!', 2] },   // × 1.5 for each block in a row
-  'DETOUR!': { group: 'MOVES', pts: 150, show: '150 × LEVEL', how: 'Make the turn at a road closure', say: ['Detour!', 1] },
+  'DETOUR!': { group: 'MOVES', pts: 150, show: '150 × LEVEL', how: 'Make the turn at a road closure. The hatched lane on the outside of the corner is always clear: ride it and turn just before the middle of the cross street', say: ['Detour!', 1] },
   // ----- TRICKS: points pile up while you hold them (see updateScoring), paid when you stop -----
   'WRONG WAY': { group: 'TRICKS', pts: 1, cls: 'trick', chain: 'keep', show: '40–600 / SEC', how: 'Ride in the oncoming lanes (more with cars coming)' },
   'SIDEWALK SURFING': { group: 'TRICKS', pts: 1, cls: 'trick', chain: 'keep', show: '60–240 / SEC', how: 'Ride on the sidewalk' },
@@ -5290,6 +5383,7 @@ const AWARDS = {
   'HOP 360': { group: 'TRICKS', pts: 15, cls: 'trick', chain: 'none', guide: false },   // a spin during a plain bunny hop
   'SPIN 360!': { group: 'TRICKS', pts: 5, cls: 'trick', chain: 'none', how: 'A full spin (Q / K, or gamepad Y). Just for fun unless you’re off a ramp' },
   'CLOSE ENCOUNTER!': { group: 'TRICKS', pts: 600, top: 2, how: 'Squash Pizza Rat and a UFO comes for a pigeon: ride through its tractor beam' },
+  'CONE BOWLING!': { group: 'TRICKS', pts: 100, cls: 'trick', chain: 'keep', unit: ' EACH', how: 'Knock over traffic cones: along the detour lanes, and round the road works (mind the barricades and the dig)' },
   'STEAM BATH!': { group: 'TRICKS', pts: 150, cls: 'trick', chain: 'keep', how: 'Ride through a steaming manhole' },
   'PIGEON SCATTER!': { group: 'TRICKS', pts: 50, cls: 'trick', chain: 'keep', how: 'Ride through a flock of pigeons' },
   'COOL OFF!': { group: 'TRICKS', pts: 150, cls: 'trick', chain: 'keep', how: 'Ride through the spray of an open fire hydrant (also fills FOCUS to 100%)' },
@@ -5528,7 +5622,7 @@ bindButton($('setBack'), closeSettings);
 /* ---------- DEBUG menu (pause screen, debug sessions only): call in things to test, god mode, a full tank ---------- */
 const DBG_UI = { open: false };
 if (DEBUG) $('dbgOpen').classList.remove('hidden');
-function openDebug() { DBG_UI.open = true; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); $('dbgMsg').textContent = 'THESE HAPPEN WHEN YOU RESUME'; showScreen('debugScreen'); }
+function openDebug() { DBG_UI.open = true; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); $('dbgPred').textContent = 'PATH PREDICTION: ' + (PRED.on ? 'ON' : 'OFF'); $('dbgAuto').textContent = 'AUTO DRIVE: ' + (PRED.auto ? 'ON' : 'OFF'); $('dbgMsg').textContent = 'THESE HAPPEN WHEN YOU RESUME'; showScreen('debugScreen'); }
 function closeDebug() { DBG_UI.open = false; showScreen('pauseScreen'); }
 function debugKey(e) {
   if (!DBG_UI.open) return false;
@@ -5548,6 +5642,8 @@ function debugAction(act) {
   } else if (act === 'rival') { spawnRival(); msg = 'A RIVAL IS ON THE WAY'; }
   else if (act === 'gang') { spawnGang(); msg = 'THE RIVAL GANG IS ON THE WAY'; }
   else if (act === 'god') { Game.debug.god = !Game.debug.god; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); msg = Game.debug.god ? "YOU CAN'T CRASH" : 'CRASHES ARE BACK ON'; }
+  else if (act === 'pred') { PRED.on = !PRED.on; PRED.t = 0; $('dbgPred').textContent = 'PATH PREDICTION: ' + (PRED.on ? 'ON' : 'OFF'); msg = PRED.on ? 'GREEN: EVERY WAY THROUGH THE NEXT 3 SECONDS (THICKER SCORES MORE)' : 'PATH PREDICTION OFF'; }
+  else if (act === 'auto') { PRED.auto = !PRED.auto; PRED.t = 0; $('dbgAuto').textContent = 'AUTO DRIVE: ' + (PRED.auto ? 'ON' : 'OFF'); msg = PRED.auto ? 'IT STEERS FOR THE MOST POINTS (AND TURNS AT CLOSURES); THE GAS IS YOURS' : 'AUTO DRIVE OFF'; }
   else if (act === 'boost') { GASC.got = Math.max(1, GASC.got); GASC.t = GAS_MAX; FOCUS.meter = 1; updateGasUI(); msg = 'BOOST AND FOCUS FULL'; }   // (quietly: no ACCELERATOR UNLOCKED message)
   $('dbgMsg').textContent = msg; Sound.blip(880, 0.06, 'square', 0.1);
 }
@@ -6278,7 +6374,7 @@ function updatePlay(dt) {
   Game.time += dt; Game.elapsed += dt; Game.runT += dt;
   updateGas(dt); checkItems(); updateExtras(dt); updateTricks(dt);
   screamCd -= dt;
-  const steer = readSteer(), gas = readGas();
+  const steer = PRED.auto ? autoSteer() : readSteer(), gas = readGas();   // (AUTO DRIVE, debug: it steers, you work the gas)
   // in FOCUS your speed and gas are held as they were when it started (your thumb may have left GAS to press FOCUS)
   if (gas) { FOCUS.gasT = performance.now(); FOCUS.gasSpeed = player.speed; }   // for the GAS -> FOCUS thumb move
   player.boost = FOCUS.on ? FOCUS.boost && GASC.t > 0 : gas;
@@ -6745,6 +6841,183 @@ window.addEventListener('pointerdown', () => { if (Game.state === 'replay') endR
 vidBtnState('wait');
 
 /* =====================================================================
+   PATH PREDICTION (debug menu) — every way through the next 3 seconds that doesn't crash, drawn on the road in green
+   ===================================================================== */
+// The rider's choices: steer one of PRED_STEER for each of 3 one-second stretches (125 paths, as a tree: the stretches they
+// share are drawn once). Each is ridden with movePlayer's steering at today's speed, against everything in the street moving on
+// as it's moving now (its velocity measured between looks). A path that hits something is dropped; the rest are drawn,
+// thicker for more points (an estimate: near misses, crossing-traffic passes, wrong way, sidewalk, the yellow line, the bike lane).
+// It only reads the game (no random numbers, nothing changed), so on its own it never alters what happens.
+// AUTO DRIVE (debug menu) steers by it: every look, into the first second of the best path (and round the corner at a closure).
+const PRED_STEER = [-1, -0.5, 0, 0.5, 1], PRED_SEG = 1, PRED_DT = 1 / 30, PRED_EVERY = 0.2;
+const PRED_MX = 0.35, PRED_MZ = 0.6, PRED_MZ_CAR = 1.6, PRED_M0 = 0.1;   // safety margin (m): moving things count as this much wider / longer (cars longer still: they brake), since traffic doesn't always do what it's doing now;
+// it grows from PRED_M0 over the first second (the next moment is predictable, and a rider already passing close isn't trapped), and still things only get PRED_M0
+const PRED_ROOM = 5;   // AUTO DRIVE goes for the most points only where at least this many ways through (of 25) stay open after the first second
+const PRED = { on: false, auto: false, t: 0, last: new Map(), mesh: null, edges: [], top: 0, steer: 0, fresh: false };
+(function buildPred() {
+  const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
+  m.frustumCulled = false; m.renderOrder = 3; m.visible = false; scene.add(m); PRED.mesh = m;
+})();
+// where a car will be over the next 3 s, read from what it's showing you (and following updCar's own steering):
+// a TURN SIGNAL means it moves over once it's done signalling; FLASHING HEADLIGHTS (with its wheels pointed at you) mean it
+// drifts your way, then swerves into your lane and stays up to 2.2 s (the longest a swerve lasts) before going back;
+// a car between lanes carries on into the lane it's heading for. Its speed stays as it is (braking is what the margin is for).
+function carPath(e, vz) {
+  const n = Math.ceil(PRED_SEG * 3 / PRED_DT) + 2, out = new Float32Array(n * 2), ls = e.erratic ? 6.5 : 3.5;
+  let x = e.x, z = e.z, lane = e.lane, sig = e.signalT > 0 ? e.signalT : -1, pre = e.swervePre > 0 ? e.swervePre : -1, back = -1;
+  if (e.swerveT > 0 && e.homeLane !== undefined) back = 2.2;   // (already swerving: you can't tell when it'll stop, so assume the longest)
+  for (let i = 0; i < n; i++) {
+    out[i * 2] = x; out[i * 2 + 1] = z;
+    const t = i * PRED_DT;
+    if (sig >= 0 && t >= sig) { lane = e.signalLane; sig = -1; }
+    if (pre >= 0 && t >= pre) { lane = 2; pre = -1; back = t + 2.2; }
+    if (back >= 0 && t >= back) { lane = e.homeLane !== undefined ? e.homeLane : 1; back = -1; }
+    const tx = LANES[lane] + (pre >= 0 ? Math.sign(LANES[2] - LANES[lane]) * SWERVE_DRIFT : 0);
+    x += clamp((tx - x) * 2.2, -ls, ls) * PRED_DT; z += vz * PRED_DT;
+  }
+  return out;
+}
+// the steering AUTO DRIVE gives in place of yours (updatePlay asks every frame)
+function autoSteer() {
+  const r = player.run, dz = player.z - r.endZc;
+  if (r.next && dz < TURN_ZONE) return dz < DETOUR_START ? r.turnDir : 0;   // the closure: straight on down the detour lane (any steering in the turning zone starts the turn), then the wide line round
+  if (player.finishing) return 0;   // and straighten out of it by itself
+  return PRED.steer;
+}
+// look ahead (on the rules side, before steering is read, since AUTO DRIVE steers by it)
+function planPaths(st, dt) {
+  const ok = (PRED.on || PRED.auto) && st === 'play' && Game.state === 'play' && !player.roof && Math.abs(player.h) < 0.05 && !player.turnPhase && !player.finishing;
+  if (!ok) { PRED.edges = []; PRED.steer = 0; PRED.t = 0; PRED.fresh = true; return; }
+  PRED.t -= dt; if (PRED.t > 0) return;
+  PRED.t = PRED_EVERY;
+  const r = player.run; setPL(r);
+  const T = PRED_SEG * 3, sp = Math.max(player.speed, 1), sf = player.speed / player.base;
+  // what's out there, where it's going (traffic: by its turn signals and headlights, see carPath; the rest measured since the last look)
+  const obs = [], now = Game.time, seen = new Map();
+  for (const e of r.ents) {
+    if (!e.lethal || e.kind === 'rat' || e.type === 'rival' || e.type === 'pigeon') continue;
+    if (e.z > PL.z + 30 || e.z < PL.z - sp * T - 60) continue;
+    const prev = PRED.last.get(e); let vx, vz;
+    if (prev && now > prev.t) { vx = (e.x - prev.x) / (now - prev.t); vz = (e.z - prev.z) / (now - prev.t); }
+    else { vx = e.vx || 0; vz = e.type === 'xcar' ? 0 : e.vz !== undefined && e.type === 'ped' ? e.vz : (e.dir || 0) * (e.v || 0); }
+    seen.set(e, { x: e.x, z: e.z, t: now });
+    const mz = e.type === 'car' ? PRED_MZ_CAR : PRED_MZ;
+    const o = { e, x: e.x, z: e.z, vx, vz, hw: e.hw, hd: e.hd, mx: PRED_MX, mz, delay: e.delay > 0 ? e.delay : 0, dvx: e.type === 'xcar' ? e.vx : 0 };
+    if (e.type === 'car' && !e.horse && e.lane !== undefined) o.path = carPath(e, vz);   // traffic: where its lights say it's going
+    obs.push(o);
+  }
+  PRED.last = seen;
+  for (const ch of r.chunks) {
+    if (ch.z0 - CH > PL.z + 20 || ch.z0 < PL.z - sp * T - 40) continue;   // (blocks behind you, or beyond the look ahead)
+    for (const o of ch.statics) if (o.z < PL.z + 20 && o.z > PL.z - sp * T - 20) obs.push({ e: o, x: o.x, z: o.z, vx: 0, vz: 0, hw: o.hw, hd: o.hd, mx: PRED_M0, mz: PRED_M0, delay: 0, dvx: 0, st: true });
+  }
+  // and the street you've just turned out of: the mouth of this one still overlaps its corner (its barricade reaches across it)
+  if (r.prev && runs.includes(r.prev)) {
+    const q = { x: 0, z: 0 };
+    for (const ch of r.prev.chunks.slice(-2)) for (const o of ch.statics) {
+      toWorld(r.prev, o.x, o.z, q); toLocal(r, q.x, q.z, q);
+      if (q.z < PL.z + 20 && q.z > PL.z - sp * T - 20 && Math.abs(q.x) < 20) obs.push({ e: o, x: q.x, z: q.z, vx: 0, vz: 0, hw: o.hd, hd: o.hw, mx: PRED_M0, mz: PRED_M0, delay: 0, dvx: 0, st: true });   // (a quarter turn: its width is our length)
+    }
+  }
+  // what passing close to each is worth (the same awards the game pays)
+  for (const o of obs) {
+    const e = o.e, K = KINDS[e.kind] || {};
+    if (e.type === 'car' && e.dir > 0) { const rel = player.speed + (e.v || 0); o.pts = AWARDS['ONCOMING VELOCITY'].pts * rel * rel; o.flat = false; }
+    else { const nm = K.near || NEAR_BY_TYPE[e.type] || 'CLOSE SHAVE!'; o.pts = AWARDS[nm].pts * sf; o.flat = !!K.flat; }
+  }
+  const maxLat = 11 + player.speed * 0.12, endZ = r.endZc + DETOUR_START, zoneZ = r.next ? r.endZc + TURN_ZONE : -Infinity, ramps = r.ramps;
+  const edges = [];   // [x0, z0, x1, z1, ...points] per tree edge, plus its best score below
+  // ride one stretch from state s with steer k: returns the new state, or null on a crash
+  function ride(s, k) {
+    const out = { x: s.x, vx: s.vx, z: s.z, t: s.t, sc: s.sc, done: s.done.slice(), ramp: s.ramp, line: [s.x, s.z] };
+    const n = Math.round(PRED_SEG / PRED_DT);
+    for (let i = 0; i < n; i++) {
+      out.vx += clamp((out.z < zoneZ ? 0 : k) * maxLat - out.vx, -70 * PRED_DT, 70 * PRED_DT);   // (in the turning zone: straight on, as AUTO DRIVE rides it)
+      out.x = clamp(out.x + out.vx * PRED_DT, -16.4, 16.4); out.z -= sp * PRED_DT; out.t += PRED_DT;
+      if (out.z < endZ) { out.end = true; break; }   // the closure: the turn is yours to make (or AUTO DRIVE's)
+      if (r.next && out.z < r.endZc + TURN_ZONE + 1 && Math.abs(out.x + r.turnDir * 6.75) > 1.2) return { crash: true, t: out.t };   // into the turning zone anywhere but the detour lane: not AUTO DRIVE's way round
+      for (const rp of ramps) if (!out.ramp && Math.abs(out.x - rp.x) < RAMP_HW && out.z <= rp.zLow + 0.3 && out.z > rp.zLow - 1.2) out.ramp = rp;   // up the tow truck's bed: over its cab
+      if (out.ramp && out.z > out.ramp.zHigh && Math.abs(out.x - out.ramp.x) >= RAMP_HW) return { crash: true, t: out.t };   // off the side of the bed: not a way through
+      const ax = Math.abs(out.x);   // tricks, per second
+      if (ax <= 0.4) out.sc += 60 * PRED_DT; else if (out.x < -0.4 && ax < 9) out.sc += 150 * PRED_DT; else if (ax > 11) out.sc += 120 * PRED_DT;
+      else if (out.x > 9.05 && out.x < 10.95) out.sc += AWARDS['BIKE LANE HERO!'].pts / 80 * sp * sf * PRED_DT;
+      for (let j = 0; j < obs.length; j++) {
+        const o = obs[j];
+        let ox, oz;
+        if (o.path) { const k = Math.min(o.path.length / 2 - 1, Math.round(out.t / PRED_DT)); ox = o.path[k * 2]; oz = o.path[k * 2 + 1]; }
+        else { ox = o.x + o.vx * out.t; oz = o.z + o.vz * out.t; }
+        if (o.delay) { const mt = Math.max(0, out.t - o.delay); ox = o.x + o.dvx * mt; if (out.t < o.delay) continue; }
+        const gx = Math.abs(out.x - ox) - (P_HW + o.hw), gz = Math.abs(out.z - oz) - (P_HD + o.hd);
+        const grow = Math.min(1, out.t);   // (margins: PRED_M0 now, the full margin a second out; plus half a step's travel, so nothing slips between two looks)
+        if (gx < PRED_M0 + (o.mx - PRED_M0) * grow + Math.abs(out.vx) * PRED_DT / 2 && gz < PRED_M0 + (o.mz - PRED_M0) * grow + sp * PRED_DT / 2) {
+          if (out.ramp && (o.e.kind === 'towbed' || o.e.kind === 'towtruck')) continue;
+          return { crash: true, t: out.t };
+        }
+        if (out.done[j]) continue;
+        if (o.e.type === 'xcar') {   // crossing its path close to its bumper
+          if (Math.abs(out.z - oz) < sp * PRED_DT && gx >= 0 && gx <= CROSS_NEAR) {
+            const tt = 1 - gx / CROSS_NEAR, front = Math.sign(o.dvx) === Math.sign(out.x - ox);
+            out.sc += (front ? AWARDS['CUT IN FRONT!'] : AWARDS['BEHIND THE BUMPER!']).pts * sf * (1 + tt * 2); out.done[j] = 1;
+          }
+        } else if (!o.e.nm && Math.max(gx, gz) < NEAR && Math.min(gx, gz) < 0) {
+          out.sc += o.pts * (o.flat ? 1 : 1 + clamp(1 - Math.max(gx, gz, 0) / NEAR, 0, 1)); out.done[j] = 1;
+        }
+      }
+      if (i % 3 === 2) out.line.push(out.x, out.z);
+    }
+    out.line.push(out.x, out.z);
+    return out;
+  }
+  // the tree: each stretch's edge keeps the best score of any path through it that survives (and, crash or not, how long it lasts)
+  // (best: its best score, -1 if no way through; open: how many ways through; last: how long the longest one lasts, crash or not)
+  function grow(s, depth) {
+    let best = -1, open = 0, last = 0;
+    const firsts = [];
+    for (const k of PRED_STEER) {
+      const o = ride(s, k);
+      if (o.crash) { last = Math.max(last, o.t); if (!depth) firsts.push({ k, best: -1, open: 0, last: o.t }); continue; }
+      const sub = depth + 1 < 3 && !o.end ? grow(o, depth + 1) : { best: o.sc, open: o.end ? 25 : 1, last: o.t };   // (reaching the closure: wide open)
+      last = Math.max(last, sub.last); open += sub.open;
+      if (!depth) firsts.push({ k, best: sub.best, open: sub.open, last: sub.last });
+      if (sub.best < 0) continue;
+      edges.push({ line: o.line, best: sub.best }); best = Math.max(best, sub.best);
+    }
+    if (!depth) PRED.firsts = firsts;
+    return { best, open, last };
+  }
+  grow({ x: player.x, vx: player.vx, z: player.z, t: 0, sc: 0, done: new Uint8Array(obs.length), ramp: player.onRamp || null }, 0);
+  // AUTO DRIVE's choice for the next moment: the most points where there's room to dodge; else the most room; else what lasts longest
+  const f = PRED.firsts, gentle = (a, b) => Math.abs(a.k) - Math.abs(b.k);
+  const roomy = f.filter((c) => c.open >= PRED_ROOM).sort((a, b) => b.best - a.best || gentle(a, b));
+  const any = f.filter((c) => c.open > 0).sort((a, b) => b.open - a.open || b.best - a.best || gentle(a, b));
+  const pick = roomy[0] || any[0] || f.slice().sort((a, b) => b.last - a.last || gentle(a, b))[0];
+  PRED.edges = edges; PRED.steer = pick ? pick.k : 0; PRED.fresh = true;
+}
+// draw the paths (drawing side): a flat green ribbon per stretch, just above the road, thicker for more points (best last, on top)
+function drawPaths() {
+  if (!PRED.on || Game.state !== 'play') { PRED.mesh.visible = false; return; }
+  if (!PRED.fresh) return;
+  PRED.fresh = false;
+  const r = player.run, edges = PRED.edges.slice();
+  let top = 0; for (const ed of edges) top = Math.max(top, ed.best);
+  edges.sort((a, b) => a.best - b.best);
+  const v = [], c = new THREE.Vector3();
+  const put = (x, z) => { toWorld(r, x, z, c); v.push(c.x, groundY(r, x, z) + 0.05, c.z); };
+  for (const ed of edges) {
+    const w = (0.06 + 0.5 * (top > 0 ? ed.best / top : 0)) / 2, L = ed.line;
+    for (let i = 0; i + 3 < L.length; i += 2) {
+      const x0 = L[i], z0 = L[i + 1], x1 = L[i + 2], z1 = L[i + 3], dx = x1 - x0, dz = z1 - z0, d = Math.hypot(dx, dz) || 1, nx = -dz / d * w, nz = dx / d * w;
+      put(x0 + nx, z0 + nz); put(x0 - nx, z0 - nz); put(x1 + nx, z1 + nz);
+      put(x1 + nx, z1 + nz); put(x0 - nx, z0 - nz); put(x1 - nx, z1 - nz);
+    }
+  }
+  const g = PRED.mesh.geometry;
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeBoundingSphere();
+  PRED.mesh.visible = v.length > 0;
+  PRED.paths = edges.length; PRED.top = top;   // (for the tests)
+}
+
+/* =====================================================================
    DEBUG FLY
    ===================================================================== */
 /* ---------- DEBUG FLY: '`' freezes the game and lets you fly the camera around the city ----------
@@ -6837,8 +7110,9 @@ function simulate(st, dt) {
     if (st === 'winning' && Game.deathT > 1.8) showWin();
   }
   if (st !== 'replay') { updateDrone(dt); updateEagle(dt); updateUfo(dt); }   // (in the replay the recording moves them)
+  if (PRED.on || PRED.auto) planPaths(st, dt);   // (debug: path prediction and auto drive look ahead, for the next frame's steering)
   if (st === 'play') updateShouts(dt);   // (the preacher picks what to shout)
-  checkStreetSpots(dt);
+  checkStreetSpots(dt); checkCones();
   updateSnaps(dt);
 }
 // the drawing (and the sound): how this frame looks. Nothing here changes what happens in the game.
@@ -6876,8 +7150,9 @@ function present(st, dt) {
   Sound.setEngine(player.speed, st === 'play', player.boost);
   if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
   if (st !== 'replay') updateRivalDebris(dt);   // in the replay the pieces follow the recording (then tumble on after the impact)
-  updateDecor(dt); updateItems(dt);
+  updateDecor(dt); updateItems(dt); updateCones(dt);
   updateBubbles(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); Sky.update(dt);
+  if (PRED.on || PRED.mesh.visible) drawPaths();   // (debug)
   if (Game.state === 'replay' && VID.cap) VID.capture();   // the tall video frame first: the normal frame then covers it
 }
 
