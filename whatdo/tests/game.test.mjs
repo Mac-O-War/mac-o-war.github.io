@@ -237,6 +237,22 @@ export default (test) => {
     await g.expectAward(/^RIVAL WIPED OUT!/);
   }, { quiet: true, speed: 19, x: 2.25 });
 
+  test('rivals: lots at once, spaced out, and each gang pays its own GANG BUSTED!', async (g) => {
+    await g.js("for (let k = 0; k < 4; k++) spawnGang(); for (let k = 0; k < 8; k++) spawnRival(); __step(0.1)");
+    const rs = await g.js("player.run.ents.filter((e) => e.type === 'rival').map((e) => e.x.toFixed(2) + ',' + Math.round(e.z))");
+    g.eq(rs.length, 20, 'all 20 out');
+    g.eq(new Set(rs).size, 20, 'nobody on top of anybody');
+    // a gang all wear the same colours; riders on their own wear all sorts
+    const looks = await g.js("[...new Set(player.run.ents.filter((e) => e.gang).map((e) => e.gang))].map((gg) => new Set(player.run.ents.filter((e) => e.gang === gg).map((e) => JSON.stringify(gg.look))).size)");
+    g.ok(looks.length === 4 && looks.every((n) => n === 1), 'each gang in one look: ' + JSON.stringify(looks));
+    // beat the first gang's three (smoked), and only one GANG BUSTED! is paid
+    await g.js("const gang = player.run.ents.find((e) => e.gang).gang; for (const e of player.run.ents.filter((o) => o.gang === gang)) rivalBeaten(e, false)");
+    const busted = await g.js("__log.awards.filter((a) => a.name === 'GANG BUSTED!').length");
+    g.eq(busted, 1, 'one gang busted');
+    await g.step(5);
+    await g.expectAlive();
+  }, { quiet: true, god: true, speed: 19 });
+
   // ---------- crash, replay, level end ----------
   test('a crash plays the replay, then the game-over screen; sky things are hidden after', async (g) => {
     await g.step(3);   // something to replay
@@ -304,6 +320,12 @@ export default (test) => {
     await g.js('__pin(LANES[2]); player.z = ' + (z0 - 22 - 3));   // (dropped in just past the front barricade)
     await g.step(2);
     await g.expectDeath('barrier');
+  }, { quiet: true, speed: 19 });
+
+  test('road closure: the outside sidewalk is barricaded where it ends (no riding off into the closed street)', async (g) => {
+    await g.js('const r = player.run; player.z = r.endZc + 40; __pin(-r.turnDir * 14.5)');
+    await g.until("Game.state !== 'play'", 4);
+    await g.expectDeath('closed');
   }, { quiet: true, speed: 19 });
 
   // ---------- path prediction (debug) ----------

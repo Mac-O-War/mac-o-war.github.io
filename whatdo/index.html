@@ -3230,6 +3230,8 @@ function genChunk(run, z0, idx) {
     barrierZ(p, -81, -99.5, -td * 12.2);
     for (const zz of [-86, -94]) { const s = addMesh(g, GEO.sign, SIGN.closed, -td * 12.25, 1.95, zz); s.rotation.y = td * Math.PI / 2; }
     addStatic(ch, -td * 12.2, z0 - 90, 0.45, 9.5, 'closed');
+    barrierX(p, -td * 12.2, -td * 17.4, -80.4);   // ...and the end of the sidewalk beside it (else it led you into the closed street, with no way out)
+    addStatic(ch, -td * 14.8, z0 - 80.4, 2.65, 0.3, 'closed');
     // the turn side straight-ahead is solid buildings (for a run that is never entered)
     addStatic(ch, td * 35.5, z0 - 138.5, 24.5, 31.5, 'building');
     // warning signs & painted turn arrows
@@ -3766,8 +3768,12 @@ const rivalGeo = (J, L, SK) => {   // legs, torso, two arms, head: separate piec
     [[0, 1.88, 0, 0.42, 0.4, 0.4, SK], [0, 2.16, 0.02, 0.5, 0.22, 0.5, L], [0, 2.1, -0.25, 0.46, 0.08, 0.1, 0x111111], [-0.1, 2.06, -0.205, 0.07, 0.07, 0.02, 0x111111], [0.1, 2.06, -0.205, 0.07, 0.07, 0.02, 0x111111]]
   ].map(vox);
 };
-const RIVAL_GEO = rivalGeo(0x111111, 0x39ff14, 0xc68642);
-const GANG_GEO = [0xc68642, 0x8d5524, 0xf1c27d].map((sk) => rivalGeo(0x4a1a6b, 0xff2bd6, sk));   // matching jackets, different faces
+// every rival rides in his own colours (a dark jacket, a neon accent); a gang all wear the same, with different faces
+const RIVAL_JACKETS = [0x111111, 0x4a1a6b, 0x1e3a5f, 0x5d1a1a, 0x1f4d2b, 0x3a3a3a, 0x6b4a1a, 0x0f2f3f];
+const RIVAL_ACCENTS = [0x39ff14, 0xff2bd6, 0x00e5ff, 0xffd23f, 0xff6a00, 0xff3b3b, 0x7c4dff, 0xffffff, 0x3dafff];
+const RIVAL_GEOS = new Map();   // (made once per look)
+const rivalLook = () => ({ J: pick(RIVAL_JACKETS), L: pick(RIVAL_ACCENTS) });
+function rivalGeoFor(look, skin) { const k = look.J + '|' + look.L + '|' + skin; let g = RIVAL_GEOS.get(k); if (!g) { g = rivalGeo(look.J, look.L, skin); RIVAL_GEOS.set(k, g); } return g; }
 // rivals come from money: every RIVAL_CASH dollar bills you grab call one in; GANG_CHANCE of the time it's the RIVAL GANG
 // (three of them racing you at once; beat them all for GANG BUSTED!)
 const RIVAL_CASH = 3, GANG_CHANCE = 0.1, GANG_N = 3;
@@ -3798,21 +3804,24 @@ const RIVAL_COMEBACK = ['NOT SO FAST!', "OH, IT'S ON!", 'LUCKY BREAK!', "I'M JUS
 // the race is a rubber band: fall too far behind and he eases off, pull too far ahead and he gets a burst and comes back past.
 // Each time you take the lead is a bounce; the RIVAL_BOUNCES-th time the band lets go and the race is yours.
 const RIVAL_BOUNCES = 2, RIVAL_FAR_BEHIND = 16, RIVAL_FAR_AHEAD = 6, RIVAL_RACE_MAX = 20, RIVAL_LEVEL_LEFT = 15;   // passes to win, metres, metres, seconds before the band lets go anyway, and it always lets go with this many seconds of the level left
+// gang: the gang he rides with ({ left: riders still to beat }), or none. Any number can be out at once (the debug menu):
+// each new one rides in behind the ones already racing, and they duel at a few different distances ahead of you.
 function spawnRival(gang, i) {
   const r = player.run, root = new THREE.Group();
+  const slot = r.ents.filter((o) => o.type === 'rival' && !o.crashed && o.phase !== 'beaten').length;   // rivals already out
   const tire = new THREE.Mesh(RIG_GEO.tire, MAT.vox); tire.position.y = 0.45; root.add(tire);
   const shell = new THREE.Mesh(RIG_GEO.shell, MAT.vox); shell.position.y = 0.45; root.add(shell);
-  for (const g of (gang ? GANG_GEO[i % GANG_GEO.length] : RIVAL_GEO)) root.add(new THREE.Mesh(g, MAT.vox));
+  for (const g of rivalGeoFor(gang ? gang.look : rivalLook(), pick(SKINS))) root.add(new THREE.Mesh(g, MAT.vox));
   for (const c of root.children) c.castShadow = true;
-  const lanes = RIVAL_X.filter((lx) => Math.abs(lx - player.x) > 1.6), x = gang ? lanes[(i || 0) % lanes.length] : (player.x > 4.5 ? 2.25 : 6.75), z = player.z + 16 + (i || 0) * 6;
+  const lanes = RIVAL_X.filter((lx) => Math.abs(lx - player.x) > 1.6), x = gang || slot ? lanes[slot % lanes.length] : (player.x > 4.5 ? 2.25 : 6.75), z = player.z + 16 + Math.floor(slot / lanes.length) * 6;   // (side by side, then rows further back)
   root.position.set(x, 0.02, z);
-  const e = addEnt(r, { type: 'rival', kind: 'rival', mesh: root, tire, x, z, tx: x, hw: 0.3, hd: 0.5, dir: -1, v: player.speed + 7, t: 0, laneT: 3, tauntT: 2 + (i || 0) * 1.5, phase: 'pass', nm: true, lethal: true, gang: !!gang, hold: 5 + (i || 0) * 4 });
+  const e = addEnt(r, { type: 'rival', kind: 'rival', mesh: root, tire, x, z, tx: x, hw: 0.3, hd: 0.5, dir: -1, v: player.speed + 7, t: 0, laneT: 3, tauntT: 2 + (slot % 4) * 1.5, phase: 'pass', nm: true, lethal: true, gang: gang || null, hold: 5 + (slot % 3) * 4 });   // (holds under RIVAL_FAR_BEHIND)
   if (!gang) { Voice.say('A rival appears!', 3, 'joke'); popup('RIVAL! CATCH HIM!', 'good'); }
   return e;
 }
 function spawnGang() {
-  for (let i = 0; i < GANG_N; i++) spawnRival(true, i);
-  Game.gangLeft = GANG_N;
+  const gang = { left: GANG_N, look: rivalLook() };   // (each gang counts its own riders: GANG BUSTED! when they're all beaten)
+  for (let i = 0; i < GANG_N; i++) spawnRival(gang, i);
   Voice.say('A rival gang appears!', 4, 'joke'); popup('RIVAL GANG! BEAT ALL ' + GANG_N + '!', 'good');
 }
 // a rival is beaten: passed for good (smoked), or ridden into (wiped out). The last of a gang busts the gang.
@@ -3820,7 +3829,7 @@ function rivalBeaten(e, wiped) {
   e.phase = 'beaten';
   give(wiped ? 'RIVAL WIPED OUT!' : 'RIVAL SMOKED!', (player.speed / player.base));
   if (!wiped) { pedBubble(e, nextLine(RIVAL_LOSE)); Sound.slap(0.4); }
-  if (e.gang && --Game.gangLeft === 0) { give('GANG BUSTED!', (player.speed / player.base)); Voice.say(nextLine(GANG_LINES), 6, 'joke'); }
+  if (e.gang && --e.gang.left === 0) { give('GANG BUSTED!', (player.speed / player.base)); Voice.say(nextLine(GANG_LINES), 6, 'joke'); }
   else Voice.say(nextLine(wiped ? RIVAL_KILL_LINES : RIVAL_WIN_LINES), 5, 'joke');
 }
 // you rode into the rival: he goes flying in pieces, in a burst of blood, and you ride on.
@@ -4293,7 +4302,7 @@ function updateRunEntities(run, dt) {
       if (e.dir < 0 && e.z < run.endZc + 2) { if (run.next) transferEnt(run, i, run.next); else killEnt(run, i); continue; }
       if (e.dir > 0 && run.turnIn && e.z > -2) { if (run.prev && runs.includes(run.prev)) transferEnt(run, i, run.prev); else killEnt(run, i); continue; }
     }
-    const behind = e.z > PL.z + (e.type === 'train' ? 150 : 35), farAhead = e.z < PL.z - 420;
+    const behind = e.z > PL.z + (e.type === 'train' || (e.type === 'rival' && e.phase === 'pass') ? 150 : 35), farAhead = e.z < PL.z - 420;   // (a rival on his way up to you isn't left behind)
     const offEl = e.type === 'train' && (e.z > run.base + 40 || e.z < run.endZc - 78);   // a train leaves the El at either end
     if (behind || farAhead || offEl || (e.type === 'xcar' && Math.abs(e.x) > 150) || (e.type === 'pigeon' && e.life <= 0)) killEnt(run, i);
   }
@@ -6852,6 +6861,7 @@ vidBtnState('wait');
 const PRED_STEER = [-1, -0.5, 0, 0.5, 1], PRED_SEG = 1, PRED_DT = 1 / 30, PRED_EVERY = 0.2;
 const PRED_MX = 0.35, PRED_MZ = 0.6, PRED_MZ_CAR = 1.6, PRED_M0 = 0.1;   // safety margin (m): moving things count as this much wider / longer (cars longer still: they brake), since traffic doesn't always do what it's doing now;
 // it grows from PRED_M0 over the first second (the next moment is predictable, and a rider already passing close isn't trapped), and still things only get PRED_M0
+const PRED_WALK = 3000;   // AUTO DRIVE's dislike of the sidewalk: what a second on it costs when choosing a path (it still goes there when that's the way through)
 const PRED_ROOM = 5;   // AUTO DRIVE goes for the most points only where at least this many ways through (of 25) stay open after the first second
 const PRED = { on: false, auto: false, t: 0, last: new Map(), mesh: null, edges: [], top: 0, steer: 0, fresh: false };
 (function buildPred() {
@@ -6877,6 +6887,8 @@ function carPath(e, vz) {
   }
   return out;
 }
+// what a squeeze along a path would pay (finishSqueeze's formula, at today's speed)
+const squeezePts = (o) => o.sqT > 0 ? AWARDS['SQUEEZE PLAY!'].pts * (1 + 3 * o.sqTight) * (1 + Math.min(2, o.sqT * 2.5)) * Math.pow(player.speed / player.base, 2) : 0;
 // the steering AUTO DRIVE gives in place of yours (updatePlay asks every frame)
 function autoSteer() {
   const r = player.run, dz = player.z - r.endZc;
@@ -6903,7 +6915,7 @@ function planPaths(st, dt) {
     seen.set(e, { x: e.x, z: e.z, t: now });
     const mz = e.type === 'car' ? PRED_MZ_CAR : PRED_MZ;
     const o = { e, x: e.x, z: e.z, vx, vz, hw: e.hw, hd: e.hd, mx: PRED_MX, mz, delay: e.delay > 0 ? e.delay : 0, dvx: e.type === 'xcar' ? e.vx : 0 };
-    if (e.type === 'car' && !e.horse && e.lane !== undefined) o.path = carPath(e, vz);   // traffic: where its lights say it's going
+    if (e.type === 'car' && !e.horse && e.lane !== undefined) { o.path = carPath(e, vz); o.mx = PRED_M0; }   // traffic: where its lights say it's going (so no extra room beside it: lane splitting is fine)
     obs.push(o);
   }
   PRED.last = seen;
@@ -6929,7 +6941,7 @@ function planPaths(st, dt) {
   const edges = [];   // [x0, z0, x1, z1, ...points] per tree edge, plus its best score below
   // ride one stretch from state s with steer k: returns the new state, or null on a crash
   function ride(s, k) {
-    const out = { x: s.x, vx: s.vx, z: s.z, t: s.t, sc: s.sc, done: s.done.slice(), ramp: s.ramp, line: [s.x, s.z] };
+    const out = { x: s.x, vx: s.vx, z: s.z, t: s.t, sc: s.sc, walk: s.walk, done: s.done.slice(), ramp: s.ramp, line: [s.x, s.z], sqT: s.sqT, sqTight: s.sqTight };
     const n = Math.round(PRED_SEG / PRED_DT);
     for (let i = 0; i < n; i++) {
       out.vx += clamp((out.z < zoneZ ? 0 : k) * maxLat - out.vx, -70 * PRED_DT, 70 * PRED_DT);   // (in the turning zone: straight on, as AUTO DRIVE rides it)
@@ -6939,8 +6951,9 @@ function planPaths(st, dt) {
       for (const rp of ramps) if (!out.ramp && Math.abs(out.x - rp.x) < RAMP_HW && out.z <= rp.zLow + 0.3 && out.z > rp.zLow - 1.2) out.ramp = rp;   // up the tow truck's bed: over its cab
       if (out.ramp && out.z > out.ramp.zHigh && Math.abs(out.x - out.ramp.x) >= RAMP_HW) return { crash: true, t: out.t };   // off the side of the bed: not a way through
       const ax = Math.abs(out.x);   // tricks, per second
-      if (ax <= 0.4) out.sc += 60 * PRED_DT; else if (out.x < -0.4 && ax < 9) out.sc += 150 * PRED_DT; else if (ax > 11) out.sc += 120 * PRED_DT;
+      if (ax <= 0.4) out.sc += 60 * PRED_DT; else if (out.x < -0.4 && ax < 9) out.sc += 150 * PRED_DT; else if (ax > 11) { out.sc += 120 * PRED_DT; out.walk += PRED_DT; }
       else if (out.x > 9.05 && out.x < 10.95) out.sc += AWARDS['BIKE LANE HERO!'].pts / 80 * sp * sf * PRED_DT;
+      let gL = Infinity, gR = Infinity;   // the nearest thing on each side, level with the rider (for a SQUEEZE PLAY!)
       for (let j = 0; j < obs.length; j++) {
         const o = obs[j];
         let ox, oz;
@@ -6953,6 +6966,7 @@ function planPaths(st, dt) {
           if (out.ramp && (o.e.kind === 'towbed' || o.e.kind === 'towtruck')) continue;
           return { crash: true, t: out.t };
         }
+        if (gz <= 0.2 && gx >= 0) { if (ox < out.x) gL = Math.min(gL, gx); else gR = Math.min(gR, gx); }
         if (out.done[j]) continue;
         if (o.e.type === 'xcar') {   // crossing its path close to its bumper
           if (Math.abs(out.z - oz) < sp * PRED_DT && gx >= 0 && gx <= CROSS_NEAR) {
@@ -6963,6 +6977,8 @@ function planPaths(st, dt) {
           out.sc += o.pts * (o.flat ? 1 : 1 + clamp(1 - Math.max(gx, gz, 0) / NEAR, 0, 1)); out.done[j] = 1;
         }
       }
+      if (gL < SQ_GAP && gR < SQ_GAP) { out.sqT += PRED_DT; out.sqTight = Math.max(out.sqTight, clamp((2 * SQ_GAP - gL - gR) / (2 * SQ_GAP), 0, 1)); }
+      else if (out.sqT > 0) { out.sc += squeezePts(out); out.sqT = 0; out.sqTight = 0; }
       if (i % 3 === 2) out.line.push(out.x, out.z);
     }
     out.line.push(out.x, out.z);
@@ -6971,24 +6987,25 @@ function planPaths(st, dt) {
   // the tree: each stretch's edge keeps the best score of any path through it that survives (and, crash or not, how long it lasts)
   // (best: its best score, -1 if no way through; open: how many ways through; last: how long the longest one lasts, crash or not)
   function grow(s, depth) {
-    let best = -1, open = 0, last = 0;
+    let best = -1, pref = -Infinity, open = 0, last = 0;   // (pref: the best less AUTO DRIVE's sidewalk cost)
     const firsts = [];
     for (const k of PRED_STEER) {
       const o = ride(s, k);
-      if (o.crash) { last = Math.max(last, o.t); if (!depth) firsts.push({ k, best: -1, open: 0, last: o.t }); continue; }
-      const sub = depth + 1 < 3 && !o.end ? grow(o, depth + 1) : { best: o.sc, open: o.end ? 25 : 1, last: o.t };   // (reaching the closure: wide open)
+      if (o.crash) { last = Math.max(last, o.t); if (!depth) firsts.push({ k, best: -1, pref: -Infinity, open: 0, last: o.t }); continue; }
+      const leaf = o.sc + squeezePts(o);   // (a squeeze still going at the end: paid as it stands; reaching the closure: wide open)
+      const sub = depth + 1 < 3 && !o.end ? grow(o, depth + 1) : { best: leaf, pref: leaf - PRED_WALK * o.walk, open: o.end ? 25 : 1, last: o.t };
       last = Math.max(last, sub.last); open += sub.open;
-      if (!depth) firsts.push({ k, best: sub.best, open: sub.open, last: sub.last });
+      if (!depth) firsts.push({ k, best: sub.best, pref: sub.pref, open: sub.open, last: sub.last });
       if (sub.best < 0) continue;
-      edges.push({ line: o.line, best: sub.best }); best = Math.max(best, sub.best);
+      edges.push({ line: o.line, best: sub.best }); best = Math.max(best, sub.best); pref = Math.max(pref, sub.pref);
     }
     if (!depth) PRED.firsts = firsts;
-    return { best, open, last };
+    return { best, pref, open, last };
   }
-  grow({ x: player.x, vx: player.vx, z: player.z, t: 0, sc: 0, done: new Uint8Array(obs.length), ramp: player.onRamp || null }, 0);
+  grow({ x: player.x, vx: player.vx, z: player.z, t: 0, sc: 0, walk: 0, done: new Uint8Array(obs.length), ramp: player.onRamp || null, sqT: 0, sqTight: 0 }, 0);
   // AUTO DRIVE's choice for the next moment: the most points where there's room to dodge; else the most room; else what lasts longest
   const f = PRED.firsts, gentle = (a, b) => Math.abs(a.k) - Math.abs(b.k);
-  const roomy = f.filter((c) => c.open >= PRED_ROOM).sort((a, b) => b.best - a.best || gentle(a, b));
+  const roomy = f.filter((c) => c.open >= PRED_ROOM).sort((a, b) => b.pref - a.pref || gentle(a, b));
   const any = f.filter((c) => c.open > 0).sort((a, b) => b.open - a.open || b.best - a.best || gentle(a, b));
   const pick = roomy[0] || any[0] || f.slice().sort((a, b) => b.last - a.last || gentle(a, b))[0];
   PRED.edges = edges; PRED.steer = pick ? pick.k : 0; PRED.fresh = true;
