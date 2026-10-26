@@ -35,6 +35,7 @@
 /* fonts are bundled with the app (fonts/ folder) so it works offline */
 @font-face{font-family:'Press Start 2P';src:url(fonts/press-start-2p.woff2) format('woff2');font-display:swap}
 @font-face{font-family:'Bangers';src:url(fonts/bangers.woff2) format('woff2');font-display:swap}
+:root.tg{--st:calc(max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px)) + var(--tg-content-safe-area-inset-top,0px));--sb:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px));--sl:max(env(safe-area-inset-left,0px),var(--tg-safe-area-inset-left,0px));--sr:max(env(safe-area-inset-right,0px),var(--tg-safe-area-inset-right,0px))}
 :root{--y:#ffd23f;--r:#ff3b3b;--ink:#0d0f1a;--hud:'Press Start 2P',ui-monospace,Menlo,Consolas,monospace;--comic:'Bangers',Impact,'Arial Black',sans-serif;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px);--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px)}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;font-family:var(--hud);color:#fff}
@@ -499,6 +500,15 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage unavailable */ } }
 };
+/* ---------- Telegram Mini App: opened from the Telegram bot, the game runs inside Telegram's own browser.
+   Telegram adds tgWebApp... parameters to the address; only then is Telegram's script loaded (normal visitors never fetch it).
+   tgInit (once it has loaded): full screen, no swipe-to-close, Telegram haptics, the player's name, the Back button. */
+const TG = { on: false, app: null, back: null };
+try {
+  TG.on = /[#&?]tgWebApp/.test(location.hash + location.search) || !!window.TelegramWebviewProxy || sessionStorage.getItem('whatdo_tg') === '1';
+  if (TG.on) sessionStorage.setItem('whatdo_tg', '1');   // (survives a reload that drops the address parameters)
+} catch (e) { /* storage blocked */ }
+if (TG.on) { const sc = document.createElement('script'); sc.src = 'https://telegram.org/js/telegram-web-app.js'; sc.onload = () => tgInit(); document.head.appendChild(sc); }
 const fmtTime = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 // phones/tablets get the touch UI; laptops with touchscreens keep the keyboard UI unless they're actually touched
 const mq = (q) => !!(window.matchMedia && window.matchMedia(q).matches);
@@ -512,6 +522,13 @@ window.addEventListener('pointerdown', (e) => {
 }, { capture: true, passive: true });
 // haptic buzz (Android Chrome; iOS Safari has no vibration API)
 const buzz = (p) => {
+  if (TG.app && TG.app.HapticFeedback) {   // inside Telegram: its haptics (iPhones included), strength by how long the buzz was meant to be
+    try {
+      const ms = Array.isArray(p) ? p.filter((x, i) => i % 2 === 0).reduce((a, x) => a + x, 0) : p, h = TG.app.HapticFeedback;
+      if (ms >= 150) h.notificationOccurred('error'); else h.impactOccurred(ms >= 60 ? 'heavy' : ms >= 30 ? 'medium' : 'light');
+    } catch (e) { /* older Telegram */ }
+    return;
+  }
   // phones vibrate; a connected game controller rumbles for the same total "on" time
   try {
     const gp = navigator.getGamepads && [...navigator.getGamepads()].find((g) => g && g.connected), act = gp && gp.vibrationActuator;
@@ -3588,7 +3605,7 @@ function squashRat(run, e) {
   RIVAL_CRASHES.push(c); if (RIVAL_CRASHES.length > 4) RIVAL_CRASHES.shift();
   ratBlood(c); Game.shake = Math.max(Game.shake, 0.2); buzz(40);
   popup('RIP PIZZA RAT', 'red'); Voice.say(nextLine(RAT_RIP_LINES), 5, 'joke');
-  if (UFO.state === 'off' && !UFO.pending) { UFO.pending = true; UFO.cd = 1.5; }   // ...and the mothership has noticed
+  if (UFO.state === 'off' && !UFO.pending) { UFO.pending = true; UFO.cd = UFO_DELAY; }   // ...and the mothership has noticed (it arrives UFO_DELAY seconds later)
 }
 function rivalBlood(c) {   // the blood burst and the pool (world space), plus the sounds
   for (let i = 0; i < 420; i++) {
@@ -4558,7 +4575,7 @@ function startEagle() {
 }
 /* ---------- UFO: squash Pizza Rat and, a moment later, a flying saucer stops over a pigeon ahead, beams it up and zips off (any time of day).
    Ride through the beam while it's on: CLOSE ENCOUNTER! ---------- */
-const UFO_PTS = 600;
+const UFO_PTS = 600, UFO_DELAY = 6;   // points for riding through the beam; seconds after Pizza Rat is squashed before the UFO comes
 const UFO_LINES = ['Is that a UFO?', 'They took a pigeon!', 'Nobody is going to believe this', 'The truth is out there', 'Abduction in progress', 'Not the pigeon!'];
 const UFO = { state: 'off', t: 0, cd: 0, pending: false, mesh: null, beam: null, lights: [], pg: null, run: null, from: new THREE.Vector3(), at: new THREE.Vector3(), to: new THREE.Vector3(), met: false };
 (function buildUfo() {
@@ -4939,11 +4956,13 @@ const fsSupported = !!(document.documentElement.requestFullscreen || document.do
 if (!(screen.orientation && screen.orientation.lock)) document.body.classList.add('noLock');   // e.g. iPhone: can't turn the game itself
 function lockLandscape() { try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* not supported */ } }
 function goFullscreen() {
+  if (TG.app) { try { if (TG.app.isVersionAtLeast('8.0') && !TG.app.isFullscreen) TG.app.requestFullscreen(); } catch (e) { /* older Telegram */ } return; }
   if (fsEl() || !fsSupported) { lockLandscape(); return; }   // already full screen (e.g. the installed app): just turn sideways
   const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
   try { const pr = req.call(el, { navigationUI: 'hide' }); if (pr && pr.then) pr.then(lockLandscape).catch(() => {}); else lockLandscape(); } catch (e) { /* refused */ }
 }
 function toggleFullscreen() {
+  if (TG.app) { try { if (TG.app.isFullscreen) TG.app.exitFullscreen(); else TG.app.requestFullscreen(); } catch (e) { /* older Telegram */ } return; }
   Game.wantFs = !fsEl();
   if (fsEl()) { const ex = document.exitFullscreen || document.webkitExitFullscreen; try { ex.call(document); } catch (e) { /* ignore */ } }
   else goFullscreen();
@@ -6820,6 +6839,28 @@ lbFlush().then(() => LB.fetchBoards(false));
 
 /* ---------- analytics (GoatCounter custom events) ---------- */
 const trackQueue = [];
+// Telegram's script has loaded (see TG near the top)
+function tgInit() {
+  const w = window.Telegram && window.Telegram.WebApp; if (!w) return;
+  TG.app = w; document.documentElement.classList.add('tg');
+  const v = (x) => { try { return w.isVersionAtLeast(x); } catch (e) { return false; } };
+  try { w.ready(); w.expand(); } catch (e) { /* ignore */ }
+  try { if (v('7.7')) w.disableVerticalSwipes(); } catch (e) { /* ignore */ }   // a downward swipe steers, it doesn't close the game
+  try { if (v('8.0')) { w.requestFullscreen(); $('fsBtn').classList.remove('hidden'); } } catch (e) { /* ignore */ }
+  try { w.setHeaderColor('#0d0f1a'); w.setBackgroundColor('#0d0f1a'); if (v('7.10')) w.setBottomBarColor('#0d0f1a'); } catch (e) { /* ignore */ }
+  try {   // the leaderboard name starts as your Telegram name (until you've typed one of your own)
+    const u = w.initDataUnsafe && w.initDataUnsafe.user;
+    if (u && !lbSaved && !LB.name) { const n = lbClean(u.username || [u.first_name, u.last_name].filter(Boolean).join(' ')).trim(); if (n) { LB.name = n; $('lbName').value = n; } }
+  } catch (e) { /* ignore */ }
+  if (v('6.1') && w.BackButton) {   // Telegram's Back: pause while riding, close a menu, skip a replay (hidden on the title screen, where Back closes the game)
+    w.BackButton.onClick(() => padKey('Escape'));
+    setInterval(() => {
+      const want = ['play', 'paused', 'replay', 'countdown'].includes(Game.state) || SETTINGS_UI.open || DBG_UI.open || LB.open || !$('scoreScreen').classList.contains('hidden');
+      if (want !== TG.back) { TG.back = want; try { want ? w.BackButton.show() : w.BackButton.hide(); } catch (e) { /* ignore */ } }
+    }, 300);
+  }
+  track('telegram', 'Opened in Telegram (' + (w.platform || '?') + ')');
+}
 function track(path, title) {
   trackQueue.push({ path, title: title || path, event: true });
   flushTrack();
