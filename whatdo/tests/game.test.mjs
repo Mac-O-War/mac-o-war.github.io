@@ -253,6 +253,13 @@ export default (test) => {
     await g.expectAlive();
   }, { quiet: true, god: true, speed: 19 });
 
+  test('rivals: up to 3 talk; with more out, none do', async (g) => {
+    await g.js("spawnGang(); __step(0.1); clearBubbles(); pedBubble(player.run.ents.find((e) => e.type === 'rival'), 'HI')");
+    await g.expect("BUBBLES.length === 1", 'three out: he talks');
+    await g.js("clearBubbles(); spawnRival(); __step(0.1); pedBubble(player.run.ents.find((e) => e.type === 'rival'), 'HI')");
+    await g.expect("BUBBLES.length === 0", 'four out: quiet');
+  }, { quiet: true, god: true, speed: 19 });
+
   // ---------- crash, replay, level end ----------
   test('a crash plays the replay, then the game-over screen; sky things are hidden after', async (g) => {
     await g.step(3);   // something to replay
@@ -367,6 +374,19 @@ export default (test) => {
     await g.js('PRED.auto = true; __step(20); PRED.auto = false');
     await g.expectAlive();
   }, { seed: 1 });
+
+  test('the top speed is the same on every level (only cruising speeds up)', async (g) => {
+    const top = await g.js("[1, 4, 9].map((l) => { Game.level = l; beginLevel(); return player.max + ' ' + player.base; })");
+    g.eq(top.map((x) => x.split(' ')[0]), ['34', '34', '34'], 'top speed by level');
+    g.ok(+top[2].split(' ')[1] > +top[0].split(' ')[1], 'cruising still speeds up: ' + top.join(' / '));
+  });
+
+  test('debug: infinite boost never runs out', async (g) => {
+    await g.js("debugAction('infboost'); input.up = true; __step(20); input.up = false");
+    await g.expect('GASC.t === GAS_MAX && player.speed > player.base + 10', 'still boosting after 20 s');
+    await g.js("debugAction('infboost')");
+    await g.expect('!Game.debug.infBoost', 'off again');
+  }, { god: true });
 
   // ---------- menus with a controller ----------
   test('controller: pause, reach DEBUG, its first button is UFO, BACK and resume', async (g) => {

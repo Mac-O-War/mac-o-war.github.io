@@ -466,6 +466,7 @@ body:not(.touch) .card.tch{display:none}
     <button class="btn sm dbgBtn" data-act="gang">RIVAL GANG</button>
     <button class="btn sm dbgBtn" data-act="god" id="dbgGod">GOD MODE: OFF</button>
     <button class="btn sm dbgBtn" data-act="boost">FULL BOOST &amp; FOCUS</button>
+    <button class="btn sm dbgBtn" data-act="infboost" id="dbgInfBoost">INFINITE BOOST: OFF</button>
     <button class="btn sm dbgBtn" data-act="pred" id="dbgPred">PATH PREDICTION: OFF</button>
     <button class="btn sm dbgBtn" data-act="auto" id="dbgAuto">AUTO DRIVE: OFF</button>
   </div>
@@ -3614,8 +3615,10 @@ const RED_JOKES = [
 ];
 const BUBBLES = [];
 const _bw = { x: 0, z: 0 }, _bv = new THREE.Vector3();
+const RIVAL_TALK_MAX = 3;   // with more rivals out than this, they keep their thoughts to themselves (the screen would be all bubbles)
 function pedBubble(e, text) {
   if (!e.run || e.bubble || BUBBLES.length >= 3) return;   // one at a time each, three on screen at most
+  if (e.type === 'rival' && runs.reduce((n, r) => n + r.ents.filter((o) => o.type === 'rival' && !o.crashed).length, 0) > RIVAL_TALK_MAX) return;
   const el = document.createElement('div'); el.className = 'bubble'; el.textContent = text; $('bubbles').appendChild(el);
   const b = { e, el, t: 0 }; e.bubble = b; BUBBLES.push(b);
 }
@@ -4945,6 +4948,7 @@ function updateEagle(dt) {
 /* =====================================================================
    LEVELS — a fresh street, starting, pausing, continuing
    ===================================================================== */
+const MAX_SPEED = 34;   // m/s (~71 mph): the wheel's top speed on the gas, the same every level
 function resetWorld() {
   Game.libertyN = 0; Game.libertyAt = randi(2, 5); Game.libertyDone = false;   // which chunk of this level gets the Statue of Liberty
   Game.timesDone = false; Game.chinaDone = false;
@@ -4957,7 +4961,7 @@ function resetWorld() {
   player.run = makeRun(0, 0, 0, ORIGIN, 0, null);
   buildRig();
   const diff = Game.level - 1;
-  player.base = Math.min(31, 19 + diff * 1.6); player.max = player.base + 15;
+  player.base = Math.min(31, 19 + diff * 1.6); player.max = MAX_SPEED;   // cruising gets faster each level; the wheel's top speed doesn't
   player.x = 0; player.z = 0; player.y = 0; player.vx = 0; player.h = 0; player.speed = 0; player.lean = 0; player.alive = true; player.yawRate = 0; player.turnPhase = null; player.finishing = false; player.hitWall = false;
   player.hy = 0; player.vy = 0; player.spinT = -1; player.spinA = 0; player.onRamp = null; player.rampH = 0; player.roof = null; player.roofT = 0; player.roofH = 0; player.jumped = false; player.airT = 0; player.carsOver = 0; player.hopOver = 0; player.airSpins = 0; player.pitch = 0;
   updatePW();
@@ -5631,7 +5635,7 @@ bindButton($('setBack'), closeSettings);
 /* ---------- DEBUG menu (pause screen, debug sessions only): call in things to test, god mode, a full tank ---------- */
 const DBG_UI = { open: false };
 if (DEBUG) $('dbgOpen').classList.remove('hidden');
-function openDebug() { DBG_UI.open = true; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); $('dbgPred').textContent = 'PATH PREDICTION: ' + (PRED.on ? 'ON' : 'OFF'); $('dbgAuto').textContent = 'AUTO DRIVE: ' + (PRED.auto ? 'ON' : 'OFF'); $('dbgMsg').textContent = 'THESE HAPPEN WHEN YOU RESUME'; showScreen('debugScreen'); }
+function openDebug() { DBG_UI.open = true; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); $('dbgPred').textContent = 'PATH PREDICTION: ' + (PRED.on ? 'ON' : 'OFF'); $('dbgAuto').textContent = 'AUTO DRIVE: ' + (PRED.auto ? 'ON' : 'OFF'); $('dbgInfBoost').textContent = 'INFINITE BOOST: ' + (Game.debug.infBoost ? 'ON' : 'OFF'); $('dbgMsg').textContent = 'THESE HAPPEN WHEN YOU RESUME'; showScreen('debugScreen'); }
 function closeDebug() { DBG_UI.open = false; showScreen('pauseScreen'); }
 function debugKey(e) {
   if (!DBG_UI.open) return false;
@@ -5653,6 +5657,7 @@ function debugAction(act) {
   else if (act === 'god') { Game.debug.god = !Game.debug.god; $('dbgGod').textContent = 'GOD MODE: ' + (Game.debug.god ? 'ON' : 'OFF'); msg = Game.debug.god ? "YOU CAN'T CRASH" : 'CRASHES ARE BACK ON'; }
   else if (act === 'pred') { PRED.on = !PRED.on; PRED.t = 0; $('dbgPred').textContent = 'PATH PREDICTION: ' + (PRED.on ? 'ON' : 'OFF'); msg = PRED.on ? 'GREEN: EVERY WAY THROUGH THE NEXT 3 SECONDS (THICKER SCORES MORE)' : 'PATH PREDICTION OFF'; }
   else if (act === 'auto') { PRED.auto = !PRED.auto; PRED.t = 0; $('dbgAuto').textContent = 'AUTO DRIVE: ' + (PRED.auto ? 'ON' : 'OFF'); msg = PRED.auto ? 'IT STEERS FOR THE MOST POINTS (AND TURNS AT CLOSURES); THE GAS IS YOURS' : 'AUTO DRIVE OFF'; }
+  else if (act === 'infboost') { Game.debug.infBoost = !Game.debug.infBoost; $('dbgInfBoost').textContent = 'INFINITE BOOST: ' + (Game.debug.infBoost ? 'ON' : 'OFF'); msg = Game.debug.infBoost ? 'THE BOOST NEVER RUNS OUT' : 'THE BOOST RUNS OUT AGAIN'; }
   else if (act === 'boost') { GASC.got = Math.max(1, GASC.got); GASC.t = GAS_MAX; FOCUS.meter = 1; updateGasUI(); msg = 'BOOST AND FOCUS FULL'; }   // (quietly: no ACCELERATOR UNLOCKED message)
   $('dbgMsg').textContent = msg; Sound.blip(880, 0.06, 'square', 0.1);
 }
@@ -6382,6 +6387,7 @@ function updateTricks(dt) {
 function updatePlay(dt) {
   Game.time += dt; Game.elapsed += dt; Game.runT += dt;
   updateGas(dt); checkItems(); updateExtras(dt); updateTricks(dt);
+  if (Game.debug.infBoost) { GASC.got = Math.max(1, GASC.got); GASC.t = GAS_MAX; }   // (debug menu: INFINITE BOOST)
   screamCd -= dt;
   const steer = PRED.auto ? autoSteer() : readSteer(), gas = readGas();   // (AUTO DRIVE, debug: it steers, you work the gas)
   // in FOCUS your speed and gas are held as they were when it started (your thumb may have left GAS to press FOCUS)
@@ -6858,7 +6864,7 @@ vidBtnState('wait');
 // thicker for more points (an estimate: near misses, crossing-traffic passes, wrong way, sidewalk, the yellow line, the bike lane).
 // It only reads the game (no random numbers, nothing changed), so on its own it never alters what happens.
 // AUTO DRIVE (debug menu) steers by it: every look, into the first second of the best path (and round the corner at a closure).
-const PRED_STEER = [-1, -0.5, 0, 0.5, 1], PRED_SEG = 1, PRED_DT = 1 / 30, PRED_EVERY = 0.2;
+const PRED_STEER = [-1, -0.5, 0, 0.5, 1], PRED_SEG = 1, PRED_DT = 1 / 30, PRED_EVERY = 0.05;   // (re-planning 20 times a second keeps up at boost speed: 9 of 16 levels at 34 m/s against 4 at every 0.2 s)
 const PRED_MX = 0.35, PRED_MZ = 0.6, PRED_MZ_CAR = 1.6, PRED_M0 = 0.1;   // safety margin (m): moving things count as this much wider / longer (cars longer still: they brake), since traffic doesn't always do what it's doing now;
 // it grows from PRED_M0 over the first second (the next moment is predictable, and a rider already passing close isn't trapped), and still things only get PRED_M0
 const PRED_WALK = 3000;   // AUTO DRIVE's dislike of the sidewalk: what a second on it costs when choosing a path (it still goes there when that's the way through)
