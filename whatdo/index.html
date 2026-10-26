@@ -483,16 +483,75 @@ if (!window.THREE) {
   document.body.appendChild(d); return;
 }
 
+/* CONTENTS (each is a banner like the one below: search for its name)
+   UTILITIES
+   TELEGRAM
+   RENDERER / SCENE
+   TEXTURES & MATERIALS
+   VOXEL GEOMETRY BUILDER
+   MODELS
+   TIME OF DAY
+   AUDIO
+   RUN FRAMES
+   PARTICLES
+   SPEED LINES
+   SIGNS & EXTRA GEOMETRY
+   RUNS
+   WORLD GENERATION
+   CITY LIFE
+   PICKUPS
+   KINDS
+   ENTITIES
+   CHARACTERS
+   SPAWNING & MOVING
+   PLAYER
+   INPUT
+   STREET EVENTS
+   GAME STATE
+   SKY VISITORS
+   LEVELS
+   SCREENS & HUD
+   SCORING
+   AWARDS
+   MENUS
+   COLLISIONS
+   CRASHING & CLEARING A LEVEL
+   RIDING
+   TRICKS & ROOFS
+   MAIN UPDATE
+   INSTANT REPLAY
+   DEBUG FLY
+   FRAME LOOP
+   LEADERBOARD
+   ANALYTICS
+   PWA
+   BOOT
+*/
 /* =====================================================================
    UTILITIES
    ===================================================================== */
 const $ = (id) => document.getElementById(id);
-const rand = (a, b) => a + Math.random() * (b - a);
-const randi = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
-const pick = (a) => a[Math.floor(Math.random() * a.length)];
+/* random numbers: one seeded source, and nothing calls Math.random directly. rnd() is the game's: the world, traffic, characters
+   and lines all draw from it, so the same seed and the same inputs play out the same way (the tests seed it).
+   Two side streams keep the game's on course: fxRnd for looks that live on from game to game (leaves, steam, the sky, particles),
+   and sfxRnd for music and sound effects, which run on audio timers of their own. */
+function makeRng(seed) {   // mulberry32: a float in [0, 1); .seed(n) restarts it
+  let s = 0;
+  const f = () => { let t = (s = (s + 0x6d2b79f5) >>> 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  f.seed = (n) => { s = n >>> 0; }; f.seed(seed);
+  return f;
+}
+const rnd = makeRng(Date.now()), fxRnd = makeRng(Date.now() ^ 0x2545f491), sfxRnd = makeRng(Date.now() ^ 0x5bd1e995);
+// things made once and then cached (a sign's texture): their own stream from the cache key, so whether it's already made can't shift rnd
+const hashStr = (t) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
+const keyRng = (key) => makeRng(hashStr(key));
+const rand = (a, b) => a + rnd() * (b - a);
+const randi = (a, b) => Math.floor(a + rnd() * (b - a + 1));
+const pick = (a) => a[Math.floor(rnd() * a.length)];
+const frand = (a, b) => a + fxRnd() * (b - a), fpick = (a) => a[Math.floor(fxRnd() * a.length)];   // (looks only)
 // text lines: random start, then step through in order so nothing repeats until the whole list has been said
 const LINE_IX = new Map();
-const nextLine = (a) => { const k = a.join('\n'), i = LINE_IX.has(k) ? (LINE_IX.get(k) + 1) % a.length : Math.floor(Math.random() * a.length); LINE_IX.set(k, i); return a[i]; };
+const nextLine = (a) => { const k = a.join('\n'), i = LINE_IX.has(k) ? (LINE_IX.get(k) + 1) % a.length : Math.floor(rnd() * a.length); LINE_IX.set(k, i); return a[i]; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 const damp = (a, b, k, dt) => lerp(a, b, 1 - Math.exp(-k * dt));
@@ -500,6 +559,10 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage unavailable */ } }
 };
+
+/* =====================================================================
+   TELEGRAM — the Mini App mode, when the game is opened from the Telegram bot
+   ===================================================================== */
 /* ---------- Telegram Mini App: opened from the Telegram bot, the game runs inside Telegram's own browser.
    Telegram adds tgWebApp... parameters to the address; only then is Telegram's script loaded (normal visitors never fetch it).
    tgInit (once it has loaded): full screen, no swipe-to-close, Telegram haptics, the player's name, the Back button. */
@@ -619,7 +682,7 @@ const WINDOW_MATS = [];
 const STYLE_MATS = STYLES.map((s) => {
   // which windows are lit by day, and (more of them) at night — the night set drives an emissive glow map
   const lit = [], litN = [];
-  for (let i = 0; i < 16; i++) { const l = Math.random() < (s.glass ? 0.12 : 0.15); lit.push(l); litN.push(l || Math.random() < 0.45); }
+  for (let i = 0; i < 16; i++) { const l = rnd() < (s.glass ? 0.12 : 0.15); lit.push(l); litN.push(l || rnd() < 0.45); }
   const tex = canvasTex(64, 64, (x) => {
     if (s.glass) {
       x.fillStyle = s.trim; x.fillRect(0, 0, 64, 64);
@@ -864,7 +927,7 @@ const VEH_WEIGHTS = [['taxi', 34], ['sedan', 30], ['suv', 15], ['truck', 10], ['
 function pickVehicle(only) {
   if (only) return pick(VEH[only]);
   let tot = 0; for (const w of VEH_WEIGHTS) tot += w[1];
-  let r = Math.random() * tot;
+  let r = rnd() * tot;
   for (const w of VEH_WEIGHTS) { r -= w[1]; if (r <= 0) return pick(VEH[w[0]]); }
   return pick(VEH.sedan);
 }
@@ -990,16 +1053,16 @@ function pigeonmanParts(ph) {
   PEDS.spidey.push({ kind: 'spidey', geo: [vox(spideyParts(0)), vox(spideyParts(1)), vox(spideyParts(2))] });
   for (let i = 0; i < 14; i++) {
     const shirt = pick(SHIRTS);
-    mk('ped', { skin: pick(SKINS), hair: pick(HAIRS), shirt, sleeve: Math.random() < 0.5 ? shirt : pick(SKINS), pants: pick(PANTS), shoe: pick([0x111111, 0xffffff, 0x8b4513]), phone: Math.random() < 0.4, bag: Math.random() < 0.3 ? pick([0x222222, 0x8b0000, 0x2f4f4f]) : 0, cap: Math.random() < 0.25 ? pick(SHIRTS) : 0 });
+    mk('ped', { skin: pick(SKINS), hair: pick(HAIRS), shirt, sleeve: rnd() < 0.5 ? shirt : pick(SKINS), pants: pick(PANTS), shoe: pick([0x111111, 0xffffff, 0x8b4513]), phone: rnd() < 0.4, bag: rnd() < 0.3 ? pick([0x222222, 0x8b0000, 0x2f4f4f]) : 0, cap: rnd() < 0.25 ? pick(SHIRTS) : 0 });
   }
   for (let i = 0; i < 6; i++) {
     const suit = pick([0x2b2b2e, 0x3a3f4a, 0x1f2a44, 0x4a4a4a]);
-    mk('business', { skin: pick(SKINS), hair: pick(HAIRS), shirt: suit, sleeve: suit, pants: suit, shoe: 0x111111, tie: true, briefcase: Math.random() < 0.6, phone: Math.random() < 0.5 });
+    mk('business', { skin: pick(SKINS), hair: pick(HAIRS), shirt: suit, sleeve: suit, pants: suit, shoe: 0x111111, tie: true, briefcase: rnd() < 0.6, phone: rnd() < 0.5 });
   }
   for (let i = 0; i < 9; i++) {
-    const hawaii = Math.random() < 0.55, shirt = hawaii ? pick([0xff6f61, 0x29b6f6, 0xffca28, 0x66bb6a]) : 0xf7f7f7;
+    const hawaii = rnd() < 0.55, shirt = hawaii ? pick([0xff6f61, 0x29b6f6, 0xffca28, 0x66bb6a]) : 0xf7f7f7;
     const dots = []; if (hawaii) for (let k = 0; k < 6; k++) dots.push([rand(-0.24, 0.24), rand(0.92, 1.44)]);
-    mk('tourist', { skin: pick(SKINS), hair: pick(HAIRS), shirt, sleeve: pick(SKINS), pants: pick([0xc2b280, 0x8d6e63, 0x3e5f8a]), shorts: true, shoe: pick([0xffffff, 0x8b4513]), dots, dotC: pick([0xffffff, 0x1b5e20, 0xd81b60]), heart: !hawaii, camera: Math.random() < 0.75, hat: Math.random() < 0.6 ? pick([0xf3e2a8, 0xffffff, 0xd7ccc8]) : 0, cap: 0, bag: Math.random() < 0.5 ? 0x3e2723 : 0 });
+    mk('tourist', { skin: pick(SKINS), hair: pick(HAIRS), shirt, sleeve: pick(SKINS), pants: pick([0xc2b280, 0x8d6e63, 0x3e5f8a]), shorts: true, shoe: pick([0xffffff, 0x8b4513]), dots, dotC: pick([0xffffff, 0x1b5e20, 0xd81b60]), heart: !hawaii, camera: rnd() < 0.75, hat: rnd() < 0.6 ? pick([0xf3e2a8, 0xffffff, 0xd7ccc8]) : 0, cap: 0, bag: rnd() < 0.5 ? 0x3e2723 : 0 });
   }
 })();
 // ---------- bikes ----------
@@ -1207,7 +1270,7 @@ function quadsGeo(list, y) {
 // police light bars: only cars on a call (COP_CALL_CHANCE) flash, red-red, blue-blue, each on its own beat, and run the siren
 const COP_CALL_CHANCE = 0.4;
 function addBeacons(m, v) {
-  if (!v.beacons || !v.beacons.length || Math.random() >= COP_CALL_CHANCE) return;
+  if (!v.beacons || !v.beacons.length || rnd() >= COP_CALL_CHANCE) return;
   m.userData.siren = true;
   m.userData.beacons = v.beacons.map((g) => { const b = new THREE.Mesh(g, MAT.hflash); b.visible = false; m.add(b); return b; });
 }
@@ -1230,8 +1293,8 @@ function updateSiren() {
       // passing a police car with its lights going: the announcer gets nervous (once per car, not too often)
       if (r === player.run && Game.state === 'play') {
         const side = Math.sign(PL.z - e.z);
-        if (e.copSide && side !== e.copSide && Math.abs(e.x - PL.x) < 10 && !e.copJoke && performance.now() > copJokeAt) {
-          e.copJoke = true; copJokeAt = performance.now() + 8000; Voice.say(copLine(), 2, 'joke');
+        if (e.copSide && side !== e.copSide && Math.abs(e.x - PL.x) < 10 && !e.copJoke && Game.time > copJokeAt) {
+          e.copJoke = true; copJokeAt = Game.time + 8; Voice.say(copLine(), 2, 'joke');
         }
         e.copSide = side;
       }
@@ -1243,7 +1306,7 @@ function updateSiren() {
 // tourists on the top deck turn to face the rider and snap photos as the bus goes by
 function addTourists(m, v) {
   if (v.kind !== 'tourbus') return;
-  const seats = []; for (const z of [-3.6, -1.8, 0, 1.8, 3.6]) for (const x of [-0.6, 0.6]) if (Math.random() < 0.75) seats.push([x, z]);
+  const seats = []; for (const z of [-3.6, -1.8, 0, 1.8, 3.6]) for (const x of [-0.6, 0.6]) if (rnd() < 0.75) seats.push([x, z]);
   m.userData.tourists = seats.map(([x, z]) => {
     const t = new THREE.Mesh(pick(PEDS.tourist).geo[0], MAT.vox); t.position.set(x, 2.3, z); m.add(t);
     const fl = new THREE.Mesh(GEO.flash, MAT.flash); fl.position.set(0, 1.24, -0.38); fl.visible = false; t.add(fl);
@@ -1259,7 +1322,7 @@ function updTourists(e, dt) {
     const want = near ? Math.atan2(-(lx - t.m.position.x), -(lz - t.m.position.z)) : t.look;
     t.m.rotation.y += normAng(want - t.m.rotation.y) * Math.min(1, dt * 6);
     t.ft -= dt; t.fl.visible = t.ft > 0;
-    if (near && d < 26 && t.ft < -0.2 && Math.random() < dt * 0.9) {
+    if (near && d < 26 && t.ft < -0.2 && rnd() < dt * 0.9) {
       t.ft = 0.08;
       snapPhoto(clamp(-dx / 10, -1, 1), clamp(1 - d / 40, 0.15, 0.7));
     }
@@ -1277,7 +1340,7 @@ function attachLights(m, v) {
 const stars = (() => {
   const n = 450, pos = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, e = Math.asin(rand(0.12, 1)), r = 520;
+    const a = rnd() * Math.PI * 2, e = Math.asin(rand(0.12, 1)), r = 520;
     pos[i * 3] = Math.cos(a) * Math.cos(e) * r; pos[i * 3 + 1] = Math.sin(e) * r; pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r;
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -1310,6 +1373,7 @@ function applyTOD(f) {
    AUDIO (all procedural, Web Audio API)
    ===================================================================== */
 const Sound = (() => {
+  const rand = (a, b) => a + sfxRnd() * (b - a);   // (sound draws from its own stream: see rnd)
   let ctx = null, focusLp = null, master, sfx, mus, comp, noiseBuf, engOsc, engOsc2, engGain, engFilt, windGain, windFilt;
   let muted = store.get('whatdo_mute', '0') === '1';
   // music and sound-effects volume, 0..1 (remembered); mute still silences everything
@@ -1333,7 +1397,7 @@ const Sound = (() => {
     sfx = ctx.createGain(); sfx.gain.value = 0.9 * vol.sfx; sfx.connect(comp);
     mus = ctx.createGain(); mus.gain.value = 0.3 * vol.music; mus.connect(comp);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = sfxRnd() * 2 - 1;
     // electric motor whine + low hum
     engOsc = ctx.createOscillator(); engOsc.type = 'sawtooth'; engOsc.frequency.value = 60;
     engOsc2 = ctx.createOscillator(); engOsc2.type = 'triangle'; engOsc2.frequency.value = 300;
@@ -1350,7 +1414,7 @@ const Sound = (() => {
     if (ctx.createStereoPanner) { const s = ctx.createStereoPanner(); s.pan.value = clamp(pan || 0, -1, 1); s.connect(sfx); return s; }
     return sfx;
   }
-  function noise(t, dur) { const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true; n.start(t, Math.random() * 1.5); n.stop(t + dur); return n; }
+  function noise(t, dur) { const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true; n.start(t, sfxRnd() * 1.5); n.stop(t + dur); return n; }
   function honk(pan, vol, dbl) {
     if (!ctx) return; vol = vol === undefined ? 1 : vol;
     const t = ctx.currentTime, o = out(pan), reps = dbl ? 2 : 1, base = rand(330, 430);
@@ -1443,7 +1507,7 @@ const Sound = (() => {
   function setFocus(on) { if (ctx && focusLp) focusLp.frequency.setTargetAtTime(on ? 750 : 20000, ctx.currentTime, on ? 0.08 : 0.15); }
   // ---- steam hiss: a looping noise bed, its level set every frame from the nearest vent ----
   let amb = null;
-  function loopNoise(t) { const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true; n.start(t, Math.random() * 1.5); return n; }
+  function loopNoise(t) { const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true; n.start(t, sfxRnd() * 1.5); return n; }
   function ambNodes() {
     if (amb || !ctx) return amb;
     const t = ctx.currentTime, a = {};
@@ -1605,9 +1669,9 @@ const Sound = (() => {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.55 * vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
     n.connect(f); f.connect(g); g.connect(o);
     for (let i = 0; i < 10; i++) {
-      const tt = t + 0.25 + Math.random() * 0.9, c = noise(tt, 0.06), hp = ctx.createBiquadFilter(), cg = ctx.createGain();
+      const tt = t + 0.25 + sfxRnd() * 0.9, c = noise(tt, 0.06), hp = ctx.createBiquadFilter(), cg = ctx.createGain();
       hp.type = 'highpass'; hp.frequency.value = 3000;
-      cg.gain.setValueAtTime(0.0001, tt); cg.gain.linearRampToValueAtTime(0.12 * vol * Math.random(), tt + 0.003); cg.gain.exponentialRampToValueAtTime(0.001, tt + 0.045);
+      cg.gain.setValueAtTime(0.0001, tt); cg.gain.linearRampToValueAtTime(0.12 * vol * sfxRnd(), tt + 0.003); cg.gain.exponentialRampToValueAtTime(0.001, tt + 0.045);
       c.connect(hp); hp.connect(cg); cg.connect(o);
     }
   }
@@ -1953,11 +2017,11 @@ for (let i = 0; i < PMAX; i++) { _dummy.scale.set(0, 0, 0); _dummy.updateMatrix(
 scene.add(pMesh);
 function emit(x, y, z, vx, vy, vz, color, size, grav, life) {
   const i = pNext; pNext = (pNext + 1) % PMAX;
-  PX[i] = x; PY[i] = y; PZ[i] = z; VX[i] = vx; VY[i] = vy; VZ[i] = vz; PS[i] = size; PG[i] = grav === undefined ? 26 : grav; PLF[i] = life || 60; PR[i] = Math.random() * 3; PST[i] = 1;
+  PX[i] = x; PY[i] = y; PZ[i] = z; VX[i] = vx; VY[i] = vy; VZ[i] = vz; PS[i] = size; PG[i] = grav === undefined ? 26 : grav; PLF[i] = life || 60; PR[i] = fxRnd() * 3; PST[i] = 1;
   pMesh.setColorAt(i, _pc.setHex(color)); pMesh.instanceColor.needsUpdate = true; pAny = true;
 }
 const BLOOD = [0x8a0000, 0xa30000, 0xbf0a0a, 0xd41414, 0x6e0000];
-const bloodColor = () => pick(BLOOD);
+const bloodColor = () => fpick(BLOOD);
 function updateParticles(dt) {
   if (!pAny) return;
   let any = false;
@@ -1970,8 +2034,8 @@ function updateParticles(dt) {
       PX[i] += VX[i] * dt; PY[i] += VY[i] * dt; PZ[i] += VZ[i] * dt;
       const gy = groundYW(PX[i], PZ[i]);
       if (PY[i] <= gy) {   // it lands: becomes a splat on the ground layer, and this particle slot is freed
-        const s = PS[i] * rand(2, 4.2);
-        _dummy.position.set(PX[i], gy + 0.012, PZ[i]); _dummy.rotation.set(0, PR[i], 0); _dummy.scale.set(s, 0.02, s * rand(0.7, 1.5)); _dummy.updateMatrix();
+        const s = PS[i] * frand(2, 4.2);
+        _dummy.position.set(PX[i], gy + 0.012, PZ[i]); _dummy.rotation.set(0, PR[i], 0); _dummy.scale.set(s, 0.02, s * frand(0.7, 1.5)); _dummy.updateMatrix();
         pMesh.getColorAt(i, _pc); addSplat(_dummy.matrix, _pc, s > 0.6);
         PST[i] = 0; _dummy.scale.set(0, 0, 0); _dummy.position.set(0, -50, 0);
       } else {
@@ -2019,7 +2083,7 @@ const slMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.035, 0.035, 1), s
 slMesh.frustumCulled = false;
 scene.add(camera); camera.add(slMesh);
 const SLX = new Float32Array(SL_N), SLY = new Float32Array(SL_N), SLZ = new Float32Array(SL_N);
-function resetSpeedLine(i, far) { const side = Math.random() < 0.5 ? -1 : 1; SLX[i] = side * rand(1.6, 9); SLY[i] = rand(-3.2, 4); SLZ[i] = far ? -rand(5, 75) : -rand(60, 80); }
+function resetSpeedLine(i, far) { const side = fxRnd() < 0.5 ? -1 : 1; SLX[i] = side * frand(1.6, 9); SLY[i] = frand(-3.2, 4); SLZ[i] = far ? -frand(5, 75) : -frand(60, 80); }
 for (let i = 0; i < SL_N; i++) resetSpeedLine(i, true);
 function updateSpeedLines(vis, speed, dt) {
   slMat.opacity = vis * 0.55;
@@ -2034,7 +2098,7 @@ function updateSpeedLines(vis, speed, dt) {
 }
 
 /* =====================================================================
-   SIGNS & EXTRA GEOMETRY for road closures
+   SIGNS & EXTRA GEOMETRY — for road closures
    ===================================================================== */
 function signTex(lines, bg, fg, arrow) {
   return canvasTex(128, 64, (x) => {
@@ -2080,8 +2144,8 @@ function makeRun(theta, ox, oz, base, turnIn, prev) {
   const length = prev ? randi(3, 5) : randi(4, 6);
   const r = {
     root, theta, cos: Math.cos(theta), sin: Math.sin(theta), ox, oz, base, nextChunkZ: base, chunkCount: 0, length,
-    turnDir: Math.random() < 0.5 ? -1 : 1, endZc: base - (length - 1) * CH - 90, next: null, prev, turnIn,
-    chunks: [], inters: [], closures: [], ents: [], flashers: [], spawnCd: 0, el: Math.random() < EL_CHANCE, ramp: Math.random() < RAMP_CHANCE, ramps: []
+    turnDir: rnd() < 0.5 ? -1 : 1, endZc: base - (length - 1) * CH - 90, next: null, prev, turnIn,
+    chunks: [], inters: [], closures: [], ents: [], flashers: [], spawnCd: 0, el: rnd() < EL_CHANCE, ramp: rnd() < RAMP_CHANCE, ramps: []
   };
   runs.push(r);
   return r;
@@ -2215,7 +2279,7 @@ const BANNERS = ['STREET FAIR SATURDAY', 'FARMERS MARKET', 'SUMMER FESTIVAL', 'W
 const bannerMats = new Map();
 function bannerMat(text) {
   let m = bannerMats.get(text); if (m) return m;
-  const bg = pick(['#c0392b', '#1e5799', '#16a085', '#8e44ad', '#d35400', '#222222']);
+  const BG = ['#c0392b', '#1e5799', '#16a085', '#8e44ad', '#d35400', '#222222'], bg = BG[hashStr(text) % BG.length];
   const tex = canvasTex(512, 84, (x, w, h) => {
     x.fillStyle = bg; x.fillRect(0, 0, w, h); x.fillStyle = '#ffd23f'; x.fillRect(0, 0, w, 6); x.fillRect(0, h - 6, w, 6);
     x.font = 'bold 44px Impact, "Arial Black", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
@@ -2233,7 +2297,7 @@ const NEON_FONT = '"Arial Black", Impact, "Microsoft YaHei", "PingFang SC", "Not
 const neonMats = new Map();
 function neonMat(text, vertical) {   // { on, off }: the lit sign, and the same sign with the tubes out (for flicker)
   const key = text + (vertical ? '|v' : ''); let m = neonMats.get(key); if (m) return m;
-  const col = pick(NEON_COLS), W = vertical ? 128 : 512, H = vertical ? 512 : 128;
+  const col = NEON_COLS[hashStr(text) % NEON_COLS.length], W = vertical ? 128 : 512, H = vertical ? 512 : 128;
   const make = (lit) => {
     const tex = canvasTex(W, H, (x, w, h) => {
       x.fillStyle = '#0d0d12'; x.fillRect(0, 0, w, h);
@@ -2258,7 +2322,7 @@ function neonMat(text, vertical) {   // { on, off }: the lit sign, and the same 
 function decorNeon(g, p, ch, sx, cz, bw) {
   const china = !!ch.china, text = nextLine(china ? NEON_CN : NEON_WORDS);
   let m;
-  if (china || Math.random() < 0.45) {   // a blade sign on a bracket, facing along the street
+  if (china || rnd() < 0.45) {   // a blade sign on a bracket, facing along the street
     const hgt = china ? 3.2 : 2.4, y = rand(4.4, china ? 6.6 : 5.4) + hgt / 2, z = cz + rand(-bw / 4, bw / 4);
     m = addMesh(g, GEO.board, neonMat(text, true).on, sx * 16.15, y, z); m.scale.set(1, hgt, 1);
     p.push([sx * 16.8, y + hgt / 2 - 0.1, z, 0.5, 0.06, 0.06, 0x222222], [sx * 16.8, y - hgt / 2 + 0.05, z, 0.5, 0.06, 0.06, 0x222222]);
@@ -2266,7 +2330,7 @@ function decorNeon(g, p, ch, sx, cz, bw) {
     const w = Math.min(bw * 0.6, 5);
     m = addMesh(g, GEO.board, neonMat(text, false).on, sx * 16.9, 4.3, cz); m.rotation.y = -sx * Math.PI / 2; m.scale.set(w, w / 4, 1);
   }
-  ch.anims.push({ kind: 'neon', m, mats: neonMat(text, m.scale.y > m.scale.x), ph: rand(0, 6), fl: Math.random() < 0.3 });
+  ch.anims.push({ kind: 'neon', m, mats: neonMat(text, m.scale.y > m.scale.x), ph: rand(0, 6), fl: rnd() < 0.3 });
 }
 // ---------- fire escapes: iron landings every floor with zig-zag stairs between them ----------
 function fireEscape(p, sx, fz, h) {
@@ -2379,10 +2443,10 @@ const TS_COLS = [['#ff1f6b', '#ffd23f'], ['#00c2ff', '#ffffff'], ['#ffd23f', '#1
 const tsMats = new Map();
 function billboardMat(text) {
   let m = tsMats.get(text); if (m) return m;
-  const [bg, fg] = pick(TS_COLS);
+  const kr = keyRng(text), [bg, fg] = TS_COLS[Math.floor(kr() * TS_COLS.length)];
   const tex = canvasTex(512, 256, (x, w, h) => {
     const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, bg); gr.addColorStop(1, '#000'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
-    x.globalAlpha = 0.18; x.fillStyle = fg; for (let i = 0; i < 6; i++) x.fillRect(rand(0, w), 0, rand(10, 60), h); x.globalAlpha = 1;
+    x.globalAlpha = 0.18; x.fillStyle = fg; for (let i = 0; i < 6; i++) x.fillRect(kr() * w, 0, 10 + kr() * 50, h); x.globalAlpha = 1;
     x.strokeStyle = fg; x.lineWidth = 10; x.strokeRect(8, 8, w - 16, h - 16);
     let fs = 110; x.font = 'bold ' + fs + 'px Impact, "Arial Black", sans-serif'; while (x.measureText(text).width > w - 50 && fs > 30) { fs -= 6; x.font = 'bold ' + fs + 'px Impact, "Arial Black", sans-serif'; }
     x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = fg; x.shadowBlur = 24; x.fillStyle = fg; x.fillText(text, w / 2, h / 2 + 4);
@@ -2396,7 +2460,7 @@ function timesSquare(g, sx) {
   for (let z = -4; z > -76;) {
     const w = randi(8, 13), h = w * rand(0.45, 0.6);
     for (let y = rand(5, 6.5); y < 30; y += h + rand(0.6, 3)) {
-      if (Math.random() < 0.2) continue;
+      if (rnd() < 0.2) continue;
       const m = addMesh(g, GEO.board, billboardMat(nextLine(TS_ADS)), sx * 16.75, y + h / 2, z - w / 2);
       m.rotation.y = -sx * Math.PI / 2; m.scale.set(w, h, 1);
     }
@@ -2406,7 +2470,7 @@ function timesSquare(g, sx) {
 function decorBanner(g, p, ch) {
   const bz = rand(-62, -22), y = 8.4;
   p.push([0, y, bz, 33.8, 0.05, 0.05, 0x333333]);
-  if (Math.random() < 0.6) {
+  if (rnd() < 0.6) {
     const m = addMesh(g, GEO.banner, bannerMat(pick(BANNERS)), 0, y - 0.05, bz, false, true);
     for (const bx of [-5.6, 5.6]) p.push([bx, y - 0.1, bz, 0.04, 0.2, 0.04, 0x333333]);
     ch.anims.push({ kind: 'banner', m, z: ch.z0 + bz, ph: rand(0, 6), gust: 0 });
@@ -2424,33 +2488,33 @@ function decorBanner(g, p, ch) {
 // manhole covers: about half of them puff steam
 function decorManhole(p, ch, x, z) {
   p.push([x, 0, z, 0.9, 0.035, 0.9, 0x2a2a2a]);
-  if (Math.random() < 0.55) ch.steam.push({ x, z: ch.z0 + z, acc: rand(0, 1), cd: 0 });
+  if (rnd() < 0.55) ch.steam.push({ x, z: ch.z0 + z, acc: rand(0, 1), cd: 0 });
 }
 // after a chunk is built: perched pigeons and the odd street performer
 function decorPopulate(run, ch, isEnd, isFirst, plazaSide) {
   const perches = ch.perches;
   for (let k = 0; k < 2 && perches.length; k++) {
-    if (Math.random() > 0.5) continue;
+    if (rnd() > 0.5) continue;
     const q = perches[randi(0, perches.length - 1)];
     for (let i = 0; i < randi(2, 4); i++) spawnPigeon(run, q.x + rand(-0.3, 0.3) * Math.sign(q.x), q.z + rand(-q.len / 2.6, q.len / 2.6), q.y);
   }
   // a parade: the marching band takes over this block's cross street (so no cross traffic there), behind barriers
   const I = run.inters.find((q) => q.chunk === ch);
-  if (I && !I.isEnd && !isFirst && ch.idx > 1 && Math.random() < 0.12) {
+  if (I && !I.isEnd && !isFirst && ch.idx > 1 && rnd() < 0.12) {
     I.triggered = true; I.parade = true;
-    const sx = Math.random() < 0.5 ? -1 : 1, bp = [];
+    const sx = rnd() < 0.5 ? -1 : 1, bp = [];
     barrierZ(bp, -81.5, -98.5, sx * 17.5);
     const bg = vox(bp); addMesh(ch.g, bg, MAT.vox, 0, 0, 0, false, true); ch.glow.push(bg);   // disposed with the chunk
     spawnBand(run, ch, sx);
   }
-  if (!isEnd && ch.idx > 0 && Math.random() < 0.3) spawnHiFive(run, ch);
-  if (isEnd || isFirst || ch.idx < 1 || Math.random() > 0.22) return;
-  const sx = plazaSide || (Math.random() < 0.5 ? -1 : 1);
+  if (!isEnd && ch.idx > 0 && rnd() < 0.3) spawnHiFive(run, ch);
+  if (isEnd || isFirst || ch.idx < 1 || rnd() > 0.22) return;
+  const sx = plazaSide || (rnd() < 0.5 ? -1 : 1);
   let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4;
   spawnBusker(run, ch, pick(['drums', 'drums', 'sax', 'sax', 'dance']), sx * 15.6, z, sx);
 }
 // ---------- high fives: someone at the curb holds a hand out over the road; slap it as you pass ----------
-const HIFIVE_PTS = 1500, HIFIVE_REACH = 0.6;   // points, and how far (m) from your edge to their hand still counts
+const HIFIVE_REACH = 0.6;   // how far (m) from your edge to their hand still counts
 const HIFIVE_ARM = vox([[0, -0.075, -0.31, 0.15, 0.15, 0.62, 0xc68642], [0, -0.11, -0.66, 0.2, 0.22, 0.08, 0xc68642]]);   // pivots at the shoulder
 function spawnHiFive(run, ch) {
   let z = rand(-70, -14); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3)) z -= 4;
@@ -2470,7 +2534,7 @@ function updHiFive(e, dt) {
       const hits = PL.x + P_HW > e.x - e.hw;   // riding into them is a crash, not a high five
       if (gap < HIFIVE_REACH && PL.x > 0 && !hits) {
         e.five = 1; e.t = 0;
-        award('HIGH FIVE!', HIFIVE_PTS * (player.speed / player.base) * (1 + clamp(1 - Math.max(0, gap) / HIFIVE_REACH, 0, 1)), 'good');
+        give('HIGH FIVE!', (player.speed / player.base) * (1 + clamp(1 - Math.max(0, gap) / HIFIVE_REACH, 0, 1)), 'good');
         Sound.slap(0.6); buzz(30); focusGain(0.3);
       } else if (gap < 6) { e.five = -1; e.t = 0; }   // you went past: they give up
     }
@@ -2572,7 +2636,7 @@ const _sm = new THREE.Object3D(), _scol = new THREE.Color();
 for (let i = 0; i < STEAM_N; i++) { _sm.scale.set(0, 0, 0); _sm.updateMatrix(); steamMesh.setMatrixAt(i, _sm.matrix); steamMesh.setColorAt(i, _scol.setHex(0xffffff)); }
 function steamPuff(x, y, z, vx, vy, vz, color, size, lift, life) {
   const i = spNext; spNext = (spNext + 1) % STEAM_N; const q = SP[i];
-  q.x = x; q.y = y; q.z = z; q.vx = vx; q.vy = vy; q.vz = vz; q.s = size; q.lift = lift; q.life = q.max = life; q.r = rand(0, 3);
+  q.x = x; q.y = y; q.z = z; q.vx = vx; q.vy = vy; q.vz = vz; q.s = size; q.lift = lift; q.life = q.max = life; q.r = frand(0, 3);
   steamMesh.setColorAt(i, _scol.setHex(color)); steamMesh.instanceColor.needsUpdate = true; spAny = true;
 }
 function updateSteam(dt) {
@@ -2596,13 +2660,13 @@ const leafMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THR
 leafMesh.frustumCulled = false; scene.add(leafMesh);
 const LF = Array.from({ length: LEAF_N }, () => ({ st: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, spin: 0, ph: 0, life: 0 }));
 let lfNext = 0, lfAny = false;
-const WIND = { a: rand(0, 6.3), x: 0, z: 0 }, _lm = new THREE.Object3D(), _lc = new THREE.Color();
+const WIND = { a: frand(0, 6.3), x: 0, z: 0 }, _lm = new THREE.Object3D(), _lc = new THREE.Color();
 for (let i = 0; i < LEAF_N; i++) { _lm.scale.set(0, 0, 0); _lm.updateMatrix(); leafMesh.setMatrixAt(i, _lm.matrix); leafMesh.setColorAt(i, _lc.setHex(0xe67e22)); }
 function leaf(x, y, z, grounded, life) {
   const i = lfNext; lfNext = (lfNext + 1) % LEAF_N; const q = LF[i];
   q.st = grounded ? 2 : 1; q.x = x; q.y = y; q.z = z; q.vx = 0; q.vy = 0; q.vz = 0;
-  q.rx = grounded ? rand(-0.15, 0.15) : rand(0, 6.3); q.ry = rand(0, 6.3); q.rz = rand(0, 6.3); q.spin = rand(2, 6); q.ph = rand(0, 6.3); q.life = life;
-  leafMesh.setColorAt(i, _lc.setHex(pick(LEAF_COLS))); leafMesh.instanceColor.needsUpdate = true; lfAny = true;
+  q.rx = grounded ? frand(-0.15, 0.15) : frand(0, 6.3); q.ry = frand(0, 6.3); q.rz = frand(0, 6.3); q.spin = frand(2, 6); q.ph = frand(0, 6.3); q.life = life;
+  leafMesh.setColorAt(i, _lc.setHex(fpick(LEAF_COLS))); leafMesh.instanceColor.needsUpdate = true; lfAny = true;
 }
 function updateLeaves(dt) {
   // the wind slowly swings round and gusts
@@ -2624,24 +2688,22 @@ function updateLeaves(dt) {
     // swept up by the rider passing close (more at speed)
     if (playing && d2 < 2.6 * 2.6 && q.y < 2.2 && sp > 4) {
       const k = sp / 20, side = (dx * wvz - dz * wvx) > 0 ? 1 : -1;
-      q.st = 1; q.vy = rand(1.8, 3.6) * k; q.vx = wvx * rand(0.25, 0.5) + side * wvz * 0.12 + rand(-1, 1); q.vz = wvz * rand(0.25, 0.5) - side * wvx * 0.12 + rand(-1, 1);
-      q.spin = rand(8, 16); q.life = Math.max(q.life, 8);
-    } else if (q.st === 2 && Math.random() < dt * 0.04 * w * w) { q.st = 1; q.vy = rand(0.8, 1.8) * w; }   // a gust lifts it
+      q.st = 1; q.vy = frand(1.8, 3.6) * k; q.vx = wvx * frand(0.25, 0.5) + side * wvz * 0.12 + frand(-1, 1); q.vz = wvz * frand(0.25, 0.5) - side * wvx * 0.12 + frand(-1, 1);
+      q.spin = frand(8, 16); q.life = Math.max(q.life, 8);
+    } else if (q.st === 2 && fxRnd() < dt * 0.04 * w * w) { q.st = 1; q.vy = frand(0.8, 1.8) * w; }   // a gust lifts it
     if (q.st === 1) {
       q.vx += (WIND.x - q.vx) * 0.9 * dt; q.vz += (WIND.z - q.vz) * 0.9 * dt;
       q.vy = Math.max(q.vy - 2.2 * dt, -1.1);                                   // flutters down slowly
       q.x += (q.vx + Math.sin(animT * 3 + q.ph) * 0.6) * dt; q.y += q.vy * dt; q.z += (q.vz + Math.cos(animT * 2.6 + q.ph) * 0.6) * dt;
       q.rx += q.spin * dt; q.rz += q.spin * 0.7 * dt; q.spin *= 1 - 0.3 * dt;
       const gy = groundYW(q.x, q.z) + 0.02;
-      if (q.y <= gy && q.vy <= 0) { q.y = gy; q.st = 2; q.rx = rand(-0.15, 0.15); q.rz = rand(-0.15, 0.15); }
+      if (q.y <= gy && q.vy <= 0) { q.y = gy; q.st = 2; q.rx = frand(-0.15, 0.15); q.rz = frand(-0.15, 0.15); }
     }
     const sc = Math.min(1, q.life / 1.5);
     _lm.position.set(q.x, q.y, q.z); _lm.rotation.set(q.rx, q.ry, q.rz); _lm.scale.set(0.26 * sc, 0.02, 0.2 * sc); _lm.updateMatrix(); leafMesh.setMatrixAt(i, _lm.matrix);
   }
   leafMesh.instanceMatrix.needsUpdate = true; lfAny = any;
 }
-const STEAM_PTS = 150;   // riding through a steaming manhole
-const SPRAY_PTS = 150;   // riding through an open hydrant's spray
 function wetScreen() {   // water drops all over the lens, fading out
   const w = $('wet'); w.innerHTML = '';
   for (let i = 0; i < 16; i++) { const d = document.createElement('i'), sz = rand(18, 70); d.style.cssText = 'left:' + rand(0, 96) + '%;top:' + rand(0, 92) + '%;width:' + sz + 'px;height:' + sz * rand(0.85, 1.15) + 'px'; w.appendChild(d); }
@@ -2659,7 +2721,44 @@ function updateCitySound() {
   }
   Sound.setSteam(Game.state !== 'menu' ? steam : 0, steamPan);
 }
-function updateDecor(dt) {
+// riding through a steaming manhole or an open hydrant's spray, and the big signs for Chinatown and Times Square (the looks are in updateDecor)
+function checkStreetSpots(dt) {
+  const playing = Game.state === 'play';
+  for (const r of runs) {
+    setPL(r);
+    for (const ch of r.chunks) {
+      const dz = ch.z0 - 50 - PL.z; if (dz > 140 || dz < -160) continue;
+      for (const s of ch.steam) {
+        const ax = s.x - PL.x, az = s.z - PL.z;
+        if (az > 30 || az < -110) continue;
+        s.cd -= dt;
+        if (playing && s.cd <= 0 && Math.abs(ax) < 2.2 && Math.abs(az) < 2.5) {   // riding through: a big swirling burst
+          s.cd = 1.5; Sound.steamBurst(clamp(ax / 6, -1, 1));
+          give('STEAM BATH!', (player.speed / player.base));
+          toWorld(r, s.x, s.z, _t);
+          for (let k = 0; k < 18; k++) {
+            const lvx = frand(-2.5, 2.5) + player.vx * 0.4, lvz = -player.speed * frand(0.1, 0.35);
+            steamPuff(_t.x + frand(-0.4, 0.4), frand(0.2, 1.2), _t.z + frand(-0.4, 0.4), lvx * r.cos + lvz * r.sin, frand(1.5, 3.5), -lvx * r.sin + lvz * r.cos, 0xe8ebee, frand(0.35, 0.6), 0.5, frand(1.4, 2.2));
+          }
+        }
+      }
+      for (const s of ch.sprays) {   // an open hydrant
+        const ax = s.x - PL.x, az = s.z - PL.z;
+        if (az > 30 || az < -110) continue;
+        s.cd -= dt;
+        if (playing && s.cd <= 0 && Math.sign(PL.x) === s.sx && Math.abs(PL.x) > 6.8 && Math.abs(PL.x) < 11.6 && Math.abs(az) < 1.6) {
+          s.cd = 2; Sound.steamBurst(clamp(ax / 6, -1, 1)); wetScreen();
+          FOCUS.meter = 1; popup('FOCUS REFILLED', 'good');   // a cold splash: wide awake (the FOCUS meter fills right up)
+          give('COOL OFF!', (player.speed / player.base));
+        }
+      }
+      if (ch.china && !ch.chinaSaid && playing && PL.z < ch.z0 - 2 && PL.z > ch.z0 - 40) { ch.chinaSaid = true; bigMsg('CHINATOWN!', '#ff5252'); }
+      if (ch.times && !ch.timesSaid && playing && PL.z < ch.z0 - 2 && PL.z > ch.z0 - 40) { ch.timesSaid = true; bigMsg('TIMES SQUARE!', '#ffd23f'); }
+    }
+  }
+  setPL(player.run);
+}
+function updateDecor(dt) {   // the looks: leaves, steam and spray, awnings, flags, neon (riding through steam or spray is checkStreetSpots)
   const playing = Game.state === 'play';
   for (const r of runs) {
     setPL(r);
@@ -2667,51 +2766,34 @@ function updateDecor(dt) {
       const dz = ch.z0 - 50 - PL.z; if (dz > 140 || dz < -160) continue;
       if (!ch.leavesDone && dz > -130) {
         ch.leavesDone = true;
-        for (let k = 0; k < randi(10, 18); k++) {
-          const t = ch.trees.length && Math.random() < 0.4 ? pick(ch.trees) : null;
-          const lx = t ? t.x + rand(-1.6, 1.6) : (Math.random() < 0.5 ? -1 : 1) * rand(8.6, 11), lz = t ? t.z + rand(-1.6, 1.6) : ch.z0 + rand(-78, -4);
-          toWorld(r, lx, lz, _t); leaf(_t.x, 0.3, _t.z, true, rand(30, 60));
+        for (let k = 0, n = Math.floor(frand(10, 19)); k < n; k++) {   // a drift of fallen leaves
+          const t = ch.trees.length && fxRnd() < 0.4 ? fpick(ch.trees) : null;
+          const lx = t ? t.x + frand(-1.6, 1.6) : (fxRnd() < 0.5 ? -1 : 1) * frand(8.6, 11), lz = t ? t.z + frand(-1.6, 1.6) : ch.z0 + frand(-78, -4);
+          toWorld(r, lx, lz, _t); leaf(_t.x, 0.3, _t.z, true, frand(30, 60));
         }
       }
       for (const t of ch.trees) {
         if (t.z - PL.z > 25 || t.z - PL.z < -100) continue;
         t.acc += dt * 0.35;
-        if (t.acc >= 1) { t.acc -= 1; toWorld(r, t.x + rand(-1.3, 1.3), t.z + rand(-1.3, 1.3), _t); leaf(_t.x, rand(2.8, 5), _t.z, false, rand(20, 40)); }
+        if (t.acc >= 1) { t.acc -= 1; toWorld(r, t.x + frand(-1.3, 1.3), t.z + frand(-1.3, 1.3), _t); leaf(_t.x, frand(2.8, 5), _t.z, false, frand(20, 40)); }
       }
       for (const s of ch.steam) {
-        const ax = s.x - PL.x, az = s.z - PL.z;
+        const az = s.z - PL.z;
         if (az > 30 || az < -110) continue;
         toWorld(r, s.x, s.z, _t);
         s.acc += dt * 5;
-        while (s.acc >= 1) { s.acc -= 1; steamPuff(_t.x + rand(-0.3, 0.3), 0.1, _t.z + rand(-0.3, 0.3), rand(-0.25, 0.25), rand(1, 1.8), rand(-0.25, 0.25), pick([0xe4e7ea, 0xd5d9de, 0xc8cdd3]), rand(0.25, 0.45), 0.35, rand(1.8, 2.8)); }
-        s.cd -= dt;
-        if (playing && s.cd <= 0 && Math.abs(ax) < 2.2 && Math.abs(az) < 2.5) {   // riding through: a big swirling burst
-          s.cd = 1.5; Sound.steamBurst(clamp(ax / 6, -1, 1));
-          award('STEAM BATH!', STEAM_PTS * (player.speed / player.base), 'trick', false);   // a trick: keeps the chain, doesn't add to it
-          for (let k = 0; k < 18; k++) {
-            const lvx = rand(-2.5, 2.5) + player.vx * 0.4, lvz = -player.speed * rand(0.1, 0.35);
-            steamPuff(_t.x + rand(-0.4, 0.4), rand(0.2, 1.2), _t.z + rand(-0.4, 0.4), lvx * r.cos + lvz * r.sin, rand(1.5, 3.5), -lvx * r.sin + lvz * r.cos, 0xe8ebee, rand(0.35, 0.6), 0.5, rand(1.4, 2.2));
-          }
-        }
+        while (s.acc >= 1) { s.acc -= 1; steamPuff(_t.x + frand(-0.3, 0.3), 0.1, _t.z + frand(-0.3, 0.3), frand(-0.25, 0.25), frand(1, 1.8), frand(-0.25, 0.25), fpick([0xe4e7ea, 0xd5d9de, 0xc8cdd3]), frand(0.25, 0.45), 0.35, frand(1.8, 2.8)); }
       }
       for (const s of ch.sprays) {   // an open hydrant: a fan of water out over the bike lane
-        const ax = s.x - PL.x, az = s.z - PL.z;
+        const az = s.z - PL.z;
         if (az > 30 || az < -110) continue;
         toWorld(r, s.x, s.z, _t);
         s.acc += dt * 45;
         while (s.acc >= 1) {
-          s.acc -= 1; const lvx = -s.sx * rand(4.5, 8), lvz = rand(-0.9, 0.9);
-          steamPuff(_t.x, 0.75, _t.z, lvx * r.cos + lvz * r.sin, rand(2.5, 4.5), -lvx * r.sin + lvz * r.cos, pick([0xbfe6ff, 0x9fd4f5, 0xe6f6ff]), rand(0.12, 0.22), -9, rand(0.8, 1));
-        }
-        s.cd -= dt;
-        if (playing && s.cd <= 0 && Math.sign(PL.x) === s.sx && Math.abs(PL.x) > 6.8 && Math.abs(PL.x) < 11.6 && Math.abs(az) < 1.6) {
-          s.cd = 2; Sound.steamBurst(clamp(ax / 6, -1, 1)); wetScreen();
-          FOCUS.meter = 1; popup('FOCUS REFILLED', 'good');   // a cold splash: wide awake (the FOCUS meter fills right up)
-          award('COOL OFF!', SPRAY_PTS * (player.speed / player.base), 'trick', false);
+          s.acc -= 1; const lvx = -s.sx * frand(4.5, 8), lvz = frand(-0.9, 0.9);
+          steamPuff(_t.x, 0.75, _t.z, lvx * r.cos + lvz * r.sin, frand(2.5, 4.5), -lvx * r.sin + lvz * r.cos, fpick([0xbfe6ff, 0x9fd4f5, 0xe6f6ff]), frand(0.12, 0.22), -9, frand(0.8, 1));
         }
       }
-      if (ch.china && !ch.chinaSaid && playing && PL.z < ch.z0 - 2 && PL.z > ch.z0 - 40) { ch.chinaSaid = true; bigMsg('CHINATOWN!', '#ff5252'); }
-      if (ch.times && !ch.timesSaid && playing && PL.z < ch.z0 - 2 && PL.z > ch.z0 - 40) { ch.timesSaid = true; bigMsg('TIMES SQUARE!', '#ffd23f'); }
       for (const a of ch.anims) {
         if (a.kind === 'neon') {   // a few signs flicker: a burst of off-on every few seconds
           if (a.fl) { const t = (animT + a.ph) % 6, mm = t < 0.5 && Math.sin(t * 60) > 0 ? a.mats.off : a.mats.on; if (a.m.material !== mm) a.m.material = mm; }
@@ -2741,7 +2823,7 @@ const Sky = (() => {
   const tailRotor = new THREE.Mesh(vox([[0, -0.9, 0, 0.04, 1.8, 0.18, 0x222222]]), MAT.vox); tailRotor.position.set(0.12, 1.5, 6.1); heliBody.add(tailRotor);
   const heliLight = new THREE.Mesh(vox([[0, -1.0, 0.4, 0.3, 0.3, 0.3, 0xff2020], [0, 2.6, 0, 0.25, 0.25, 0.25, 0xffffff]]), MAT.skyLight); heliBody.add(heliLight);
   heliBody.rotation.x = 0.1; heli.add(heliBody); heli.visible = false; heli.scale.setScalar(1.3); scene.add(heli);
-  const H = { on: false, t: rand(8, 20), vx: 0, vz: 0, left: 0 };
+  const H = { on: false, t: frand(8, 20), vx: 0, vz: 0, left: 0 };
   // plane + two contrails (instanced segments that spread and fade into the sky colour)
   const planeMat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false });
   const plane = new THREE.Mesh(vox([[0, 0, 0, 3.4, 3.4, 34, 0xe9edf2], [0, 0.6, 2, 34, 0.6, 6, 0xdfe3e8], [0, 1.6, 15, 0.6, 6, 4, 0xdfe3e8], [0, 1.8, 15.5, 12, 0.5, 3, 0xdfe3e8],
@@ -2750,7 +2832,7 @@ const Sky = (() => {
   const TRAIL_N = 120, trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, transparent: true, opacity: 0.75, depthWrite: false });
   const trail = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), trailMat, TRAIL_N); trail.frustumCulled = false; scene.add(trail);
   const TR = Array.from({ length: TRAIL_N }, () => ({ age: 99, x: 0, y: 0, z: 0, ry: 0 })); let trNext = 0, trAcc = 0;
-  const P = { on: false, t: rand(6, 16), vx: 0, vz: 0, left: 0 };
+  const P = { on: false, t: frand(6, 16), vx: 0, vz: 0, left: 0 };
   const _m = new THREE.Object3D();
   for (let i = 0; i < TRAIL_N; i++) { _m.scale.set(0, 0, 0); _m.updateMatrix(); trail.setMatrixAt(i, _m.matrix); }
   // fireworks: their own bright particles (unlit, unfogged) so they glow at night
@@ -2770,19 +2852,19 @@ const Sky = (() => {
     return { x: camera.position.x + _d.x * dist + _s.x * side, z: camera.position.z + _d.z * dist + _s.z * side, y: height, sx: _s.x, sz: _s.z, dx: _d.x, dz: _d.z };
   }
   function crossing(o, dist, height, speed) {   // start off to one side, fly across the view
-    const dir = Math.random() < 0.5 ? -1 : 1, v = viewFrame(dist, -dir * dist * 1.1, height);
+    const dir = fxRnd() < 0.5 ? -1 : 1, v = viewFrame(dist, -dir * dist * 1.1, height);
     o.vx = v.sx * dir * speed; o.vz = v.sz * dir * speed; o.left = (dist * 2.4) / speed;
     return v;
   }
   function update(dt) {
     const playing = Game.state === 'play', night = TOD.night;
     // helicopter
-    if (!H.on) { H.t -= dt; if (H.t <= 0) { const v = crossing(H, rand(110, 170), rand(42, 62), rand(16, 24)); heli.position.set(v.x, v.y, v.z); heli.rotation.y = Math.atan2(-H.vx, -H.vz); heli.visible = H.on = true; } }
+    if (!H.on) { H.t -= dt; if (H.t <= 0) { const v = crossing(H, frand(110, 170), frand(42, 62), frand(16, 24)); heli.position.set(v.x, v.y, v.z); heli.rotation.y = Math.atan2(-H.vx, -H.vz); heli.visible = H.on = true; } }
     else {
       heli.position.x += H.vx * dt; heli.position.z += H.vz * dt; heli.position.y += Math.sin(animT * 0.7) * 0.6 * dt;
       rotor.rotation.y += dt * 38; tailRotor.rotation.x += dt * 50;
       heliLight.visible = night > 0.3 ? Math.floor(animT * 1.6) % 2 === 0 : false;
-      H.left -= dt; if (H.left <= 0) { heli.visible = H.on = false; H.t = rand(20, 50); }
+      H.left -= dt; if (H.left <= 0) { heli.visible = H.on = false; H.t = frand(20, 50); }
     }
     let chop = 0, chopPan = 0;
     if (H.on && playing) {
@@ -2791,7 +2873,7 @@ const Sky = (() => {
     }
     Sound.setChopper(chop, chopPan);
     // plane (daytime only)
-    if (!P.on) { P.t -= dt; if (P.t <= 0 && night < 0.65) { const v = crossing(P, rand(380, 520), rand(230, 300), rand(60, 80)); plane.position.set(v.x, v.y, v.z); plane.rotation.y = Math.atan2(-P.vx, -P.vz); plane.visible = P.on = true; } else if (P.t <= 0) P.t = 10; }
+    if (!P.on) { P.t -= dt; if (P.t <= 0 && night < 0.65) { const v = crossing(P, frand(380, 520), frand(230, 300), frand(60, 80)); plane.position.set(v.x, v.y, v.z); plane.rotation.y = Math.atan2(-P.vx, -P.vz); plane.visible = P.on = true; } else if (P.t <= 0) P.t = 10; }
     else {
       plane.position.x += P.vx * dt; plane.position.z += P.vz * dt;
       trAcc += dt;
@@ -2803,7 +2885,7 @@ const Sky = (() => {
           s.age = 0; s.x = plane.position.x + side * c + 18 * sn; s.y = plane.position.y - 0.8; s.z = plane.position.z - side * sn + 18 * c; s.ry = plane.rotation.y;
         }
       }
-      P.left -= dt; if (P.left <= 0) { plane.visible = P.on = false; P.t = rand(18, 40); }
+      P.left -= dt; if (P.left <= 0) { plane.visible = P.on = false; P.t = frand(18, 40); }
     }
     trailMat.color.copy(MAT.cloud.color);   // white by day, pink-orange at sunset, like the clouds
     for (let i = 0; i < TRAIL_N; i++) {
@@ -2818,20 +2900,20 @@ const Sky = (() => {
     if (show > 0) {
       show -= dt; showNext -= dt;
       if (showNext <= 0 && show > 0.6) {
-        showNext = rand(0.25, 0.6);
+        showNext = frand(0.25, 0.6);
         // down the street, where the sky shows between the buildings
-        const v = viewFrame(rand(90, 150), rand(-22, 22), 0), col = pick([0xff3b3b, 0xffd23f, 0x3ddc84, 0x3dafff, 0xff6fae, 0xffffff, 0xb36bff, 0xff9a2e]);
-        rockets.push({ x: v.x, y: rand(6, 14), z: v.z, vy: rand(34, 42), top: rand(48, 75), col, col2: Math.random() < 0.4 ? pick([0xffffff, 0xffd23f]) : col });
+        const v = viewFrame(frand(90, 150), frand(-22, 22), 0), col = fpick([0xff3b3b, 0xffd23f, 0x3ddc84, 0x3dafff, 0xff6fae, 0xffffff, 0xb36bff, 0xff9a2e]);
+        rockets.push({ x: v.x, y: frand(6, 14), z: v.z, vy: frand(34, 42), top: frand(48, 75), col, col2: fxRnd() < 0.4 ? fpick([0xffffff, 0xffd23f]) : col });
       }
     }
     for (let i = rockets.length - 1; i >= 0; i--) {
       const r = rockets[i]; r.y += r.vy * dt; r.vy -= 6 * dt;
-      spark(r.x + rand(-0.2, 0.2), r.y, r.z + rand(-0.2, 0.2), rand(-0.4, 0.4), rand(-2, 0), rand(-0.4, 0.4), 0xffcc66, 0.22, rand(0.3, 0.5), 4);
+      spark(r.x + frand(-0.2, 0.2), r.y, r.z + frand(-0.2, 0.2), frand(-0.4, 0.4), frand(-2, 0), frand(-0.4, 0.4), 0xffcc66, 0.22, frand(0.3, 0.5), 4);
       if (r.y >= r.top || r.vy < 4) {
-        const n = 70, sp = rand(13, 19);
+        const n = 70, sp = frand(13, 19);
         for (let k = 0; k < n; k++) {
-          const u = rand(-1, 1), a = rand(0, Math.PI * 2), q = Math.sqrt(1 - u * u), s = sp * rand(0.85, 1);
-          spark(r.x, r.y, r.z, q * Math.cos(a) * s, u * s, q * Math.sin(a) * s, k % 3 === 0 ? r.col2 : r.col, rand(0.35, 0.55), rand(1.3, 2.1), 5);
+          const u = frand(-1, 1), a = frand(0, Math.PI * 2), q = Math.sqrt(1 - u * u), s = sp * frand(0.85, 1);
+          spark(r.x, r.y, r.z, q * Math.cos(a) * s, u * s, q * Math.sin(a) * s, k % 3 === 0 ? r.col2 : r.col, frand(0.35, 0.55), frand(1.3, 2.1), 5);
         }
         const dx = r.x - camera.position.x, dz = r.z - camera.position.z, d = Math.hypot(dx, dz);
         camera.getWorldDirection(_d); _s.crossVectors(_d, up).normalize();
@@ -2892,11 +2974,11 @@ function genChunk(run, z0, idx) {
   for (let i = 0; i < 2; i++) decorManhole(p, ch, rand(-8, 8), rand(-70, -8));
 
   let plazaSide = 0;
-  if (!isEnd && !isFirst && idx > 1 && idx % 4 === 2) plazaSide = Math.random() < 0.5 ? -1 : 1;
+  if (!isEnd && !isFirst && idx > 1 && idx % 4 === 2) plazaSide = rnd() < 0.5 ? -1 : 1;
   const landmarkType = (idx + runs.length) % 4;
   // Times Square: at most one block a level, billboards up both sides and crowds of tourists
-  if (!plazaSide && !isEnd && !isFirst && idx > 1 && !Game.timesDone && Math.random() < 0.3) { Game.timesDone = true; ch.times = true; }
-  else if (!plazaSide && !isEnd && !isFirst && idx > 1 && !run.el && !Game.chinaDone && Math.random() < 0.25) { Game.chinaDone = true; ch.china = true; }   // Chinatown (not under the El: the gate is in the way)
+  if (!plazaSide && !isEnd && !isFirst && idx > 1 && !Game.timesDone && rnd() < 0.3) { Game.timesDone = true; ch.times = true; }
+  else if (!plazaSide && !isEnd && !isFirst && idx > 1 && !run.el && !Game.chinaDone && rnd() < 0.25) { Game.chinaDone = true; ch.china = true; }   // Chinatown (not under the El: the gate is in the way)
 
   for (const sx of [-1, 1]) {
     // ---------- buildings ----------
@@ -2913,7 +2995,7 @@ function genChunk(run, z0, idx) {
       while (z > endZ) {
         let bw = randi(6, 13) * 2; if (z - bw < endZ + 8) bw = z - endZ;
         const depth = randi(10, 14) * 2;
-        let h = randi(4, 16) * 4; if (Math.random() < 0.12) h = randi(22, 36) * 4;
+        let h = randi(4, 16) * 4; if (rnd() < 0.12) h = randi(22, 36) * 4;
         const st = randi(0, STYLES.length - 1);
         const cz = z - bw / 2;
         const m = addMesh(g, buildingGeo(depth, h, bw), STYLE_MATS[st], sx * (17 + depth / 2), 0, cz, true, true);
@@ -2922,32 +3004,32 @@ function genChunk(run, z0, idx) {
         p.push([sx * (17 + depth / 2), h, cz, depth + 0.6, 0.6, bw + 0.6, pick([0xd9d2c0, 0x5a4a3a, 0x9a9a9a, 0x3b2f25])]);
         p.push([fx, 0.25, cz, 0.12, 2.6, bw * 0.82, 0x1d2836]);
         p.push([fx, 2.85, cz, 0.16, 0.5, bw * 0.86, pick([0x9e2b25, 0x1d5e3a, 0x262626, 0x7a5a2a])]);
-        if (Math.random() < 0.65) {
+        if (rnd() < 0.65) {
           const ac = pick([0xc0392b, 0x16a085, 0x2c3e50, 0x8e44ad, 0xd35400, 0x1e5799]), aw = Math.max(2, bw * 0.55);
           p.push([sx * 16.3, 3.1, cz, 1.4, 0.32, aw, ac]);
           decorAwning(g, ch, sx, cz, aw, ac);   // the front flap flutters
           ch.perches.push({ x: sx * 16.3, y: 3.42, z: z0 + cz, len: aw });
         }
-        const flagged = h >= 16 && !ch.times && !ch.china && Math.random() < 0.22;
+        const flagged = h >= 16 && !ch.times && !ch.china && rnd() < 0.22;
         if (flagged) decorFlag(g, p, ch, sx, cz, h);
         if (!ch.times) {   // a fire escape, or a neon sign (never both: they'd overlap)
-          if (!flagged && !ch.china && h >= 16 && bw >= 8 && Math.random() < 0.3) fireEscape(p, sx, cz + rand(-bw / 2 + 2.2, bw / 2 - 2.2), h);
-          else if (Math.random() < (ch.china ? 0.75 : 0.35)) decorNeon(g, p, ch, sx, cz, bw);
+          if (!flagged && !ch.china && h >= 16 && bw >= 8 && rnd() < 0.3) fireEscape(p, sx, cz + rand(-bw / 2 + 2.2, bw / 2 - 2.2), h);
+          else if (rnd() < (ch.china ? 0.75 : 0.35)) decorNeon(g, p, ch, sx, cz, bw);
         }
         if (h <= 28) ch.perches.push({ x: sx * 16.85, y: h + 0.6, z: z0 + cz, len: bw * 0.8 });   // low rooftops, visible from the street
-        if (h < 70 && Math.random() < 0.3) {
+        if (h < 70 && rnd() < 0.3) {
           const wx = sx * (17 + depth / 2 + rand(-2, 2)), wz = cz + rand(-bw / 4, bw / 4);
           for (const a of [-0.9, 0.9]) for (const b of [-0.9, 0.9]) p.push([wx + a, h + 0.6, wz + b, 0.18, 2.2, 0.18, 0x3b2a1e]);
           p.push([wx, h + 2.8, wz, 2.6, 2.8, 2.6, 0x7a5233]); p.push([wx, h + 5.6, wz, 2.0, 0.5, 2.0, 0x5c3d24]); p.push([wx, h + 6.1, wz, 1.0, 0.5, 1.0, 0x5c3d24]);
           for (let k = 0; k < 3; k++) p.push([wx, h + 3.2 + k * 0.9, wz, 2.66, 0.1, 2.66, 0x333333]);
-        } else if (Math.random() < 0.5) {
+        } else if (rnd() < 0.5) {
           p.push([sx * (17 + depth / 2 + rand(-3, 3)), h + 0.6, cz + rand(-bw / 4, bw / 4), 1.6, 1.0, 1.6, 0xb0b0b0]);
         }
         z -= bw;
       }
       if (ch.times) timesSquare(g, sx);
       // second row (depth when looking down cross streets)
-      if (!isEnd && !isFirst && Math.random() < 0.18 && idx > 1) spireTower(p, sx * 64, -40);
+      if (!isEnd && !isFirst && rnd() < 0.18 && idx > 1) spireTower(p, sx * 64, -40);
       else for (const zc2 of [-20, -60]) {
         if (isEnd && sx === td && zc2 === -60) continue;
         if (isFirst && sx === cs && zc2 === -20) continue;
@@ -2967,11 +3049,11 @@ function genChunk(run, z0, idx) {
     for (let z = isFirst ? -10 : -5; z > -77; z -= 6.5) {
       if (lampZ.some((l) => Math.abs(l - z) < 3.2)) continue;
       if (isEnd && ((sx === td && z < -20 && z > -34) || (sx === -td && z < -12 && z > -26))) continue; // keep sign spots clear
-      const r = Math.random();
+      const r = rnd();
       if (r < 0.24 && sx !== plazaSide) { treeParts(p, sx * 12.4, z); addStatic(ch, sx * 12.4, z0 + z, 0.25, 0.25, 'tree'); ch.trees.push({ x: sx * 12.4, z: z0 + z, acc: rand(0, 1) }); }
-      else if (r < 0.34) { const x = sx * 11.9; p.push([x, 0.25, z, 0.3, 0.55, 0.3, 0xc8202a], [x, 0.8, z, 0.22, 0.12, 0.22, 0xd8d8d8], [x, 0.55, z, 0.46, 0.1, 0.1, 0xc8202a]); addStatic(ch, x, z0 + z, 0.22, 0.2, 'hydrant'); if (!isFirst && Math.random() < 0.2) ch.sprays.push({ x, z: z0 + z, sx, acc: 0, cd: 0 }); }   // some are opened up, spraying the street
+      else if (r < 0.34) { const x = sx * 11.9; p.push([x, 0.25, z, 0.3, 0.55, 0.3, 0xc8202a], [x, 0.8, z, 0.22, 0.12, 0.22, 0xd8d8d8], [x, 0.55, z, 0.46, 0.1, 0.1, 0xc8202a]); addStatic(ch, x, z0 + z, 0.22, 0.2, 'hydrant'); if (!isFirst && rnd() < 0.2) ch.sprays.push({ x, z: z0 + z, sx, acc: 0, cd: 0 }); }   // some are opened up, spraying the street
       else if (r < 0.45) { const x = sx * 12.0; p.push([x, 0.25, z, 0.56, 0.92, 0.56, 0x2e5e33], [x, 1.1, z, 0.6, 0.06, 0.6, 0x1f3f22], [x, 0.4, z, 0.58, 0.04, 0.58, 0x1f3f22]); addStatic(ch, x, z0 + z, 0.3, 0.3, 'trash'); }
-      const r2 = Math.random();
+      const r2 = rnd();
       if (sx === plazaSide) continue;
       if (r2 < 0.07) {
         const x = sx * 15.7;
@@ -3009,21 +3091,21 @@ function genChunk(run, z0, idx) {
   // parked cars along the left curb
   for (let z = isFirst ? -9 : -4; z > -76; z -= 6.4) {
     if (isEnd && z < -44) break;          // no parking in the last stretch before a closure
-    if (Math.random() < 0.42) {
+    if (rnd() < 0.42) {
       const v = pickVehicle(pick(['sedan', 'sedan', 'taxi', 'suv']));
       const m = addMesh(g, v.geo, MAT.vox, -10, 0, z - 2.4, false, true); m.rotation.y = Math.PI;
       addStatic(ch, -10, z0 + z - 2.4, v.hw, v.hd, 'parked');
       Object.assign(ch.statics[ch.statics.length - 1], { mesh: m, veh: v });   // so a squeeze can set its alarm off
     }
   }
-  if (idx > 0 && !isEnd && Math.random() < 0.3) {
+  if (idx > 0 && !isEnd && rnd() < 0.3) {
     const v = pickVehicle('truck'), z = rand(-20, -60);
     addMesh(g, v.geo, MAT.vox, 10, 0, z, false, true);
     addStatic(ch, 10, z0 + z, v.hw, v.hd, 'truck');
     run.closures.push({ lane: 4, zTop: z0 + z - v.hd - 1, zBot: z0 + z + v.hd + 1, ch });
   }
   // mid-block construction lane closure
-  if (idx > 1 && !isEnd && !isFirst && Math.random() < 0.16 + 0.05 * diff) {
+  if (idx > 1 && !isEnd && !isFirst && rnd() < 0.16 + 0.05 * diff) {
     const li = randi(0, 3), lx = LANES[li], zb = -22, zt = -52;
     for (let z = zb; z >= zt; z -= 3) {
       if (z === zb || z <= zt + 2) barrierX(p, lx - 1.8, lx + 1.8, z);
@@ -3083,7 +3165,7 @@ function genChunk(run, z0, idx) {
   }
 
   if (ch.china) chinatown(g, p, ch);
-  else if (!isEnd && !isFirst && !plazaSide && !run.el && Math.random() < 0.3) decorBanner(g, p, ch);   // (no banners under the El)
+  else if (!isEnd && !isFirst && !plazaSide && !run.el && rnd() < 0.3) decorBanner(g, p, ch);   // (no banners under the El)
   if (glowP.length) {
     const gh = addMesh(g, vox(glowP), MAT.lampHead, 0, 0, 0); const gp = addMesh(g, quadsGeo(pools, 0.05), MAT.lampPool, 0, 0, 0);
     gp.renderOrder = 2; ch.glow.push(gh.geometry, gp.geometry);
@@ -3097,6 +3179,10 @@ function genChunk(run, z0, idx) {
   // a level's first three blocks have no pickups, and the 4th always has a battery
   if (run.turnIn || idx >= 3) placeItems(ch, !run.turnIn && idx === 3); else ch.items = [];
 }
+
+/* =====================================================================
+   PICKUPS — batteries in the lanes
+   ===================================================================== */
 /* ---------- PICKUPS: glowing batteries (10 s of VOLTS, the boost), floating in the lanes ---------- */
 const ITEM_GEO = {
   battery: vox([
@@ -3128,7 +3214,7 @@ function placeItems(ch, sure) {
       lz = rand(-72, -8); x = undefined;
     }
   };
-  if (sure || Math.random() < 0.75) put('battery', rand(-72, -8));
+  if (sure || rnd() < 0.75) put('battery', rand(-72, -8));
 }
 function checkItems() {
   const r = player.run; if (!r) return;
@@ -3160,6 +3246,83 @@ function removeChunk(run, i) {
   for (let k = run.closures.length - 1; k >= 0; k--) if (run.closures[k].ch === ch) run.closures.splice(k, 1);
   run.chunks.splice(i, 1);
 }
+
+/* =====================================================================
+   KINDS: what each kind of thing in the street is, in one place: how high it is (to jump it), its roof (to land on),
+   what passing close to it scores and what it says, and the lines when you crash into it.
+   Its model is built in MODELS and how it moves is in ENTITIES; everything else about it is here.
+   ===================================================================== */
+// h: a vehicle's height (to clear it in the air) · hop: how high a hop must be to clear it (low things; the rival too) · roof: see roofOf
+// near: the award for passing close (else NEAR_BY_TYPE, else CLOSE SHAVE!) · flat: that award isn't more for closer · nearSound(pan)
+// bubbles: what it says (when you nearly hit it, or whenever it talks) · bubbleY: how high its speech bubble sits · death: crash lines
+const NEAR_BY_TYPE = { car: 'NEAR MISS!', bike: 'BIKE DODGE!', ped: 'EXCUSE ME!' };
+const KINDS = {
+  // ----- traffic -----
+  sedan: { h: 1.45, roof: { body: 1.04, cabin: 1.76, len: 2.2, back: 0.25 }, death: ['Became a hood ornament.', 'Merged. Badly.'] },
+  taxi: { h: 1.6, roof: { body: 1.04, cabin: 1.76, len: 2.3, back: 0.25 }, death: ['T-boned by a taxi.', 'Hailed a cab. With your face.', 'The meter is still running.'] },
+  suv: { h: 1.8, roof: { body: 1.22, cabin: 2.04, len: 2.9, back: 0.4 }, death: ['Out-sized by an SUV.', 'Crumple zone: you.'] },
+  police: { h: 1.65, roof: { body: 1.04, cabin: 1.76, len: 2.2, back: 0.25 }, death: ['You have the right to remain splattered.'] },
+  // a box truck: the cargo box (3.17 m) and the cab in front of it (2.19 m); they overlap, and reach the truck's full outline at both ends
+  truck: { h: 3.1, roof: { box: { h: 3.17, hw: 1.15, hd: 2.8, off: 1.25 }, cab: { h: 2.19, hw: 1.1, hd: 1.35, off: 2.75 } }, death: ['Signed for a package. With your body.', 'Delivered: one rider, slightly damaged.'] },
+  // (a bus is 2.9 m to clear, just under its 3.12 m roof: you ride the roof, and rolling off its end is a clean drop)
+  bus: { h: 2.9, roof: { h: 3.12, hw: 1.25 }, death: ['Thrown under the bus. Literally.', 'Missed your stop. The bus did not.'] },
+  tourbus: { h: 3.7 },
+  carriage: { h: 2.6, near: 'HORSE PLAY!', nearSound: (pan) => Sound.neigh(pan, 1), death: ['Trampled by a horse. In Midtown.', 'Horsepower: 1. Wheel power: 0.', 'Neigh.'] },
+  // ----- on foot -----
+  ped: { bubbles: ['HEY!', 'WATCH IT!', 'MY LATTE!', "I'M WALKING HERE!", 'WHOA!', 'SERIOUSLY?!', 'GET A CAR!', 'RUDE!', 'MY SHOES!', 'NOT COOL!', 'WHAT WAS THAT?!'], death: ["Bowled over a pedestrian. They're fine. You are not.", 'Sidewalk etiquette: failed.'] },
+  tourist: { death: ['Photobombed a tourist. Fatally.', "Now you're in their vacation slideshow."] },
+  business: { death: ["Collided with a hedge fund manager. He's billing you."] },
+  hotdog: { near: 'RELISH THE MOMENT!', bubbles: ['I RELISH MY LIFE!', 'WATCH THE WIENER!', "I'M ON BREAK!"], bubbleY: 2.9 },
+  liberty: { near: 'LADY LIBERTY!', bubbles: ['GIVE ME YOUR TIRED!', 'LET FREEDOM RIDE!', 'TIPS APPRECIATED!', 'WATCH THE TORCH!', "I'M A NATIONAL MONUMENT!"], bubbleY: 2.9 },
+  pigeonman: { near: 'COO COO!', nearSound: (pan) => Sound.coo(pan, 1), bubbles: ['COO COO!', 'I AM ONE OF THEM NOW', 'FEED ME BREAD!', 'FLAP FLAP!', "I'M NOT A REAL BIRD", 'THE FLOCK PROTECTS ME'], bubbleY: 3, death: ['Flattened a man dressed as a pigeon. The pigeons will remember.', 'Coo coo... crunch.'] },
+  preacher: { near: 'HALLELUJAH!', bubbles: [
+    'THE END IS NEAR!',
+    'REPENT!',
+    'L TRAIN IS COMING',
+    'TURN BACK NOW',
+    'HELL AWAITS',
+    'BLESSED ARE THE PEDESTRIANS',
+    'THE EUC IS A SIGN',
+    'BALANCE THY CELLS',
+    'FILTHY SINNERS!',
+    'THOU SHALT NOT SCOOTER',
+    'HELL IS A BIKE LANE',
+    'GOD HATES STOCK TIRES',
+    'HELL IS SLOW CHARGING'
+  ], bubbleY: 3, death: ['The end was near. Very near.', 'Knocked the preacher off his crate. Repent.'] },
+  rat: { hop: 0.25, near: 'PIZZA RAT!', bubbles: ['SQUEAK!', 'MY SLICE!', 'DOLLAR SLICE, BABY!', 'NOT THE PIZZA!'], bubbleY: 1.2 },
+  robot: { hop: 0.7, near: 'ROBO DODGE!', bubbles: ['BEEP BOOP!', 'PLEASE STAND CLEAR', 'OBSTACLE DETECTED', 'YOUR ORDER IS ON ITS WAY', 'RECALCULATING ROUTE', 'HUMAN DETECTED. PAUSING.'], bubbleY: 1.9, death: ['Tripped over a delivery robot. Your food is late.', 'The robot has filed an incident report.', 'Defeated by a cooler on wheels.'] },
+  cat: { bubbles: ['PURRR...', 'MRROW!', '\u2665 PURR \u2665', 'MEOW.', '*SLOW BLINK*'], bubbleY: 2.2 },
+  spidey: { bubbles: ['WITH GREAT POWER...', 'NICE MOVES!', 'MY SPIDEY SENSE IS TINGLING!', 'PHOTOS ARE $5!', 'THWIP!'], bubbleY: 6.2 },
+  kid: { bubbles: ['MY BALLOON!', 'NOOO!', 'COME BACK!', 'BYE BALLOON...'], bubbleY: 1.9 },   // (a pedestrian with a balloon: kind 'ped', mode 'kid')
+  // ----- on wheels -----
+  bike: { death: ['Lost a joust to a cyclist.'] },
+  delivery: { death: ['Your order has arrived: regret.', 'Delivery guy: 1. You: 0.'] },
+  skate: { near: 'SKATE DODGE!', death: ['Got kickflipped.', 'Skater: 1. Wheel: 0.', 'Grinded. By a skater.'] },
+  rival: { hop: 2.4, bubbleY: 2.8 },
+  sign: { near: 'SIGN DODGE!', death: ['Took a SALE sign to the face.', 'Everything must go. Including you.', 'Spun out by a sign spinner.'] },
+  // ----- standing in the street -----
+  hydrant: { hop: 0.7, death: ['Fire hydrant: still undefeated.'] },
+  trash: { hop: 1.0, death: ['Took out the trash. And yourself.'] },
+  crates: { hop: 0.8, death: ['Wiped out on a stack of bodega crates.', 'Crate expectations: crushed.', 'The cat saw everything.'] },
+  barrier: { hop: 0.95, death: ['Construction zone. Now under reconstruction: you.'] },
+  cart: { hop: 3.0, death: ['You are now the hot dog.'] },
+  news: { hop: 3.0, death: ['Made the front page.'] },
+  subway: { hop: 1.5, death: ['Took the subway. Head first.'] },
+  lamp: { death: ['Hugged a lamp post at full speed.'] },
+  light: { death: ['Ran a red light. Straight into the pole.'] },
+  tree: { death: ['Became one with nature.'] },
+  parked: { death: ['Discovered parked cars are, in fact, solid.'] },
+  towtruck: { hop: 2.5, death: ['Rode into the tow truck. Now you need one.', 'Towed. Permanently.'] },
+  towbed: { death: ['Hit the side of the ramp. Wrong way on.', 'The ramp is at the BACK.'] },
+  pillar: { death: ['Hugged an El column. The El hugged back.', 'Met the elevated train. From below.'] },
+  gate: { death: ['Rode into the Chinatown gate. Bad luck for a year.', 'The gate was decorative. You were not.'] },
+  closed: { near: 'TIGHT TURN!', flat: true, death: ['Ignored the ROAD CLOSED sign.', 'The detour was RIGHT THERE.', 'Road closed. So is your casket.'] },
+  building: { near: 'TIGHT TURN!', flat: true, death: ['Tried to ride through a building. The building won.'] },
+  // ----- not a thing: landing mid-spin -----
+  midspin: { death: ['Landed mid-spin. The street was not impressed.', 'Over-rotated. Under-survived.'] }
+};
+KINDS.tourist.bubbles = KINDS.business.bubbles = KINDS.ped.bubbles;   // (tourists and business people say what everyone says)
 
 /* =====================================================================
    ENTITIES (traffic, pedestrians, bikes, pigeons) — per run
@@ -3201,10 +3364,10 @@ function spawnCar(run, li, z, forceKind) {
   const fl = new THREE.Mesh(v.flashGeo, MAT.hflash); fl.visible = false; m.add(fl); m.userData.flash = fl;
   addBeacons(m, v); addTourists(m, v);
   m.userData.sig = v.sigGeo.map((g) => { const sm = new THREE.Mesh(g, MAT.hflash); sm.visible = false; m.add(sm); return sm; });   // [left, right]
-  const erratic = Math.random() < (v.kind === 'taxi' ? 0.3 : 0.15) + 0.07 * diff;
+  const erratic = rnd() < (v.kind === 'taxi' ? 0.3 : 0.15) + 0.07 * diff;
   return addEnt(run, {
     type: 'car', kind: v.kind, mesh: m, x: LANES[li], z, hw: v.hw, hd: v.hd, lane: li, dir, v: spd, vBase: spd, vx: 0,
-    erratic, runsRed: erratic && Math.random() < 0.35 + 0.08 * diff, t: rand(0, 10), brakeT: 0, swerveT: 0, swervePre: 0, steer: 0, signalT: 0, signalLane: 0,
+    erratic, runsRed: erratic && rnd() < 0.35 + 0.08 * diff, t: rand(0, 10), brakeT: 0, swerveT: 0, swervePre: 0, steer: 0, signalT: 0, signalLane: 0,
     nextAct: big ? 1e9 : erratic ? rand(1, 3) : rand(4, 12), honkT: 0, nm: false, lethal: true   // buses don't change lanes
   });
 }
@@ -3234,9 +3397,9 @@ function updCar(run, e, dt) {
   if (e.signalT > 0) { e.signalT -= dt; if (e.signalT <= 0 && laneFree(run, e.signalLane, e.z, 4, e)) e.lane = e.signalLane; }
   if (e.nextAct <= 0 && e.swerveT <= 0 && !(e.swervePre > 0) && !(e.signalT > 0)) {
     e.nextAct = e.erratic ? rand(0.9, 2.8) : rand(4, 12);
-    const r = Math.random();
+    const r = rnd();
     if (r < 0.55) {
-      const nl = e.lane + (Math.random() < 0.5 ? -1 : 1);
+      const nl = e.lane + (rnd() < 0.5 ? -1 : 1);
       if (own.includes(nl) && laneFree(run, nl, e.z, 4, e)) { e.signalLane = nl; e.signalT = e.erratic ? SIGNAL_TIME_ERRATIC : SIGNAL_TIME; }
     } else if (e.erratic && r < 0.78) { e.brakeT = rand(0.6, 1.6); }
     else if (e.erratic && e.dir > 0 && r < 0.9 && e.lane === 1 && run === player.run && Math.abs(e.z - PL.z) < 140 && e.z < PL.z) {
@@ -3297,12 +3460,12 @@ function updCar(run, e, dt) {
   if (Game.state === 'play' && e.honkT <= 0) {
     const dz = Math.abs(e.z - PL.z), dx = Math.abs(e.x - PL.x);
     if (dz < (e.dir > 0 ? 28 : 9) && dx < 3.5 && (e.dir > 0 ? e.z < PL.z : true)) {
-      e.honkT = rand(1.2, 2.5); Sound.honk((e.x - PL.x) / 10, 0.9, Math.random() < 0.5);
+      e.honkT = rand(1.2, 2.5); Sound.honk((e.x - PL.x) / 10, 0.9, rnd() < 0.5);
     }
   }
 }
 function spawnCross(run, I, delay, dir, spd, startX) {
-  const v = pickVehicle(Math.random() < 0.08 ? 'bus' : null);
+  const v = pickVehicle(rnd() < 0.08 ? 'bus' : null);
   const m = new THREE.Mesh(v.geo, MAT.vox); m.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   const z = I.zc + (dir > 0 ? 4.5 : -4.5);
   m.position.set(startX, 0, z); m.visible = delay <= 0; attachLights(m, v); addBeacons(m, v); addTourists(m, v);
@@ -3315,7 +3478,7 @@ function triggerCross(run, I) {
   const n = 1 + randi(0, 1 + Math.min(4, Math.floor(diff * 0.8)));
   let maxEnd = 0;
   for (let k = 0; k < n; k++) {
-    const dir = Math.random() < 0.5 ? 1 : -1, spd = rand(24, 33) + diff * 1.6;
+    const dir = rnd() < 0.5 ? 1 : -1, spd = rand(24, 33) + diff * 1.6;
     const target = k === 0 ? tArr + rand(-0.15, 0.3) : tArr + rand(-1.6, 2.6);
     let startX = -dir * 125, travel = Math.abs(PL.x - startX) / spd, delay = target - travel;
     if (delay < 0) { startX = PL.x - dir * spd * target; delay = 0; if (Math.abs(startX) < 30) continue; }
@@ -3337,9 +3500,7 @@ function spawnPed(run, kind, x, z, mode, opts) {
   m.position.set(x, groundY(run, x, z), z);
   return e;
 }
-/* ---------- speech bubbles: what a pedestrian shouts when you nearly hit them (an HTML label kept over their head) ---------- */
-const PED_BUBBLES = ['HEY!', 'WATCH IT!', 'MY LATTE!', "I'M WALKING HERE!", 'WHOA!', 'SERIOUSLY?!', 'GET A CAR!', 'RUDE!', 'MY SHOES!', 'NOT COOL!', 'WHAT WAS THAT?!'];
-const HOTDOG_BUBBLES = ['I RELISH MY LIFE!', 'WATCH THE WIENER!', "I'M ON BREAK!"];
+/* ---------- speech bubbles: what a pedestrian shouts when you nearly hit them (an HTML label kept over their head; the lines are in KINDS) ---------- */
 // what the announcer says (now and then) when you run a red light
 const RED_JOKES = [
   'Red means go',
@@ -3359,27 +3520,6 @@ const RED_JOKES = [
   'Red light camera says hello',
   'Red lights hate this one simple trick'
 ];
-const ROBOT_BUBBLES = ['BEEP BOOP!', 'PLEASE STAND CLEAR', 'OBSTACLE DETECTED', 'YOUR ORDER IS ON ITS WAY', 'RECALCULATING ROUTE', 'HUMAN DETECTED. PAUSING.'];
-const PIGEONMAN_BUBBLES = ['COO COO!', 'I AM ONE OF THEM NOW', 'FEED ME BREAD!', 'FLAP FLAP!', "I'M NOT A REAL BIRD", 'THE FLOCK PROTECTS ME'];
-const KID_BUBBLES = ['MY BALLOON!', 'NOOO!', 'COME BACK!', 'BYE BALLOON...'];
-const RAT_BUBBLES = ['SQUEAK!', 'MY SLICE!', 'DOLLAR SLICE, BABY!', 'NOT THE PIZZA!'];
-const PREACHER_LINES = [
-  'THE END IS NEAR!',
-  'REPENT!',
-  'L TRAIN IS COMING',
-  'TURN BACK NOW',
-  'HELL AWAITS',
-  'BLESSED ARE THE PEDESTRIANS',
-  'THE EUC IS A SIGN',
-  'BALANCE THY CELLS',
-  'FILTHY SINNERS!',
-  'THOU SHALT NOT SCOOTER',
-  'HELL IS A BIKE LANE',
-  'GOD HATES STOCK TIRES',
-  'HELL IS SLOW CHARGING'
-];
-
-const LIBERTY_BUBBLES = ['GIVE ME YOUR TIRED!', 'LET FREEDOM RIDE!', 'TIPS APPRECIATED!', 'WATCH THE TORCH!', "I'M A NATIONAL MONUMENT!"];
 const BUBBLES = [];
 const _bw = { x: 0, z: 0 }, _bv = new THREE.Vector3();
 function pedBubble(e, text) {
@@ -3392,7 +3532,7 @@ function updateBubbles(dt) {
     const b = BUBBLES[i], e = b.e; b.t += dt;
     if (b.t > 1.4 || !e.run || !e.mesh.parent) { b.el.remove(); e.bubble = null; BUBBLES.splice(i, 1); continue; }
     toWorld(e.run, e.mesh.position.x, e.mesh.position.z, _bw);
-    _bv.set(_bw.x, (e.bubbleY || (e.kind === 'hotdog' || e.kind === 'liberty' ? 2.9 : 2.3)) + b.t * 0.3, _bw.z).project(camera);
+    _bv.set(_bw.x, (e.bubbleY || (KINDS[e.kind] && KINDS[e.kind].bubbleY) || 2.3) + b.t * 0.3, _bw.z).project(camera);
     const vis = _bv.z < 1 && Math.abs(_bv.x) < 1.1 && Math.abs(_bv.y) < 1.1;
     b.el.style.display = vis ? 'block' : 'none';
     if (vis) { b.el.style.left = ((_bv.x + 1) / 2 * viewW) + 'px'; b.el.style.top = ((1 - _bv.y) / 2 * viewH) + 'px'; }
@@ -3451,7 +3591,7 @@ function spawnBike(run, x, z, dir, kind) {
 // a bike you hit tips over onto its side (away from you) and skids a little in your direction of travel
 function knockBike(e) {
   e.v = 0; e.lethal = false; e.fallen = true; e.fall = 0;
-  e.fallSide = Math.sign(e.x - player.x) || (Math.random() < 0.5 ? -1 : 1);
+  e.fallSide = Math.sign(e.x - player.x) || (rnd() < 0.5 ? -1 : 1);
   e.slideV = Math.min(9, player.speed * 0.35);
 }
 function updBike(run, e, dt) {
@@ -3470,7 +3610,7 @@ function updBike(run, e, dt) {
     if (!e.rang && d < 10 && e.kind !== 'skate') { e.rang = true; Sound.bell(clamp((e.x - PL.x) / 6, -1, 1), clamp(1.2 - d / 12, 0.3, 1)); }
     else if (e.rang && d > 30) e.rang = false;
   }
-  if (e.swT <= 0) { e.swT = rand(3, 9); e.tx = Math.random() < 0.3 + 0.05 * (Game.level - 1) ? 6.75 : e.homeX + rand(-0.6, 0.6); }
+  if (e.swT <= 0) { e.swT = rand(3, 9); e.tx = rnd() < 0.3 + 0.05 * (Game.level - 1) ? 6.75 : e.homeX + rand(-0.6, 0.6); }
   for (const c of run.closures) if (c.lane === 4 && Math.abs(e.x - 10) < 1.5) {
     const ahead = e.dir < 0 ? e.z - c.zBot : c.zTop - e.z;
     if (ahead > -1 && ahead < 14) { e.tx = 7.2; e.swT = 3; }
@@ -3489,6 +3629,10 @@ function updBike(run, e, dt) {
     e.mesh.rotation.y += Math.sin(e.t * 1.3 + 1.2) * 0.25;
   }
 }
+
+/* =====================================================================
+   CHARACTERS — the carriage, the rival, the delivery robot, the bodega cat, the balloon, the sign spinner, the pigeon mascot, Spider-Man
+   ===================================================================== */
 // ---------- horse-drawn carriage: a slow 'car' in the right lane (no lane changes, no honking), legs trotting ----------
 const CARRIAGE_GEO = [0, 1].map((ph) => {
   const p = [], HB = 0x7b4a2a, DK = 0x2a1a10, WD = 0x5a3a1a, a = ph ? 0.14 : -0.14;
@@ -3519,7 +3663,7 @@ function updHorse(e) {   // trot: swap leg frames in step with its speed, clip-c
   }
 }
 // ---------- the rival: another EUC rider who passes you and dares you to catch him ----------
-const RIVAL_PTS = 1000, RIVAL_X = [2.25, 6.75, 10];   // our two lanes and the bike lane
+const RIVAL_X = [2.25, 6.75, 10];   // our two lanes and the bike lane
 const rivalGeo = (J, L, SK) => {   // legs, torso, two arms, head: separate pieces, so a crash can throw them apart
   return [
     [[-0.26, 0.24, 0, 0.2, 0.92, 0.26, 0x222831], [0.26, 0.24, 0, 0.2, 0.92, 0.26, 0x222831], [-0.26, 0.18, -0.06, 0.22, 0.12, 0.36, L], [0.26, 0.18, -0.06, 0.22, 0.12, 0.36, L]],
@@ -3533,7 +3677,7 @@ const RIVAL_GEO = rivalGeo(0x111111, 0x39ff14, 0xc68642);
 const GANG_GEO = [0xc68642, 0x8d5524, 0xf1c27d].map((sk) => rivalGeo(0x4a1a6b, 0xff2bd6, sk));   // matching jackets, different faces
 // rivals come from money: every RIVAL_CASH dollar bills you grab call one in; GANG_CHANCE of the time it's the RIVAL GANG
 // (three of them racing you at once; beat them all for GANG BUSTED!)
-const RIVAL_CASH = 3, GANG_CHANCE = 0.1, GANG_N = 3, GANG_PTS = 3000;
+const RIVAL_CASH = 3, GANG_CHANCE = 0.1, GANG_N = 3;
 const GANG_LINES = ['Gang busted!', 'The whole crew, gone', 'Squad wiped', 'Gang disbanded', 'Clean sweep', 'One versus three. Easy', 'Call the whole squad next time'];
 // lines said my rival EUC riders
 const RIVAL_TAUNTS = [
@@ -3569,7 +3713,7 @@ function spawnRival(gang, i) {
   for (const c of root.children) c.castShadow = true;
   const lanes = RIVAL_X.filter((lx) => Math.abs(lx - player.x) > 1.6), x = gang ? lanes[(i || 0) % lanes.length] : (player.x > 4.5 ? 2.25 : 6.75), z = player.z + 16 + (i || 0) * 6;
   root.position.set(x, 0.02, z);
-  const e = addEnt(r, { type: 'rival', kind: 'rival', mesh: root, tire, x, z, tx: x, hw: 0.3, hd: 0.5, dir: -1, v: player.speed + 7, t: 0, laneT: 3, tauntT: 2 + (i || 0) * 1.5, phase: 'pass', nm: true, lethal: true, bubbleY: 2.8, gang: !!gang, hold: 5 + (i || 0) * 4 });
+  const e = addEnt(r, { type: 'rival', kind: 'rival', mesh: root, tire, x, z, tx: x, hw: 0.3, hd: 0.5, dir: -1, v: player.speed + 7, t: 0, laneT: 3, tauntT: 2 + (i || 0) * 1.5, phase: 'pass', nm: true, lethal: true, gang: !!gang, hold: 5 + (i || 0) * 4 });
   if (!gang) { Voice.say('A rival appears!', 3, 'joke'); popup('RIVAL! CATCH HIM!', 'good'); }
   return e;
 }
@@ -3581,9 +3725,9 @@ function spawnGang() {
 // a rival is beaten: passed for good (smoked), or ridden into (wiped out). The last of a gang busts the gang.
 function rivalBeaten(e, wiped) {
   e.phase = 'beaten';
-  award(wiped ? 'RIVAL WIPED OUT!' : 'RIVAL SMOKED!', RIVAL_PTS * (player.speed / player.base), 'good');
+  give(wiped ? 'RIVAL WIPED OUT!' : 'RIVAL SMOKED!', (player.speed / player.base));
   if (!wiped) { pedBubble(e, nextLine(RIVAL_LOSE)); Sound.slap(0.4); }
-  if (e.gang && --Game.gangLeft === 0) { award('GANG BUSTED!', GANG_PTS * (player.speed / player.base), 'good'); Voice.say(nextLine(GANG_LINES), 6, 'joke'); }
+  if (e.gang && --Game.gangLeft === 0) { give('GANG BUSTED!', (player.speed / player.base)); Voice.say(nextLine(GANG_LINES), 6, 'joke'); }
   else Voice.say(nextLine(wiped ? RIVAL_KILL_LINES : RIVAL_WIN_LINES), 5, 'joke');
 }
 // you rode into the rival: he goes flying in pieces, in a burst of blood, and you ride on.
@@ -3593,8 +3737,8 @@ const RIVAL_DEBRIS = [], RIVAL_CRASHES = [];
 // you ran over Pizza Rat: you ride on, he's flattened in a little pool of blood (logged with the rival crashes, so the replay repeats it)
 const RAT_RIP_LINES = ['Not the pizza rat!', 'Pizza rat, rest in pepperoni', 'He just wanted a slice', 'The city will remember him', 'You monster', 'Pour one out for pizza rat', 'Extra sauce'];
 function ratBlood(c) {
-  for (let i = 0; i < 90; i++) emit(c.x + rand(-0.15, 0.15), rand(0.1, 0.4), c.z + rand(-0.15, 0.15), rand(-3, 3), rand(1, 5), rand(-3, 3), bloodColor(), rand(0.04, 0.1));
-  for (let i = 0; i < 22; i++) { const a = rand(0, 6.28), rr = rand(0, 0.9); emit(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr, 0, -1, 0, bloodColor(), rand(0.25, 0.45)); }
+  for (let i = 0; i < 90; i++) emit(c.x + frand(-0.15, 0.15), frand(0.1, 0.4), c.z + frand(-0.15, 0.15), frand(-3, 3), frand(1, 5), frand(-3, 3), bloodColor(), frand(0.04, 0.1));
+  for (let i = 0; i < 22; i++) { const a = frand(0, 6.28), rr = frand(0, 0.9); emit(c.x + Math.cos(a) * rr, 0.2, c.z + Math.sin(a) * rr, 0, -1, 0, bloodColor(), frand(0.25, 0.45)); }
   Sound.crunch(); Sound.blip(2600, 0.06, 'sine', 0.08); Sound.blip(3300, 0.09, 'sine', 0.06, 0.06);   // crunch, squeak
 }
 function squashRat(run, e) {
@@ -3609,10 +3753,10 @@ function squashRat(run, e) {
 }
 function rivalBlood(c) {   // the blood burst and the pool (world space), plus the sounds
   for (let i = 0; i < 420; i++) {
-    rotXZ(rand(-7, 7), rand(-9, 5) - c.push * 0.25, c.theta, _o);
-    emit(c.x + rand(-0.3, 0.3), rand(0.5, 1.9), c.z + rand(-0.3, 0.3), _o.x, rand(1, 12), _o.z, bloodColor(), rand(0.07, 0.22));
+    rotXZ(frand(-7, 7), frand(-9, 5) - c.push * 0.25, c.theta, _o);
+    emit(c.x + frand(-0.3, 0.3), frand(0.5, 1.9), c.z + frand(-0.3, 0.3), _o.x, frand(1, 12), _o.z, bloodColor(), frand(0.07, 0.22));
   }
-  for (let i = 0; i < 60; i++) { const a = rand(0, 6.28), rr = rand(0, 2.4); emit(c.x + Math.cos(a) * rr, 0.4, c.z + Math.sin(a) * rr, 0, -1, 0, bloodColor(), rand(0.3, 0.6)); }
+  for (let i = 0; i < 60; i++) { const a = frand(0, 6.28), rr = frand(0, 2.4); emit(c.x + Math.cos(a) * rr, 0.4, c.z + Math.sin(a) * rr, 0, -1, 0, bloodColor(), frand(0.3, 0.6)); }
   Sound.splat(); Sound.crunch(); Sound.scream(c.pan, 1, 1.1); setTimeout(() => Sound.scream(c.pan, 0.5, 1.4), 260);
 }
 function crashRival(run, e) {
@@ -3644,9 +3788,9 @@ function updateRivalDebris(dt) {   // same tumbling and bleeding as the rider's 
     if (m.position.y < gy) {
       m.position.y = gy; d.v.y *= -0.32; d.v.x *= 0.62; d.v.z *= 0.62; d.av.multiplyScalar(0.6);
       if (Math.abs(d.v.y) < 0.8) d.v.y = 0;
-      if (d.bleed > 0 && Math.random() < 0.5) emit(m.position.x, gy, m.position.z, 0, -1, 0, bloodColor(), rand(0.25, 0.5));
+      if (d.bleed > 0 && fxRnd() < 0.5) emit(m.position.x, gy, m.position.z, 0, -1, 0, bloodColor(), frand(0.25, 0.5));
     }
-    if (d.bleed > 0) { d.bleed -= dt; for (let k = 0; k < 2; k++) emit(m.position.x, m.position.y, m.position.z, d.v.x * 0.3 + rand(-1.5, 1.5), rand(2, 6.5), d.v.z * 0.3 + rand(-1.5, 1.5), bloodColor(), rand(0.05, 0.14)); }
+    if (d.bleed > 0) { d.bleed -= dt; for (let k = 0; k < 2; k++) emit(m.position.x, m.position.y, m.position.z, d.v.x * 0.3 + frand(-1.5, 1.5), frand(2, 6.5), d.v.z * 0.3 + frand(-1.5, 1.5), bloodColor(), frand(0.05, 0.14)); }
   }
 }
 function clearRivalDebris() { for (const d of RIVAL_DEBRIS) scene.remove(d.m); RIVAL_DEBRIS.length = 0; RIVAL_CRASHES.length = 0; }
@@ -3695,10 +3839,9 @@ function updRival(run, e, dt) {
   e.tire.rotation.x -= e.v * dt / 0.45;
 }
 // ---------- delivery robot: trundles along the bike lane, and stops dead (beep beep) when it spots you coming ----------
-const ROBOT_PTS = 250;
 function spawnRobot(run, z) {
-  const dir = Math.random() < 0.5 ? -1 : 1;
-  const e = spawnPed(run, 'robot', 10 + rand(-0.3, 0.3), z, 'robot', { hw: 0.36, hd: 0.45, bubbleY: 1.9, dir, stopT: 0, spotted: false });
+  const dir = rnd() < 0.5 ? -1 : 1;
+  const e = spawnPed(run, 'robot', 10 + rand(-0.3, 0.3), z, 'robot', { hw: 0.36, hd: 0.45, dir, stopT: 0, spotted: false });
   e.mesh.rotation.y = dir > 0 ? Math.PI : 0;
   return e;
 }
@@ -3707,18 +3850,17 @@ function updRobot(run, e, dt) {
   if (Game.state === 'play' && !e.spotted && ahead > 0 && ahead < 22 && Math.abs(PL.x - e.x) < 5) {
     e.spotted = true; e.stopT = rand(1.5, 2.6);
     Sound.blip(1500, 0.07, 'square', 0.07); Sound.blip(1500, 0.07, 'square', 0.07, 0.14);
-    if (Math.random() < 0.5) pedBubble(e, nextLine(ROBOT_BUBBLES));
+    if (rnd() < 0.5) pedBubble(e, nextLine(KINDS.robot.bubbles));
   }
   if (e.stopT > 0) e.stopT -= dt;
-  else { e.z += e.dir * 1.5 * dt; if (Math.random() < dt * 0.2) e.stopT = rand(0.6, 1.6); }   // and now and then it just... stops
+  else { e.z += e.dir * 1.5 * dt; if (rnd() < dt * 0.2) e.stopT = rand(0.6, 1.6); }   // and now and then it just... stops
   const moving = !(e.stopT > 0);
   e.mesh.position.set(e.x, groundY(run, e.x, e.z) + (moving ? Math.abs(Math.sin(e.t * 14)) * 0.015 : 0), e.z);
   e.mesh.rotation.z = moving ? Math.sin(e.t * 9) * 0.015 : 0;
 }
 // ---------- bodega cat: lounging on a stack of crates outside a corner shop; ride past close to pet it ----------
-const CAT_PTS = 400, CAT_REACH = 2.2;   // points, and how close (m, sideways) you have to pass
+const CAT_REACH = 2.2;   // how close (m, sideways) you have to pass
 const CAT_COATS = [[0xe08a3c, 0xf3c48a], [0xd9772a, 0xf6d3a1]];   // orange: two shades of ginger, with a cream chest and paws
-const CAT_BUBBLES = ['PURRR...', 'MRROW!', '\u2665 PURR \u2665', 'MEOW.', '*SLOW BLINK*'];
 function catGeo(c) {   // body, head, tail as three pieces (the head turns, the tail swishes); front faces -z
   const [A, B] = CAT_COATS[c];
   return decoGeo('cat' + c, () => ({
@@ -3739,7 +3881,7 @@ function spawnCat(run, ch, sx, z) {
   const body = new THREE.Mesh(geo.body, MAT.vox), head = new THREE.Mesh(geo.head, MAT.vox), tail = new THREE.Mesh(geo.tail, MAT.vox);
   head.position.set(0, 0.32, -0.12); tail.position.set(0.1, 0.04, 0.16); root.add(body, head, tail);   // tail from the back corner, curled round to the side (not into the wall behind)
   for (const m of root.children) m.castShadow = true;
-  return addEnt(run, { type: 'ped', kind: 'cat', mode: 'cat', mesh: root, head, tail, x, z: ch.z0 + z, sx, hw: 0.3, hd: 0.3, t: rand(0, 6), nm: true, lethal: false, petted: false, bubbleY: 2.2 });
+  return addEnt(run, { type: 'ped', kind: 'cat', mode: 'cat', mesh: root, head, tail, x, z: ch.z0 + z, sx, hw: 0.3, hd: 0.3, t: rand(0, 6), nm: true, lethal: false, petted: false });
 }
 function updCat(e, dt) {
   e.tail.rotation.y = 1.35 + Math.sin(e.t * (e.petted ? 4 : 1.6)) * 0.35; e.tail.rotation.x = e.petted ? -0.6 : 0;   // swishing out to the side; up when happy
@@ -3750,15 +3892,15 @@ function updCat(e, dt) {
   const side = dz > 0 ? 1 : -1, was = e.pSide; e.pSide = side;
   if (!e.petted && was !== undefined && was !== side && Game.state === 'play' && Math.abs(dx) < CAT_REACH) {
     e.petted = true;
-    award('PET THE CAT!', CAT_PTS * (player.speed / player.base), 'good');
-    Sound.meow(clamp(-dx / 4, -1, 1), 1); pedBubble(e, nextLine(CAT_BUBBLES)); buzz(20);
+    give('PET THE CAT!', (player.speed / player.base));
+    Sound.meow(clamp(-dx / 4, -1, 1), 1); pedBubble(e, nextLine(KINDS.cat.bubbles)); buzz(20);
   }
 }
 // ---------- escaped balloon: a kid by the shop windows lets go of a balloon as you ride up, and it floats away on the wind ----------
 const BALLOON_COLS = [0xe53935, 0xffd23f, 0x1e88e5, 0xff6fae, 0x43a047];
 const balloonGeo = (c) => decoGeo('balloon' + c, () => vox([[0, 1.0, 0, 0.5, 0.62, 0.5, c], [0, 1.08, 0, 0.62, 0.44, 0.62, c], [0, 0.96, 0, 0.1, 0.06, 0.1, c], [0, 0, 0, 0.02, 0.96, 0.02, 0xdddddd]]));   // string from y 0 up to the balloon
 function spawnKid(run, x, z) {
-  const e = spawnPed(run, 'ped', x, z, 'kid', { nm: true, lethal: false, bubbleY: 1.9, freed: false, bt: 0 });   // (a kid: never hit, never in a crash)
+  const e = spawnPed(run, 'ped', x, z, 'kid', { nm: true, lethal: false, bubbleY: KINDS.kid.bubbleY, freed: false, bt: 0 });   // (a kid: never hit, never in a crash)
   e.mesh.scale.setScalar(0.62); e.mesh.rotation.y = Math.sign(x) * Math.PI / 2;   // facing the street
   const b = new THREE.Mesh(balloonGeo(pick(BALLOON_COLS)), MAT.vox); b.castShadow = true;
   b.position.set(x - Math.sign(x) * 0.25, groundY(run, x, z) + 0.6, z); run.root.add(b);
@@ -3770,7 +3912,7 @@ function updKid(run, e, dt) {
   const ahead = PL.z - e.z;
   if (!e.freed) {
     b.rotation.z = Math.sin(e.t * 1.7) * 0.08;
-    if (Game.state === 'play' && ahead > 0 && ahead < 26) { e.freed = true; pedBubble(e, nextLine(KID_BUBBLES)); }
+    if (Game.state === 'play' && ahead > 0 && ahead < 26) { e.freed = true; pedBubble(e, nextLine(KINDS.kid.bubbles)); }
     return;
   }
   e.bt += dt;
@@ -3812,8 +3954,8 @@ function updSign(e, dt) {
 }
 // ---------- pigeon mascot: walks the sidewalk with a flock of real pigeons trotting after them ----------
 function spawnPigeonman(run, sx, z0) {
-  const e = spawnPed(run, 'pigeonman', sx * rand(13, 14.5), z0 + rand(-70, -12), 'walk', { zMax: z0 - 2, zMin: z0 - 78, hw: 0.45, hd: 0.4, bubbleY: 3 });
-  e.vz = (Math.random() < 0.5 ? -1 : 1) * rand(0.8, 1.2);
+  const e = spawnPed(run, 'pigeonman', sx * rand(13, 14.5), z0 + rand(-70, -12), 'walk', { zMax: z0 - 2, zMin: z0 - 78, hw: 0.45, hd: 0.4 });
+  e.vz = (rnd() < 0.5 ? -1 : 1) * rand(0.8, 1.2);
   for (let i = 0; i < randi(5, 8); i++) {
     const a = rand(0, 6.28), r = rand(0.8, 2.2), pg = spawnPigeon(run, e.x + Math.cos(a) * r, e.z + Math.sin(a) * r);
     pg.leader = e; pg.ox = Math.cos(a) * r; pg.oz = Math.sin(a) * r;
@@ -3821,30 +3963,33 @@ function spawnPigeonman(run, sx, z0) {
   return e;
 }
 // ---------- Spider-Man hangs upside down on a web from a street light over the bike lane; ride under him ----------
-const SPIDEY_PTS = 600, SPIDEY_BUBBLES = ['WITH GREAT POWER...', 'NICE MOVES!', 'MY SPIDEY SENSE IS TINGLING!', 'PHOTOS ARE $5!', 'THWIP!'];
 const WEB_GEO = vox([[0, -1.0, 0, 0.04, 1.0, 0.04, 0xf2f2f2]]);
 function spawnSpidey(run, z) {
   const pivot = new THREE.Group(), flip = new THREE.Group(), body = new THREE.Mesh(PEDS.spidey[0].geo[0], MAT.vox);
   pivot.position.set(10.1, 5.8, z); pivot.add(new THREE.Mesh(WEB_GEO, MAT.vox));
   flip.position.y = -1.0; flip.rotation.z = Math.PI; pivot.add(flip);   // upside down: feet at the web, head at 2.8 m
   body.rotation.y = Math.PI; body.castShadow = true; flip.add(body);    // facing the oncoming rider
-  return addEnt(run, { type: 'ped', kind: 'spidey', mode: 'hang', mesh: pivot, flip, x: 10.1, z, hw: 0.3, hd: 0.3, t: rand(0, 6), nm: true, lethal: false, done: false, bubbleY: 6.2 });
+  return addEnt(run, { type: 'ped', kind: 'spidey', mode: 'hang', mesh: pivot, flip, x: 10.1, z, hw: 0.3, hd: 0.3, t: rand(0, 6), nm: true, lethal: false, done: false });
 }
 function updSpidey(e, dt) {
   e.mesh.rotation.x = Math.sin(e.t * 1.3) * 0.12; e.mesh.rotation.z = Math.sin(e.t * 0.9) * 0.08;
   if (e.done) e.flip.rotation.y += dt * 6 * Math.max(0, 1 - e.t / 2);   // a happy spin
   const side = PL.z > e.z ? 1 : -1, was = e.pSide; e.pSide = side;
   if (!e.done && was !== undefined && was !== side && Game.state === 'play' && Math.abs(PL.x - e.x) < 1.4) {
-    e.done = true; e.t = 0; pedBubble(e, nextLine(SPIDEY_BUBBLES));
-    award('SPIDEY SENSE!', SPIDEY_PTS * (player.speed / player.base), 'good'); Sound.whoosh(clamp((e.x - PL.x) / 3, -1, 1), 0.9);
+    e.done = true; e.t = 0; pedBubble(e, nextLine(KINDS.spidey.bubbles));
+    give('SPIDEY SENSE!', (player.speed / player.base)); Sound.whoosh(clamp((e.x - PL.x) / 3, -1, 1), 0.9);
   }
 }
+
+/* =====================================================================
+   SPAWNING & MOVING — pigeons, filling each block with people, traffic, and moving everything each frame
+   ===================================================================== */
 // a single grey pigeon feather tumbling down in front of the camera
 const FEATHER_SVG = '<svg viewBox="0 0 40 40"><path d="M33 4C20 6 9 15 6 30l-2 6 3-2C9 26 15 18 24 12 15 19 10 27 8 33c10-2 20-9 25-19 1-3 1-7 0-10z" fill="#d5d9df" stroke="#6b7480" stroke-width="1.5"/><path d="M31 6L6 35" stroke="#8a929c" stroke-width="1.3"/></svg>';
 function dropFeather() {
   if ($('feathers').children.length > 1) return;
   const f = document.createElement('div'); f.className = 'feather'; f.innerHTML = FEATHER_SVG;
-  f.style.left = rand(15, 80) + '%'; f.style.setProperty('--dx', rand(-120, 120) + 'px'); f.style.setProperty('--rot', rand(-260, 260) + 'deg'); f.style.setProperty('--d', rand(3, 4.2) + 's');
+  f.style.left = frand(15, 80) + '%'; f.style.setProperty('--dx', frand(-120, 120) + 'px'); f.style.setProperty('--rot', frand(-260, 260) + 'deg'); f.style.setProperty('--d', frand(3, 4.2) + 's');
   $('feathers').appendChild(f); setTimeout(() => f.remove(), 4500);
 }
 function spawnPigeon(run, x, z, perchY) {   // perchY: sitting on an awning or roof edge instead of the ground
@@ -3853,7 +3998,6 @@ function spawnPigeon(run, x, z, perchY) {   // perchY: sitting on an awning or r
   return addEnt(run, { type: 'pigeon', mesh: m, x, z, y, perch: perchY !== undefined, hw: 0.2, hd: 0.2, fly: false, vx: 0, vy: 0, vz: 0, t: rand(0, 3), life: 4, nm: true, lethal: false });
 }
 let flapCd = 0, cooCd = 0;
-const PIGEON_PTS = 50;   // riding through a flock (a trick: keeps the chain, doesn't add to it)
 function updPigeon(run, e, dt) {
   if (e.abducted) { e.t += dt; return; }   // under the UFO: its beam moves this one (see updateUfo)
   e.t += dt;
@@ -3867,11 +4011,11 @@ function updPigeon(run, e, dt) {
       if (flapCd <= 0) { Sound.flap((e.x - PL.x) / 8); flapCd = 0.4; }
       if (!e.perch && cooCd <= 0) {   // ridden through a flock on the ground: a startled coo and a few points (once per flock)
         Sound.coo(clamp((e.x - PL.x) / 8, -1, 1), 1); cooCd = 0.8;
-        award('PIGEON SCATTER!', PIGEON_PTS * (player.speed / player.base), 'trick', false);
+        give('PIGEON SCATTER!', (player.speed / player.base));
         DRONE.pigeons++;   // enough scattered flocks and the news drone comes to film you
-        if (Math.random() < 0.4) dropFeather();   // now and then a feather drifts down across the screen
+        if (rnd() < 0.4) dropFeather();   // now and then a feather drifts down across the screen
       }
-      if (Math.random() < 0.5) { toWorld(run, e.x, e.z, _t); for (let k = 0; k < 3; k++) emit(_t.x, e.y + 0.2, _t.z, rand(-1, 1), rand(0.5, 2), rand(-1, 1), 0xb0b4bc, 0.06, 3, 3); }
+      if (rnd() < 0.5) { toWorld(run, e.x, e.z, _t); for (let k = 0; k < 3; k++) emit(_t.x, e.y + 0.2, _t.z, rand(-1, 1), rand(0.5, 2), rand(-1, 1), 0xb0b4bc, 0.06, 3, 3); }
     } else {
       if (e.leader) {   // trotting after the pigeon mascot
         const L = e.leader, tx = L.x + e.ox, tz = L.z + e.oz, dx = tx - e.x, dz2 = tz - e.z, d = Math.hypot(dx, dz2);
@@ -3879,7 +4023,7 @@ function updPigeon(run, e, dt) {
         e.mesh.position.x = e.x; e.mesh.position.z = e.z;
       }
       e.mesh.position.y = e.y + (Math.sin(e.t * 6) > 0.85 ? 0.06 : 0);
-      if (Math.random() < dt * 0.6) e.mesh.rotation.y += rand(-1, 1);
+      if (rnd() < dt * 0.6) e.mesh.rotation.y += rand(-1, 1);
       e.mesh.rotation.x = Math.sin(e.t * 4) > 0.7 ? 0.4 : 0;
     }
   } else {
@@ -3892,11 +4036,11 @@ function updPigeon(run, e, dt) {
 function populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst) {
   const z0 = ch.z0, roadHazards = !isStart;
   // a photo op: a friend posing at the curb, a tourist photographing them from the building side (ride between = PHOTOBOMB!)
-  if (Math.random() < 0.35) {
-    const sx = Math.random() < 0.5 ? -1 : 1;
+  if (rnd() < 0.35) {
+    const sx = rnd() < 0.5 ? -1 : 1;
     if (sx !== plazaSide) {
       const z = z0 + rand(-70, -18), px = sx * 12.1, cx = sx * 15.6;
-      const friend = spawnPed(run, Math.random() < 0.5 ? 'ped' : 'business', px, z, 'stand');
+      const friend = spawnPed(run, rnd() < 0.5 ? 'ped' : 'business', px, z, 'stand');
       friend.mesh.rotation.y = -sx * Math.PI / 2;   // facing the camera
       const cam = spawnPed(run, 'tourist', cx, z, 'stand'); cam.subject = friend; cam.mesh.rotation.y = sx * Math.PI / 2;
       (run.photoOps || (run.photoOps = [])).push({ z, x0: Math.min(px, cx), x1: Math.max(px, cx), cam, done: false });
@@ -3906,92 +4050,92 @@ function populateChunk(run, ch, idx, diff, plazaSide, isStart, isEnd, isFirst) {
   for (const sx of [-1, 1]) {
     const n = randi(2, 4 + Math.min(4, diff));
     for (let i = 0; i < n; i++) {
-      const kind = Math.random() < 0.25 ? 'business' : Math.random() < 0.2 ? 'tourist' : 'ped';
+      const kind = rnd() < 0.25 ? 'business' : rnd() < 0.2 ? 'tourist' : 'ped';
       const e = spawnPed(run, kind, sx * rand(12.9, 14.6), z0 + rand(-75, zTop), 'walk', { zMax: z0 + zTop + 2, zMin: z0 - 78 });
-      e.vz = (Math.random() < 0.5 ? -1 : 1) * rand(1.1, 1.9);
+      e.vz = (rnd() < 0.5 ? -1 : 1) * rand(1.1, 1.9);
     }
-    if (Math.random() < 0.45 && sx !== plazaSide) {
+    if (rnd() < 0.45 && sx !== plazaSide) {
       const cz = z0 + rand(-70, -16), cx = sx * rand(13.4, 15.2), k = randi(2, 4);
       for (let i = 0; i < k; i++) { const e = spawnPed(run, 'tourist', cx + rand(-0.8, 0.8), cz + rand(-1.2, 1.2), 'stand'); e.mesh.rotation.y = sx * Math.PI / 2; }
     }
   }
   if (plazaSide) {
     const k = randi(2, 4 + Math.min(3, diff)), cz = z0 + rand(-60, -20);
-    const cx = plazaSide > 0 ? (Math.random() < 0.5 ? 10.2 : 12.8) : -12.8;
+    const cx = plazaSide > 0 ? (rnd() < 0.5 ? 10.2 : 12.8) : -12.8;
     for (let i = 0; i < k; i++) { const e = spawnPed(run, 'tourist', cx + rand(-0.5, 0.5), cz + i * 0.9, 'stand'); e.mesh.rotation.y = -plazaSide * Math.PI / 2 + Math.PI; }
   }
   const nc = isStart ? 0 : randi(0, 1 + Math.min(4, diff));
-  const cwz = () => z0 + ((isEnd || Math.random() < 0.5) ? -81.75 : -98.25);
+  const cwz = () => z0 + ((isEnd || rnd() < 0.5) ? -81.75 : -98.25);
   for (let i = 0; i < nc; i++) {
     const e = spawnPed(run, pick(['ped', 'business', 'tourist']), rand(-14, 14), cwz() + rand(-0.8, 0.8), 'cross', { xLim: 15 });
-    e.vx = (Math.random() < 0.5 ? -1 : 1) * rand(1.2, 1.8);
+    e.vx = (rnd() < 0.5 ? -1 : 1) * rand(1.2, 1.8);
   }
   // once a level, a few blocks in, a Statue of Liberty performer poses at the curb with a tourist snapping her (PHOTOBOMB!)
   if (!isStart && !Game.libertyDone && ++Game.libertyN >= Game.libertyAt) {
     Game.libertyDone = true;
-    const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1), z = z0 + rand(-60, -25), px = sx * 12.1, cx = sx * 15.6;
+    const sx = plazaSide ? -plazaSide : (rnd() < 0.5 ? -1 : 1), z = z0 + rand(-60, -25), px = sx * 12.1, cx = sx * 15.6;
     const lib = spawnPed(run, 'liberty', px, z, 'stand'); lib.mesh.rotation.y = sx * Math.PI * 0.75;   // turned toward the street and the oncoming rider
     const cam = spawnPed(run, 'tourist', cx, z, 'stand'); cam.subject = lib; cam.mesh.rotation.y = sx * Math.PI / 2;
     (run.photoOps || (run.photoOps = [])).push({ z, x0: Math.min(px, cx), x1: Math.max(px, cx), cam, done: false });
   }
   // Pizza Rat scurries across a crosswalk, dragging its slice
-  if (!isStart && Math.random() < 0.1) {
-    const e = spawnPed(run, 'rat', rand(-10, 10), cwz(), 'cross', { xLim: 12, hw: 0.3, hd: 0.6, bubbleY: 1.2 });
-    e.vx = (Math.random() < 0.5 ? -1 : 1) * rand(1.6, 2.2); e.mesh.scale.setScalar(1.4);
+  if (!isStart && rnd() < 0.1) {
+    const e = spawnPed(run, 'rat', rand(-10, 10), cwz(), 'cross', { xLim: 12, hw: 0.3, hd: 0.6 });
+    e.vx = (rnd() < 0.5 ? -1 : 1) * rand(1.6, 2.2); e.mesh.scale.setScalar(1.4);
   }
   // a subway preacher on a milk crate, preaching through a megaphone
-  if (!isStart && !isEnd && Math.random() < 0.14) {
-    const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1);
+  if (!isStart && !isEnd && rnd() < 0.14) {
+    const sx = plazaSide ? -plazaSide : (rnd() < 0.5 ? -1 : 1);
     let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4;
-    const e = spawnPed(run, 'preacher', sx * 13.6, z0 + z, 'stand', { hw: 0.45, hd: 0.4, bubbleY: 3, shout: PREACHER_LINES, shoutT: rand(0, 1) });
+    const e = spawnPed(run, 'preacher', sx * 13.6, z0 + z, 'stand', { hw: 0.45, hd: 0.4, shout: KINDS.preacher.bubbles, shoutT: rand(0, 1) });
     e.mesh.rotation.y = sx * Math.PI * 0.75;
   }
   // a horse-drawn carriage clip-clopping along the right lane
-  if (roadHazards && !isEnd && Math.random() < 0.1) { const z = z0 + rand(-60, -20); if (laneFree(run, 3, z, 14)) spawnCarriage(run, z); }
+  if (roadHazards && !isEnd && rnd() < 0.1) { const z = z0 + rand(-60, -20); if (laneFree(run, 3, z, 14)) spawnCarriage(run, z); }
   // a bodega cat on the crates outside a shop
-  if (!isStart && !isEnd && Math.random() < 0.15) {
-    const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1);
+  if (!isStart && !isEnd && rnd() < 0.15) {
+    const sx = plazaSide ? -plazaSide : (rnd() < 0.5 ? -1 : 1);
     let z = rand(-66, -16); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4;
     spawnCat(run, ch, sx, z);
   }
   // a kid with a balloon by the shop windows
-  if (!isStart && !isEnd && Math.random() < 0.15) { const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1); spawnKid(run, sx * 15.9, z0 + rand(-70, -14)); }
+  if (!isStart && !isEnd && rnd() < 0.15) { const sx = plazaSide ? -plazaSide : (rnd() < 0.5 ? -1 : 1); spawnKid(run, sx * 15.9, z0 + rand(-70, -14)); }
   // a sign spinner at the curb
-  if (!isStart && !isEnd && Math.random() < 0.12) { const sx = plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1); let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4; spawnSpinner(run, sx, z0 + z); }
+  if (!isStart && !isEnd && rnd() < 0.12) { const sx = plazaSide ? -plazaSide : (rnd() < 0.5 ? -1 : 1); let z = rand(-66, -18); if ([-12, -40, -68].some((l) => Math.abs(l - z) < 3.5)) z -= 4; spawnSpinner(run, sx, z0 + z); }
   // a mascot in a pigeon costume with a following
-  if (!isStart && !isEnd && Math.random() < 0.06) spawnPigeonman(run, plazaSide ? -plazaSide : (Math.random() < 0.5 ? -1 : 1), z0);
+  if (!isStart && !isEnd && rnd() < 0.06) spawnPigeonman(run, plazaSide ? -plazaSide : (rnd() < 0.5 ? -1 : 1), z0);
   // a skateboarder in the bike lane
-  if (roadHazards && Math.random() < 0.15) spawnBike(run, 10 + rand(-0.3, 0.3), z0 + rand(-70, -16), Math.random() < 0.5 ? 1 : -1, 'skate');
+  if (roadHazards && rnd() < 0.15) spawnBike(run, 10 + rand(-0.3, 0.3), z0 + rand(-70, -16), rnd() < 0.5 ? 1 : -1, 'skate');
   // a delivery robot in the bike lane
-  if (roadHazards && !isEnd && Math.random() < 0.15) spawnRobot(run, z0 + rand(-70, -15));
+  if (roadHazards && !isEnd && rnd() < 0.15) spawnRobot(run, z0 + rand(-70, -15));
   // Spider-Man hanging upside down from a street light over the bike lane
-  if (!isStart && !isEnd && Math.random() < 0.1) spawnSpidey(run, z0 + pick([-12, -40, -68]));
+  if (!isStart && !isEnd && rnd() < 0.1) spawnSpidey(run, z0 + pick([-12, -40, -68]));
   // Times Square: crowds of tourists on both sidewalks
   if (ch.times) for (const sx of [-1, 1]) for (let i = 0; i < randi(7, 11); i++) {
-    if (Math.random() < 0.5) { const e = spawnPed(run, 'tourist', sx * rand(12.6, 16), z0 + rand(-76, -4), 'stand'); e.mesh.rotation.y = rand(0, 6.28); }
-    else { const e = spawnPed(run, 'tourist', sx * rand(12.9, 15.5), z0 + rand(-75, -4), 'walk', { zMax: z0 - 2, zMin: z0 - 78 }); e.vz = (Math.random() < 0.5 ? -1 : 1) * rand(0.8, 1.4); }
+    if (rnd() < 0.5) { const e = spawnPed(run, 'tourist', sx * rand(12.6, 16), z0 + rand(-76, -4), 'stand'); e.mesh.rotation.y = rand(0, 6.28); }
+    else { const e = spawnPed(run, 'tourist', sx * rand(12.9, 15.5), z0 + rand(-75, -4), 'walk', { zMax: z0 - 2, zMin: z0 - 78 }); e.vz = (rnd() < 0.5 ? -1 : 1) * rand(0.8, 1.4); }
   }
   // now and then, a guy in a hot-dog costume waddles across
-  if (!isStart && Math.random() < 0.06) { const e = spawnPed(run, 'hotdog', rand(-12, 12), cwz(), 'cross', { xLim: 15, hw: 0.5 }); e.vx = (Math.random() < 0.5 ? -1 : 1) * rand(0.9, 1.3); }
-  if (!isStart && Math.random() < 0.35 + 0.08 * diff) {
-    const z = cwz(), x0 = rand(-12, 12), dir = Math.random() < 0.5 ? -1 : 1;
+  if (!isStart && rnd() < 0.06) { const e = spawnPed(run, 'hotdog', rand(-12, 12), cwz(), 'cross', { xLim: 15, hw: 0.5 }); e.vx = (rnd() < 0.5 ? -1 : 1) * rand(0.9, 1.3); }
+  if (!isStart && rnd() < 0.35 + 0.08 * diff) {
+    const z = cwz(), x0 = rand(-12, 12), dir = rnd() < 0.5 ? -1 : 1;
     for (let i = 0; i < randi(2, 4); i++) { const e = spawnPed(run, 'tourist', x0 + i * 0.9 * -dir, z + rand(-0.9, 0.9), 'cross', { xLim: 15 }); e.vx = dir * 0.9; }
   }
-  if (roadHazards && Math.random() < 0.28 + 0.1 * diff) {
-    const sx = Math.random() < 0.5 ? -1 : 1;
+  if (roadHazards && rnd() < 0.28 + 0.1 * diff) {
+    const sx = rnd() < 0.5 ? -1 : 1;
     const e = spawnPed(run, pick(['ped', 'business']), sx * 13, z0 + rand(-65, -18), 'cross', { xLim: 13.5 });
     e.vx = -sx * rand(1.8, 2.8);
   }
   const nb = randi(0, 2) + (diff > 1 ? 1 : 0);
   for (let i = 0; i < nb; i++) {
-    const wrong = Math.random() < 0.4;
+    const wrong = rnd() < 0.4;
     spawnBike(run, 10 + rand(-0.4, 0.4), z0 + rand(-75, -16), wrong ? 1 : -1, wrong ? 'delivery' : pick(['bike', 'bike', 'delivery']));
   }
-  if (roadHazards && Math.random() < 0.6) {
+  if (roadHazards && rnd() < 0.6) {
     const cx = rand(-9, 9), cz = z0 + rand(-70, -16);
     for (let i = 0; i < randi(4, 9); i++) spawnPigeon(run, cx + rand(-1.5, 1.5), cz + rand(-1.5, 1.5));
   }
-  if (Math.random() < 0.4) { const sx = Math.random() < 0.5 ? -1 : 1; const cz = z0 + rand(-70, -16); for (let i = 0; i < randi(3, 6); i++) spawnPigeon(run, sx * rand(12.6, 15), cz + rand(-1.5, 1.5)); }
+  if (rnd() < 0.4) { const sx = rnd() < 0.5 ? -1 : 1; const cz = z0 + rand(-70, -16); for (let i = 0; i < randi(3, 6); i++) spawnPigeon(run, sx * rand(12.6, 15), cz + rand(-1.5, 1.5)); }
 }
 function countCars(run, dir) { let n = 0; for (const e of run.ents) if (e.type === 'car' && e.dir === dir && e.z < PL.z + 10 && e.z > PL.z - 300) n++; return n; }
 function spawnTraffic(run, dt, playing) {
@@ -4004,7 +4148,7 @@ function spawnTraffic(run, dt, playing) {
     const z = PL.z - rand(240, 290), li = pick(FWD);
     if (z > lim + DETOUR_CLEAR && laneFree(run, li, z, 12)) {   // none in the last stretch before a closure: they'd only pile into the turn ahead of you
       const c = spawnCar(run, li, z);
-      if (Math.random() < 0.35 + 0.05 * diff) { const ol = li === 2 ? 3 : 2; if (laneFree(run, ol, z, 8)) { const c2 = spawnCar(run, ol, z + rand(-1.2, 1.2)); c2.vBase = c2.v = c.vBase; c2.erratic = false; } }
+      if (rnd() < 0.35 + 0.05 * diff) { const ol = li === 2 ? 3 : 2; if (laneFree(run, ol, z, 8)) { const c2 = spawnCar(run, ol, z + rand(-1.2, 1.2)); c2.vBase = c2.v = c.vBase; c2.erratic = false; } }
     }
   }
   if (countCars(run, 1) < wantO) {
@@ -4016,7 +4160,7 @@ function spawnTraffic(run, dt, playing) {
     run.trainT = (run.trainT === undefined ? rand(2, 6) : run.trainT) - 0.25;
     if (run.trainT <= 0 && !run.ents.some((o) => o.type === 'train')) {
       run.trainT = rand(10, 18);
-      const dir = Math.random() < 0.5 ? 1 : -1, z = dir > 0 ? Math.max(PL.z - 330, run.endZc - 75) : PL.z + 120;
+      const dir = rnd() < 0.5 ? 1 : -1, z = dir > 0 ? Math.max(PL.z - 330, run.endZc - 75) : PL.z + 120;
       if (z < run.base + 30 && (dir < 0 || PL.z - z > 100)) spawnTrain(run, z, dir);
     }
   }
@@ -4028,7 +4172,7 @@ function spawnTraffic(run, dt, playing) {
       I.ambientT -= 0.25;
       if (I.ambientT <= 0) {
         I.ambientT = rand(3, 7) / (1 + diff * 0.3);
-        const dir = Math.random() < 0.5 ? 1 : -1, spd = rand(24, 32);
+        const dir = rnd() < 0.5 ? 1 : -1, spd = rand(24, 32);
         spawnCross(run, I, 0, dir, spd, -dir * 125);
         I.redUntil = Math.max(I.redUntil, Game.time + 250 / spd);
       }
@@ -4117,7 +4261,7 @@ function doTurn() {
   player.x = _t.x; player.z = _t.z; player.h = normAng(player.h + A.theta - B.theta); player.vx = 0;
   player.run = B; B.root.add(rig.root); player.finishing = true;
   Game.turns++; player.prevZ = player.z;
-  award('DETOUR!', 150 * Game.level, 'good');
+  give('DETOUR!', Game.level);
   Sound.whoosh(A.turnDir * 0.6, 0.8);
 }
 
@@ -4318,7 +4462,8 @@ const PAD_DEBUG = /[?&]pad(&|=|$)/.test(location.search);
 // DEBUG: the cheat keys (@ # $ ^ `) and window.WhatDo only exist with ?debug in the address (or running locally), and a debug
 // session never sends scores to the leaderboard, so console hacks and cheats can't reach the board
 const DEBUG = /[?&]debug(&|=|$)/.test(location.search) || location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-if (DEBUG) { const d = document.createElement('div'); d.id = 'debugTag'; d.textContent = 'DEBUG · SCORES NOT SAVED'; document.body.appendChild(d); }
+const FPS = { n: 0, t0: 0, el: null };   // (the frame counter: see countFps)
+if (DEBUG) { const d = document.createElement('div'); d.id = 'debugTag'; d.textContent = 'DEBUG · SCORES NOT SAVED'; document.body.appendChild(d); FPS.el = d; }
 if (PAD_DEBUG) { const d = document.createElement('pre'); d.id = 'padDebug'; document.body.appendChild(d); }
 function padDebug() {
   if (!PAD_DEBUG) return;
@@ -4391,6 +4536,9 @@ function gotBattery() {
   pulseBtn('tGas'); pickupChime(660); buzz([30, 40, 60]); updateGasUI();
 }
 
+/* =====================================================================
+   STREET EVENTS — the preacher's shouting, dollar bills, the BREAKING NEWS ticker
+   ===================================================================== */
 /* ---------- street preacher: shouts through his megaphone while you're within 35 m ---------- */
 function updateShouts(dt) {
   setPL(player.run);
@@ -4401,14 +4549,14 @@ function updateShouts(dt) {
   }
 }
 /* ---------- a dollar bill blowing down the street on the wind: grab it ---------- */
-const BILL_PTS = 250;
 const MONEY = 2.0;   // how often dollar bills turn up (1 = one every 4-9 s; 1.44 = 20% more, then another 20%)
 const BILL = { on: false, run: null, mesh: null, x: 0, y: 1, z: 0, vx: 0, vz: 0, t: 0 };
 (function buildBill() {
   BILL.mesh = new THREE.Mesh(vox([[0, 0, 0, 0.62, 0.02, 0.28, 0x86b97a], [0, 0.005, 0, 0.5, 0.02, 0.2, 0x5f9452], [0, 0.01, 0, 0.14, 0.02, 0.14, 0xb9dcae], [-0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33], [0.22, 0.01, 0, 0.06, 0.02, 0.06, 0x3c6e33]]), MAT.vox);
   BILL.mesh.scale.setScalar(1.7); BILL.mesh.castShadow = true;
 })();
-function endBill() { BILL.on = false; if (BILL.mesh.parent) BILL.mesh.parent.remove(BILL.mesh); Game.billAt = Game.elapsed + rand(4, 9) / MONEY; }
+function removeBill() { BILL.on = false; if (BILL.mesh.parent) BILL.mesh.parent.remove(BILL.mesh); }
+function endBill() { removeBill(); Game.billAt = Game.elapsed + rand(4, 9) / MONEY; }   // gone (grabbed or missed): the next one comes in a while
 function updateBill(dt) {
   if (!BILL.on) {
     if (Game.elapsed < Game.billAt || player.turnPhase || player.finishing) return;
@@ -4427,7 +4575,7 @@ function updateBill(dt) {
   BILL.y = 1.1 + Math.sin(BILL.t * 1.7) * 0.45;
   BILL.mesh.position.set(BILL.x, BILL.y, BILL.z); BILL.mesh.rotation.set(Math.sin(BILL.t * 3.1) * 0.9, BILL.t * 1.3, Math.sin(BILL.t * 2.3) * 0.6);
   if (Math.abs(BILL.x - player.x) < 1.4 && Math.abs(BILL.z - player.z) < 1.6) {
-    award('COLD HARD CASH!', BILL_PTS * (player.speed / player.base), 'good'); Sound.chaching(clamp((BILL.x - player.x) / 3, -1, 1)); endBill();
+    give('COLD HARD CASH!', (player.speed / player.base)); Sound.chaching(clamp((BILL.x - player.x) / 3, -1, 1)); endBill();
     Game.cash = (Game.cash || 0) + 1;
     popup(Game.cash >= RIVAL_CASH ? 'RIVAL INCOMING!' : '$' + Game.cash + ' / $' + RIVAL_CASH, 'good');
   } else if (BILL.z > player.z + 20) endBill();   // it got away
@@ -4437,7 +4585,7 @@ function updateExtras(dt) {
   // enough cash: in comes a rival (or now and then the gang), as long as no race is already on
   if (Game.cash >= RIVAL_CASH && !player.turnPhase && !player.finishing && !runs.some((r) => r.ents.some((e) => e.type === 'rival' && e.phase !== 'beaten' && !e.crashed))) {
     Game.cash -= RIVAL_CASH;
-    if (Math.random() < GANG_CHANCE) spawnGang(); else spawnRival();
+    if (rnd() < GANG_CHANCE) spawnGang(); else spawnRival();
   }
   updateBill(dt);
 }
@@ -4466,8 +4614,11 @@ const deathPos = new THREE.Vector3();
 const camOff = new THREE.Vector3(0, 3.7, 7.4);
 let orbitA = 0, skyAng = 0, animT = 0;
 
+/* =====================================================================
+   SKY VISITORS — the news drone, the bald eagle, the UFO
+   ===================================================================== */
 /* ---------- NEWS DRONE: scatter 5 flocks of pigeons and a camera drone swoops in to film you for a few seconds ("ON THE NEWS!") ---------- */
-const NEWS_PTS = 750, NEWS_PIGEONS = 5;   // bonus x level; pigeon flocks to scatter to call the drone in
+const NEWS_PIGEONS = 5;   // pigeon flocks to scatter to call the drone in
 const DRONE = { state: 'off', t: 0, cd: 0, pigeons: 0, paid: false, prev: new THREE.Vector3(), vel: new THREE.Vector3(), pos: new THREE.Vector3(), off: { a: 0, s: 0, u: 0 }, side: 1, mesh: null, rotors: [], rec: null };
 (function buildDrone() {
   const g = new THREE.Group();
@@ -4495,7 +4646,7 @@ function droneTarget(o, ahead, side, up) {
 }
 const _dt = new THREE.Vector3();
 function startDrone() {
-  DRONE.state = 'in'; DRONE.t = 0; DRONE.paid = false; DRONE.side = Math.random() < 0.5 ? -1 : 1;
+  DRONE.state = 'in'; DRONE.t = 0; DRONE.paid = false; DRONE.side = rnd() < 0.5 ? -1 : 1;
   DRONE.off.a = 60; DRONE.off.s = DRONE.side * 8; DRONE.off.u = 28;   // offset from the rider: ahead, to the side, up
   droneTarget(DRONE.pos, DRONE.off.a, DRONE.off.s, DRONE.off.u); DRONE.mesh.position.copy(DRONE.pos); DRONE.mesh.visible = true;
   DRONE.prev.copy(DRONE.pos); DRONE.vel.set(0, 0, 0);
@@ -4516,7 +4667,7 @@ function updateDrone(dt) {
   if (alive && DRONE.state === 'in' && DRONE.t > 1.6) DRONE.state = 'film';
   if (alive && DRONE.state === 'film' && DRONE.t > 8.5) { DRONE.state = 'out'; DRONE.t = 0; }
   if (DRONE.state === 'film' && !DRONE.paid && DRONE.t > 2.2) {
-    DRONE.paid = true; award('ON THE NEWS!', NEWS_PTS * Game.level, 'good'); Voice.say("You're on the news!", 3, 'joke'); newsTicker();
+    DRONE.paid = true; give('ON THE NEWS!', Game.level); Voice.say("You're on the news!", 3, 'joke'); newsTicker();
   }
   // fly toward the slot beside the rider (or hang over the crash, or climb away)
   // the offset is eased in the rider's own frame, so the drone keeps pace however fast you go
@@ -4567,7 +4718,7 @@ function startEagle() {
   // glide along a cross street, from one side to the other, so it never flies through a building.
   // It picks the intersection that will be 25-40 m in front of you when it's halfway across, however fast you're riding
   // (false if there's no suitable one yet, e.g. coming up to a road closure: try again shortly)
-  const r = player.run, side = Math.random() < 0.5 ? -1 : 1, dur = rand(6.5, 9), h = rand(10, 14);   // (above the El's deck)
+  const r = player.run, side = rnd() < 0.5 ? -1 : 1, dur = rand(6.5, 9), h = rand(10, 14);   // (above the El's deck)
   const run = (Game.state === 'play' ? player.speed : 0) * dur * 0.5, want = rand(25, 40) + run;
   setPL(r);
   let best = null, bestD = Infinity;
@@ -4585,7 +4736,7 @@ function startEagle() {
 }
 /* ---------- UFO: squash Pizza Rat and, a moment later, a flying saucer stops over a pigeon ahead, beams it up and zips off (any time of day).
    Ride through the beam while it's on: CLOSE ENCOUNTER! ---------- */
-const UFO_PTS = 600, UFO_DELAY = 6;   // points for riding through the beam; seconds after Pizza Rat is squashed before the UFO comes
+const UFO_DELAY = 6;   // seconds after Pizza Rat is squashed before the UFO comes
 const UFO_LINES = ['Is that a UFO?', 'They took a pigeon!', 'Nobody is going to believe this', 'The truth is out there', 'Abduction in progress', 'Not the pigeon!'];
 const UFO = { state: 'off', t: 0, cd: 0, pending: false, mesh: null, beam: null, lights: [], pg: null, run: null, from: new THREE.Vector3(), at: new THREE.Vector3(), to: new THREE.Vector3(), met: false };
 (function buildUfo() {
@@ -4607,11 +4758,11 @@ function startUfo() {   // pick (or put) a pigeon on the ground ahead, timed so 
   const want = PL.z - (player.speed * 4.8 + 35);   // far enough ahead that the whole show (1.8 s in, 3.2 s of beam) happens in front of you
   let pg = null, best = Infinity;
   for (const e of r.ents) if (e.type === 'pigeon' && !e.fly && !e.perch && !e.leader && Math.abs(e.x) < 9 && Math.abs(e.z - want) < best && e.z < PL.z - 60) { best = Math.abs(e.z - want); pg = e; }   // one in the road, where you'll see it
-  if (!pg || best > 40) { if (want < r.endZc + 20) return false; pg = spawnPigeon(r, (Math.random() < 0.5 ? -1 : 1) * rand(1.5, 7.5), want); }
+  if (!pg || best > 40) { if (want < r.endZc + 20) return false; pg = spawnPigeon(r, (rnd() < 0.5 ? -1 : 1) * rand(1.5, 7.5), want); }
   pg.abducted = 'wait'; UFO.pg = pg; UFO.run = r; UFO.state = 'in'; UFO.t = 0; UFO.met = false;
   toWorld(r, pg.x, pg.z, _t); UFO.at.set(_t.x, 15, _t.z);
   // it drops in from high overhead and leaves straight up, drifting only a little along the street (never through a building)
-  const side = Math.random() < 0.5 ? -1 : 1; toWorld(r, clamp(pg.x + side * 3, -6, 6), pg.z - 12, _t); UFO.from.set(_t.x, 110, _t.z);
+  const side = rnd() < 0.5 ? -1 : 1; toWorld(r, clamp(pg.x + side * 3, -6, 6), pg.z - 12, _t); UFO.from.set(_t.x, 110, _t.z);
   toWorld(r, clamp(pg.x - side * 3, -6, 6), pg.z - 18, _t); UFO.to.set(_t.x, 160, _t.z);
   UFO.mesh.position.copy(UFO.from); UFO.mesh.visible = true;
   const rx = UFO.at.x - camera.position.x, rz = UFO.at.z - camera.position.z, cy = Math.cos(camYaw), sy = Math.sin(camYaw);
@@ -4643,7 +4794,7 @@ function updateUfo(dt) {
       // ride through the beam: a close encounter (once)
       setPL(UFO.run);
       if (!UFO.met && Game.state === 'play' && UFO.run === player.run && Math.hypot(PL.x - pg.x, PL.z - pg.z) < 2.6) {
-        UFO.met = true; award('CLOSE ENCOUNTER!', UFO_PTS * (player.speed / player.base), 'good'); Sound.blip(1200, 0.12, 'sine', 0.1); Sound.blip(1600, 0.2, 'sine', 0.08, 0.1);
+        UFO.met = true; give('CLOSE ENCOUNTER!', (player.speed / player.base)); Sound.blip(1200, 0.12, 'sine', 0.1); Sound.blip(1600, 0.2, 'sine', 0.08, 0.1);
       }
       setPL(player.run);
     }
@@ -4684,15 +4835,19 @@ function updateEagle(dt) {
         'WINGS ARE TUBELESS',
       ];
       Game.mericaJoke = true; 
-      setTimeout(() => Voice.say(nextLine(EAGLE_LINES), 2, 'joke'), 800);
+      const line = nextLine(EAGLE_LINES); setTimeout(() => Voice.say(line, 2, 'joke'), 800);
     }  // after the screech
   }
 }
+
+/* =====================================================================
+   LEVELS — a fresh street, starting, pausing, continuing
+   ===================================================================== */
 function resetWorld() {
   Game.libertyN = 0; Game.libertyAt = randi(2, 5); Game.libertyDone = false;   // which chunk of this level gets the Statue of Liberty
   Game.timesDone = false; Game.chinaDone = false;
   Game.billAt = rand(3, 7) / MONEY;   // the first dollar bill (rivals now come from collecting bills: see RIVAL_CASH)
-  if (BILL.on) endBill(); BILL.on = false; clearRivalDebris(); if (UFO.state !== 'off') endUfo(); UFO.pending = false; hideTicker(); $('wet').classList.remove('show');
+  removeBill(); clearRivalDebris(); if (UFO.state !== 'off') endUfo(); UFO.pending = false; hideTicker(); $('wet').classList.remove('show');
   for (const r of runs.slice()) removeRun(r);
   REC.length = 0; Game.replayInfo = null;
   runs.length = 0;
@@ -4707,6 +4862,8 @@ function resetWorld() {
   manageRuns(true); manageRuns(true);
   setPL(player.run);
   for (let z = -70; z > -290; z -= rand(16, 30) / TRAFFIC) { const li = randi(0, 3); if (z > player.run.endZc + 30 && laneFree(player.run, li, z, 10)) spawnCar(player.run, li, z); }
+  animT = 0; WIND.a = rand(0, 6.3); copJokeAt = 0;   // (the clocks and the wind start over too: a level plays the same from the same seed)
+  EAGLE.on = false; EAGLE.mesh.visible = false; EAGLE.cd = rand(25, 50); flapCd = 0; cooCd = 0;
   Game.elapsed = 0; Game.levelTime = LEVEL_TIME; Game.time = 0; resetScoring(); player.prevZ = 0; Game.shake = 0;
   camOff.set(0, 3.7, 7.4); skyAng = 0; resetDrone(); clearBubbles();
   $('comic').classList.remove('show'); $('flash').style.opacity = 0;
@@ -4973,6 +5130,10 @@ document.querySelectorAll('.resBtn').forEach((b) => bindButton(b, () => {
   resIdx = (resIdx + 1) % RES.length; store.set('whatdo_res2', resIdx); resize(); updateResButtons();
 }));
 updateResButtons();
+
+/* =====================================================================
+   SCREENS & HUD — full screen, the HUD, popups
+   ===================================================================== */
 // ---------- full screen (must be requested from a tap) ----------
 const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
 const fsSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
@@ -5053,13 +5214,11 @@ function popup(text, cls) {
 const P_HW = 0.3, P_HD = 0.5, NEAR = 1.25, SQ_GAP = 1.5, CHAIN_WIN = 3.0;
 const CHICKEN_TTC = 1.8;   // seconds from impact you can still be in an oncoming car's lane and get CHICKEN! (about 55 m)
 const CROSS_NEAR = 8;
-const CUT_FRONT_PTS = 2400, BEHIND_PTS = 1500;
-const THREAD_PTS = 10000, THREAD_WINDOW = 1.0;   // between two crossing cars (any two passed within THREAD_WINDOW s): the best move in the game   // base points for crossing just in front of / just behind cross traffic (x3 for the tightest pass)   // passing within this many metres of a crossing car's bumper scores
+const THREAD_WINDOW = 1.0;   // two crossing cars passed within this many seconds: THREAD THE NEEDLE!
 const SC = { chainN: 0, chainT: 0, chainPts: 0, tricks: {}, sq: { t: 0, tight: 0, spd: 0, off: 0 }, gL: Infinity, gR: Infinity };
 const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE', rope: 'TIGHTROPE' };
-const BIKELANE_PTS = 400;   // a block (80 m) in the bike lane; each further block in a row pays 1.5x more
 let screamCd = 0;
-function resetScoring() { SC.bike = { d: 0, n: 0 }; SC.chainN = 0; SC.chainT = 0; SC.chainPts = 0; SC.tricks = {}; SC.sq = { t: 0, tight: 0, spd: 0, off: 0 }; SC.metal = { dist: 0, lvl: 0, grace: 0 }; }
+function resetScoring() { SC.bike = { d: 0, n: 0 }; SC.chainN = 0; SC.chainT = 0; SC.chainPts = 0; SC.tricks = {}; SC.sq = { t: 0, tight: 0, spd: 0, off: 0 }; SC.metal = { dist: 0, lvl: 0, grace: 0 }; SC.lastCross = null; }
 // PEDAL TO THE METAL: every block (100 m) held on the gas without letting off adds +0.25x to all points, up to x2.5
 function metalMult() { return 1 + 0.25 * (SC.metal ? SC.metal.lvl : 0); }
 function totalMult() { return chainMult() * metalMult(); }
@@ -5071,14 +5230,90 @@ function chainHit() {
   if (SC.chainN > 1) Sound.blip(440 + Math.min(12, SC.chainN) * 60, 0.07, 'square', 0.07);
 }
 function bumpScore() { const el = $('score'); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
-function award(label, base, cls, hit) {
-  announce(label);
-  if (BT.on) { base *= 1.5; if (!BT.shown) { BT.shown = true; popup('BULLET TIME \u00d71.5', 'bt'); } }
-  if (hit === null) { /* spammable tricks: no effect on the chain at all */ } else if (hit !== false) chainHit(); else SC.chainT = Math.max(SC.chainT, 1.0);
+/* =====================================================================
+   AWARDS: every way to score, in one table. The game pays one with give(name, x): the table's points × x
+   (x is usually your speed and how close you cut it), shown and chained as the table says, and called out by the announcer.
+   The scoring guide (SCORING on the menus) is built from the same table, so the two can't disagree.
+   ===================================================================== */
+// pts: base points · cls: popup colour · chain: (default) adds to the chain, 'keep' keeps it alive, 'none' leaves it alone
+// how: the guide's line · lo / top: the guide's range is pts×lo to pts×top · unit: after it · show: the guide's points as written
+// name: the guide's name if not the key · guide: false to leave it out · say: [what the announcer says, how important] (or a function of the popup)
+const AWARD_GROUPS = [['BIG MOVES', ''], ['MOVES', ''], ['TRICKS', '<small> keep your chain alive</small>'], ['BONUSES', '']];
+const AWARDS = {
+  // ----- BIG MOVES -----
+  'ONCOMING VELOCITY': { group: 'BIG MOVES', pts: 1.1, cls: 'ov', lo: 31 * 31, top: 31 * 31 * 6.5, how: 'Pass an oncoming car. Faster and later = more ("CHICKEN!")',   // × closing speed² (31 m/s: cruising past a 12 m/s car)
+    say: (l) => /^CHICKEN/.test(l) ? ['Chicken!', 3] : +(/(\d+) MPH/.exec(l) || [0, 0])[1] >= 75 ? ['Oncoming!', 2] : null },   // (common: only the really fast ones)
+  'SQUEEZE PLAY!': { group: 'BIG MOVES', name: 'SQUEEZE PLAY', pts: 600, cls: 'sq', top: 12, how: 'Thread between two things. Tighter and longer = more', say: ['Squeeze play!', 3] },
+  'HIGH FIVE!': { group: 'BIG MOVES', pts: 1500, top: 2, how: 'Slap the hand of someone at the curb (don’t hit them)', say: ['High five!', 3] },
+  'THREAD THE NEEDLE!': { group: 'BIG MOVES', pts: 10000, top: 3, how: 'Shoot between two crossing cars, passing both within a second (on top of both passes)', say: ['Thread the needle!', 4] },
+  'CUT IN FRONT!': { group: 'BIG MOVES', pts: 2400, cls: 'nm', top: 3, how: 'Cross just in front of crossing traffic', say: ['Cut in front!', 2] },
+  'BEHIND THE BUMPER!': { group: 'BIG MOVES', pts: 1500, cls: 'nm', top: 3, how: 'Cross just behind crossing traffic', say: ['Close one!', 1] },
+  'RAN THE RED!': { group: 'BIG MOVES', pts: 600, cls: 'red', top: 1.8, how: 'Ride through a red light (more with traffic)', say: ['Ran the red!', 2] },
+  // ----- MOVES -----
+  'CAR ALARM!': { group: 'MOVES', pts: 300, cls: 'nm', top: 2, how: 'Pass close enough to a parked car to set it off', say: ['Car alarm!', 2] },
+  'EXCUSE ME!': { group: 'MOVES', pts: 150, cls: 'nm', top: 2, how: 'Brush past a pedestrian' },
+  'RELISH THE MOMENT!': { group: 'MOVES', pts: 400, top: 2, how: 'Brush past the guy in the hot-dog costume' },
+  'LADY LIBERTY!': { group: 'MOVES', pts: 400, top: 2, how: 'Brush past the Statue of Liberty performer (one every level)' },
+  'BIG AIR!': { group: 'MOVES', pts: 600, unit: '+', how: 'Launch off a tow truck ramp (ride up its tilted bed); more the longer you fly' },   // × seconds in the air, squared
+  'CAR JUMP!': { group: 'MOVES', pts: 700, top: 2, unit: ' EACH', how: 'Sail over cars off a ramp' },
+  'CLEARED': { group: 'MOVES', pts: 300, guide: false },   // more than one other thing cleared in a ramp jump (the tow truck's cab is always one)
+  'ROOF LANDING!': { group: 'MOVES', pts: 2700, top: 2, how: 'Come down from a ramp jump onto a car, a city bus or a box truck (moving or parked)' },
+  'SURFING': { group: 'MOVES', name: 'CAR / BUS / TRUCK SURFING', pts: 500, unit: ' / SEC', how: 'Ride the roof, then drop off the end (or hop off)' },
+  'STUCK THE LANDING!': { group: 'MOVES', pts: 400, top: 2, how: 'Land a ramp jump riding straight (and not mid-spin: that wipes you out)' },
+  'HOP OVER!': { group: 'MOVES', pts: 300, top: 2, unit: ' EACH', how: 'Bunny hop over something low: a hydrant, trash can, crates, a delivery robot, barriers…' },
+  'AIR 360!': { group: 'MOVES', pts: 450, top: 2, how: 'Spin 360 in the air off a ramp (or a roof drop); 720, 1080… for more spins' },
+  'PET THE CAT!': { group: 'MOVES', pts: 400, how: 'Ride past close to the bodega cat on the crates (on the sidewalk)', say: ['Pet the cat!', 2] },
+  'COO COO!': { group: 'MOVES', pts: 350, top: 2, how: 'Brush past the mascot in the pigeon costume' },
+  'SIGN DODGE!': { group: 'MOVES', pts: 250, top: 2, how: 'Slip past the spinning arrow sign at the curb' },
+  'SKATE DODGE!': { group: 'MOVES', pts: 150, cls: 'nm', top: 2, how: 'Slip past a skateboarder' },
+  'ROBO DODGE!': { group: 'MOVES', pts: 250, top: 2, how: 'Just miss a delivery robot in the bike lane', say: ['Robo dodge!', 2] },
+  'PIZZA RAT!': { group: 'MOVES', pts: 300, top: 2, how: 'Just miss the rat dragging a slice across the crosswalk', say: ['Respect the rat!', 2] },
+  'HALLELUJAH!': { group: 'MOVES', pts: 300, top: 2, how: 'Brush past the preacher on his milk crate', say: ['Hallelujah!', 2] },
+  'HORSE PLAY!': { group: 'MOVES', pts: 300, top: 2, how: 'Pass close to the horse-drawn carriage', say: ['Horse play!', 2] },
+  'SPIDEY SENSE!': { group: 'MOVES', pts: 600, how: 'Ride under Spider-Man hanging from a street light', say: ['Spidey sense!', 2] },
+  'COLD HARD CASH!': { group: 'MOVES', pts: 250, how: 'Grab a dollar bill blowing down the street (every 3 calls in a rival)', say: ['Cha-ching!', 2] },
+  'TIGHT TURN!': { group: 'MOVES', pts: 150, cls: 'nm', how: 'Clip a barricade or corner' },
+  'BIKE DODGE!': { group: 'MOVES', pts: 120, cls: 'nm', top: 2, how: 'Slip past a cyclist' },
+  'PHOTOBOMB!': { group: 'MOVES', pts: 500, top: 2, how: 'Ride between a tourist’s camera and the friend they’re photographing', say: ['Photobomb!', 2] },
+  'NEAR MISS!': { group: 'MOVES', pts: 100, cls: 'nm', top: 2, how: 'Pass close to a car going your way' },
+  'CLOSE SHAVE!': { group: 'MOVES', pts: 60, cls: 'nm', top: 2, how: 'Pass close to lamps, trees, hydrants…' },
+  'BIKE LANE HERO!': { group: 'MOVES', pts: 400, unit: '+', how: 'Ride a whole block (80 m) in the bike lane; more for each block in a row', say: ['Bike lane hero!', 2] },   // × 1.5 for each block in a row
+  'DETOUR!': { group: 'MOVES', pts: 150, show: '150 × LEVEL', how: 'Make the turn at a road closure', say: ['Detour!', 1] },
+  // ----- TRICKS: points pile up while you hold them (see updateScoring), paid when you stop -----
+  'WRONG WAY': { group: 'TRICKS', pts: 1, cls: 'trick', chain: 'keep', show: '40–600 / SEC', how: 'Ride in the oncoming lanes (more with cars coming)' },
+  'SIDEWALK SURFING': { group: 'TRICKS', pts: 1, cls: 'trick', chain: 'keep', show: '60–240 / SEC', how: 'Ride on the sidewalk' },
+  'FULL THROTTLE': { group: 'TRICKS', pts: 1, cls: 'trick', chain: 'keep', show: '45 / SEC', how: 'Stay at top speed' },
+  'TIGHTROPE': { group: 'TRICKS', pts: 1, cls: 'trick', chain: 'keep', show: '60–400 / SEC', how: 'Ride the double yellow line for 2+ seconds (double with oncoming cars close)', say: ['Tightrope!', 1] },
+  'SNAP!': { group: 'TRICKS', pts: 40, cls: 'trick', chain: 'keep', unit: ' EACH', how: 'Every photo a tourist takes of you' },
+  // a plain hop or spin can be mashed, so it's worth almost nothing and doesn't touch the chain (spins off a ramp or a roof drop are AIR 360s)
+  'BUNNY HOP': { group: 'TRICKS', pts: 5, cls: 'trick', chain: 'none', how: 'Hop (E / J, or gamepad B). Just for fun: barely scores, doesn’t keep the chain' },
+  'HOP 360': { group: 'TRICKS', pts: 15, cls: 'trick', chain: 'none', guide: false },   // a spin during a plain bunny hop
+  'SPIN 360!': { group: 'TRICKS', pts: 5, cls: 'trick', chain: 'none', how: 'A full spin (Q / K, or gamepad Y). Just for fun unless you’re off a ramp' },
+  'CLOSE ENCOUNTER!': { group: 'TRICKS', pts: 600, top: 2, how: 'Squash Pizza Rat and a UFO comes for a pigeon: ride through its tractor beam' },
+  'STEAM BATH!': { group: 'TRICKS', pts: 150, cls: 'trick', chain: 'keep', how: 'Ride through a steaming manhole' },
+  'PIGEON SCATTER!': { group: 'TRICKS', pts: 50, cls: 'trick', chain: 'keep', how: 'Ride through a flock of pigeons' },
+  'COOL OFF!': { group: 'TRICKS', pts: 150, cls: 'trick', chain: 'keep', how: 'Ride through the spray of an open fire hydrant (also fills FOCUS to 100%)' },
+  // ----- BONUSES -----
+  'LEVEL CLEAR': { group: 'BONUSES', pts: 1000, show: '1,000 × LEVEL', how: 'Survive the timer' },   // (paid by winLevel, outside the chain)
+  'GANG BUSTED!': { group: 'BONUSES', pts: 3000, how: '1 in 10 times, your 3 dollars call a whole rival gang: beat all 3 (on top of each RIVAL SMOKED!)' },
+  'ON THE NEWS!': { group: 'BONUSES', pts: 750, show: '750 × LEVEL', how: 'Scatter 5 flocks of pigeons and a news drone flies in to film you' },
+  'RIVAL SMOKED!': { group: 'BONUSES', pts: 1000, how: 'Grab 3 dollar bills and a rival rides in: take the lead from him twice (or ride right into him: RIVAL WIPED OUT!)' },
+  'RIVAL WIPED OUT!': { group: 'BONUSES', pts: 1000, guide: false },
+  'RIDING': { group: 'BONUSES', pts: 0.25, show: '~5 / SEC', how: 'Just keep moving' }   // × metres (paid every frame by updatePlay, outside the chain)
+};
+for (const k in AWARDS) AWARDS[k].cls = AWARDS[k].cls || 'good';
+// pay an award: the table's points × x, under the popup label (the name, or the name with details: 'BIG AIR! 1.2s')
+function give(name, x = 1, label = name) {
+  const A = AWARDS[name];
+  if (!A) { console.error('No award called ' + name); return 0; }
+  if (Game.state === 'play' && A.say) { const s = typeof A.say === 'function' ? A.say(label) : A.say; if (s) Voice.say(s[0], s[1], 'score'); }
+  let base = A.pts * x;
+  if (BT.on) { base *= 1.5; if (!BT.shown) { BT.shown = true; popup('BULLET TIME ×1.5', 'bt'); } }
+  if (A.chain === 'none') { /* spammable: no effect on the chain at all */ } else if (A.chain === 'keep') SC.chainT = Math.max(SC.chainT, 1.0); else chainHit();
   const m = totalMult(), pts = Math.max(1, Math.round(base * m));
   Game.score += pts; SC.chainPts += pts;
-  buzz(({ ov: 40, sq: [30, 40, 60], red: [20, 30, 20], good: 25, trick: 15 })[cls] || 12);
-  popup(label + '  +' + pts.toLocaleString() + (m > 1 ? '  (x' + m.toFixed(1) + ')' : ''), cls);
+  buzz(({ ov: 40, sq: [30, 40, 60], red: [20, 30, 20], good: 25, trick: 15 })[A.cls] || 12);
+  popup(label + '  +' + pts.toLocaleString() + (m > 1 ? '  (x' + m.toFixed(1) + ')' : ''), A.cls);
   bumpScore();
   return pts;
 }
@@ -5103,11 +5338,11 @@ function trick(key, active, rate, dt) {
     if (t.dur >= trickMin(key)) SC.chainT = Math.max(SC.chainT, 1.2);
   } else if (t.on) {
     t.off += dt;
-    if (t.off > 0.35) { t.on = false; if (t.dur > trickMin(key) && t.pts >= 20) award(TRICK_NAMES[key], t.pts, 'trick', false); }
+    if (t.off > 0.35) { t.on = false; if (t.dur > trickMin(key) && t.pts >= 20) give(TRICK_NAMES[key], t.pts); }
   }
 }
 function cashInAll() {
-  for (const k in SC.tricks) { const t = SC.tricks[k]; if (t.on && t.dur > trickMin(k)) award(TRICK_NAMES[k], t.pts, 'trick', false); t.on = false; }
+  for (const k in SC.tricks) { const t = SC.tricks[k]; if (t.on && t.dur > trickMin(k)) give(TRICK_NAMES[k], t.pts); t.on = false; }
   if (SC.sq.t > 0) finishSqueeze();
   endChain();
 }
@@ -5164,7 +5399,7 @@ function updateScoring(dt) {
   const BL = SC.bike || (SC.bike = { d: 0, n: 0 });
   if (straight && player.x > 9.05 && player.x < 10.95) {
     BL.d += player.speed * dt;
-    if (BL.d >= 80) { BL.d -= 80; award('BIKE LANE HERO!' + (BL.n ? ' x' + (BL.n + 1) : ''), BIKELANE_PTS * Math.pow(1.5, BL.n) * (player.speed / player.base), 'good'); BL.n++; }
+    if (BL.d >= 80) { BL.d -= 80; give('BIKE LANE HERO!', Math.pow(1.5, BL.n) * (player.speed / player.base), 'BIKE LANE HERO!' + (BL.n ? ' x' + (BL.n + 1) : '')); BL.n++; }
   } else { BL.d = 0; BL.n = 0; }
   // running red lights
   for (const I of R.inters) {
@@ -5173,8 +5408,8 @@ function updateScoring(dt) {
     if (!I.ran && I.red && player.prevZ > line && player.z <= line) {
       I.ran = true;
       let traffic = 0; for (const e of R.ents) if (e.type === 'xcar' && e.delay <= 0 && Math.abs(e.z - I.zc) < 8 && Math.abs(e.x - player.x) < 40) traffic++;
-      award(traffic ? 'RAN THE RED! INTO TRAFFIC!' : 'RAN THE RED!', 600 * (player.speed / player.base) * (1 + Math.min(2, traffic) * 0.4), 'red');
-      if (!Game.redJoke && Math.random() < 0.2) { Game.redJoke = true; Voice.say(nextLine(RED_JOKES), 3, 'joke'); }   // once a level
+      give('RAN THE RED!', (player.speed / player.base) * (1 + Math.min(2, traffic) * 0.4), traffic ? 'RAN THE RED! INTO TRAFFIC!' : 'RAN THE RED!');
+      if (!Game.redJoke && rnd() < 0.2) { Game.redJoke = true; Voice.say(nextLine(RED_JOKES), 3, 'joke'); }   // once a level
       Sound.honk(0, 0.9, true);
     }
   }
@@ -5183,7 +5418,7 @@ function updateScoring(dt) {
 function finishSqueeze() {
   const q = SC.sq;
   const mult = (1 + 3 * q.tight) * (1 + Math.min(2, q.t * 2.5)) * Math.pow(q.spd / player.base, 2);
-  award('SQUEEZE PLAY! x' + mult.toFixed(1), 600 * mult, 'sq'); focusGain(0.25);
+  give('SQUEEZE PLAY!', mult, 'SQUEEZE PLAY! x' + mult.toFixed(1)); focusGain(0.25);
   Game.shake = Math.max(Game.shake, 0.45);
   Sound.whoosh(0, 1.3);
   q.t = 0; q.tight = 0; q.spd = 0; q.off = 0;
@@ -5202,6 +5437,9 @@ function updateSqueeze(dt) {
   }
 }
 
+/* =====================================================================
+   MENUS — the announcer, settings, the debug menu, the scoring guide
+   ===================================================================== */
 /* ---------- ANNOUNCER: the browser's speech synthesis calls out big moves and moments ----------
    One phrase at a time; a more important call can cut off a minor one, never the other way round.
    Four levels (remembered as whatdo_voice_lvl), each adding to the one before:
@@ -5242,20 +5480,6 @@ const Voice = (() => {
   function setLevel(v) { level = clamp(v | 0, 0, 3); store.set('whatdo_voice_lvl', String(level)); if (!level && ok) speechSynthesis.cancel(); }
   return { say, unlock, setLevel, get level() { return level; }, get on() { return level > 0; }, ok };
 })();
-// award popup -> what the announcer says, and how important it is (higher interrupts lower; hazard warnings use 4)
-const ANNOUNCE = [
-  [/^THREAD THE NEEDLE/, 'Thread the needle!', 4], [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
-  [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
-  [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^PHOTOBOMB/, 'Photobomb!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1],
-  [/^PIZZA RAT/, 'Respect the rat!', 2], [/^ROBO DODGE/, 'Robo dodge!', 2], [/^PET THE CAT/, 'Pet the cat!', 2], [/^HALLELUJAH/, 'Hallelujah!', 2], [/^HORSE PLAY/, 'Horse play!', 2], [/^SPIDEY SENSE/, 'Spidey sense!', 2],
-   [/^COLD HARD CASH/, 'Cha-ching!', 2]
-];
-function announce(label) {
-  if (Game.state !== 'play') return;
-  const ov = /^ONCOMING VELOCITY (\d+)/.exec(label);
-  if (ov && +ov[1] < 75) return;   // oncoming passes are common: only call the really fast ones
-  for (const [re, text, pri] of ANNOUNCE) if (re.test(label)) { Voice.say(text, pri, 'score'); return; }
-}
 const VOICE_LEVELS = ['OFF', 'JOKES', 'WARNINGS', 'SCORING'];
 const VOICE_SAMPLE = [null, ['What do?', 'joke'], ['Cross traffic, left!', 'warn'], ['Chicken!', 'score']];   // said when you pick a level
 function updateVoiceButtons() {
@@ -5335,68 +5559,12 @@ bindButton($('soundSet'), () => toggleMute());
 const SCORING_UI = { open: false, back: 'startScreen' };
 function fmtPts(a, b) { const f = (n) => Math.round(n).toLocaleString(); return b === undefined || Math.round(a) === Math.round(b) ? f(a) : f(a) + '–' + f(b); }
 function buildScoring() {
-  const ov = 31 * 31 * 1.1;   // a cruising rider (19 m/s) passing a 12 m/s oncoming car
-  const sections = [
-    ['BIG MOVES', '', [
-      ['ONCOMING VELOCITY', 'Pass an oncoming car. Faster and later = more ("CHICKEN!")', fmtPts(ov, ov * 2 * 3.25)],
-      ['SQUEEZE PLAY', 'Thread between two things. Tighter and longer = more', fmtPts(600, 600 * 4 * 3)],
-      ['HIGH FIVE!', 'Slap the hand of someone at the curb (don’t hit them)', fmtPts(HIFIVE_PTS, HIFIVE_PTS * 2)],
-      ['THREAD THE NEEDLE!', 'Shoot between two crossing cars, passing both within a second (on top of both passes)', fmtPts(THREAD_PTS, THREAD_PTS * 3)],
-      ['CUT IN FRONT!', 'Cross just in front of crossing traffic', fmtPts(CUT_FRONT_PTS, CUT_FRONT_PTS * 3)],
-      ['BEHIND THE BUMPER!', 'Cross just behind crossing traffic', fmtPts(BEHIND_PTS, BEHIND_PTS * 3)],
-      ['RAN THE RED!', 'Ride through a red light (more with traffic)', fmtPts(600, 1080)]]],
-    ['MOVES', '', [
-      ['CAR ALARM!', 'Pass close enough to a parked car to set it off', fmtPts(CAR_ALARM_PTS, CAR_ALARM_PTS * 2)],
-      ['EXCUSE ME!', 'Brush past a pedestrian', fmtPts(150, 300)],
-      ['RELISH THE MOMENT!', 'Brush past the guy in the hot-dog costume', fmtPts(400, 800)],
-      ['LADY LIBERTY!', 'Brush past the Statue of Liberty performer (one every level)', fmtPts(400, 800)],
-      ['BIG AIR!', 'Launch off a tow truck ramp (ride up its tilted bed); more the longer you fly', fmtPts(BIG_AIR_PTS) + '+'],
-      ['CAR JUMP!', 'Sail over cars off a ramp', fmtPts(CAR_JUMP_PTS, CAR_JUMP_PTS * 2) + ' EACH'],
-      ['ROOF LANDING!', 'Come down from a ramp jump onto a car, a city bus or a box truck (moving or parked)', fmtPts(ROOF_PTS, ROOF_PTS * 2)],
-      ['CAR / BUS / TRUCK SURFING', 'Ride the roof, then drop off the end (or hop off)', fmtPts(BUS_SURF_PTS) + ' / SEC'],
-      ['STUCK THE LANDING!', 'Land a ramp jump riding straight (and not mid-spin: that wipes you out)', fmtPts(LANDING_PTS, LANDING_PTS * 2)],
-      ['HOP OVER!', 'Bunny hop over something low: a hydrant, trash can, crates, a delivery robot, barriers…', fmtPts(HOP_OVER_PTS, HOP_OVER_PTS * 2) + ' EACH'],
-      ['AIR 360!', 'Spin 360 in the air off a ramp (or a roof drop); 720, 1080… for more spins', fmtPts(AIR_SPIN_PTS, AIR_SPIN_PTS * 2)],
-      ['PET THE CAT!', 'Ride past close to the bodega cat on the crates (on the sidewalk)', fmtPts(CAT_PTS)],
-      ['COO COO!', 'Brush past the mascot in the pigeon costume', fmtPts(350, 700)],
-      ['SIGN DODGE!', 'Slip past the spinning arrow sign at the curb', fmtPts(250, 500)],
-      ['SKATE DODGE!', 'Slip past a skateboarder', fmtPts(150, 300)],
-      ['ROBO DODGE!', 'Just miss a delivery robot in the bike lane', fmtPts(ROBOT_PTS, ROBOT_PTS * 2)],
-      ['PIZZA RAT!', 'Just miss the rat dragging a slice across the crosswalk', fmtPts(300, 600)],
-      ['HALLELUJAH!', 'Brush past the preacher on his milk crate', fmtPts(300, 600)],
-      ['HORSE PLAY!', 'Pass close to the horse-drawn carriage', fmtPts(300, 600)],
-      ['SPIDEY SENSE!', 'Ride under Spider-Man hanging from a street light', fmtPts(SPIDEY_PTS)],
-      ['COLD HARD CASH!', 'Grab a dollar bill blowing down the street (every 3 calls in a rival)', fmtPts(BILL_PTS)],
-      ['TIGHT TURN!', 'Clip a barricade or corner', fmtPts(150)],
-      ['BIKE DODGE!', 'Slip past a cyclist', fmtPts(120, 240)],
-      ['PHOTOBOMB!', 'Ride between a tourist’s camera and the friend they’re photographing', fmtPts(PHOTOBOMB_PTS, PHOTOBOMB_PTS * 2)],
-      ['NEAR MISS!', 'Pass close to a car going your way', fmtPts(100, 200)],
-      ['CLOSE SHAVE!', 'Pass close to lamps, trees, hydrants…', fmtPts(60, 120)],
-      ['BIKE LANE HERO!', 'Ride a whole block (80 m) in the bike lane; more for each block in a row', fmtPts(BIKELANE_PTS) + '+'],
-      ['DETOUR!', 'Make the turn at a road closure', '150 × LEVEL']]],
-    ['TRICKS', '<small> keep your chain alive</small>', [
-      ['WRONG WAY', 'Ride in the oncoming lanes (more with cars coming)', '40–600 / SEC'],
-      ['SIDEWALK SURFING', 'Ride on the sidewalk', '60–240 / SEC'],
-      ['FULL THROTTLE', 'Stay at top speed', '45 / SEC'],
-      ['TIGHTROPE', 'Ride the double yellow line for 2+ seconds (double with oncoming cars close)', '60–400 / SEC'],
-      ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
-      ['BUNNY HOP', 'Hop (E / J, or gamepad B). Just for fun: barely scores, doesn’t keep the chain', fmtPts(HOP_PTS)],
-      ['SPIN 360!', 'A full spin (Q / K, or gamepad Y). Just for fun unless you’re off a ramp', fmtPts(SPIN_PTS)],
-      ['CLOSE ENCOUNTER!', 'Squash Pizza Rat and a UFO comes for a pigeon: ride through its tractor beam', fmtPts(UFO_PTS, UFO_PTS * 2)],
-      ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
-      ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)],
-      ['COOL OFF!', 'Ride through the spray of an open fire hydrant (also fills FOCUS to 100%)', fmtPts(SPRAY_PTS)]]],
-    ['BONUSES', '', [
-      ['LEVEL CLEAR', 'Survive the timer', '1,000 × LEVEL'],
-      ['GANG BUSTED!', '1 in 10 times, your 3 dollars call a whole rival gang: beat all 3 (on top of each RIVAL SMOKED!)', fmtPts(GANG_PTS)],
-      ['ON THE NEWS!', 'Scatter 5 flocks of pigeons and a news drone flies in to film you', '750 × LEVEL'],
-      ['RIVAL SMOKED!', 'Grab 3 dollar bills and a rival rides in: take the lead from him twice (or ride right into him: RIVAL WIPED OUT!)', fmtPts(RIVAL_PTS)],
-      ['RIDING', 'Just keep moving', '~5 / SEC']]],
-    ['MULTIPLIERS', '', [
-      ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
-      ['BULLET TIME', 'Near misses while FOCUS slow-mo is on', '×1.5'],
-      ['PEDAL TO THE METAL', 'Every 100 m without letting off the volts', 'UP TO ×2.5']]]
-  ];
+  const guidePts = (a) => a.show || fmtPts(a.pts * (a.lo || 1), a.top ? a.pts * a.top : undefined) + (a.unit || '');   // (lo, top: multiples of pts)
+  const sections = AWARD_GROUPS.map(([title, sub]) => [title, sub, Object.entries(AWARDS).filter(([, a]) => a.group === title && a.guide !== false).map(([k, a]) => [a.name || k, a.how, guidePts(a)])]);
+  sections.push(['MULTIPLIERS', '', [
+    ['CHAIN', 'Score again within 3 seconds', 'UP TO ×5'],
+    ['BULLET TIME', 'Near misses while FOCUS slow-mo is on', '×1.5'],
+    ['PEDAL TO THE METAL', 'Every 100 m without letting off the volts', 'UP TO ×2.5']]]);
   const box = $('scoreList'); box.textContent = '';
   for (const [title, sub, rows] of sections) {
     const h = document.createElement('h4'); h.innerHTML = title + sub; box.appendChild(h);
@@ -5427,6 +5595,10 @@ function scoringKey(e) {
 }
 document.querySelectorAll('.scoreOpen').forEach((b) => bindButton(b, () => { if (Game.state === 'menu' || Game.state === 'paused') openScoring(); }));
 bindButton($('scoreBack'), closeScoring);
+
+/* =====================================================================
+   COLLISIONS — FOCUS slow-mo, near misses, hits
+   ===================================================================== */
 /* ---------- FOCUS (bullet time): near misses fill it; hold the button to slow the world ---------- */
 const FOCUS = { meter: 0, on: false, k: 0, shown: -1, held: false, speed: 0, boost: false };
 const FOCUS_GAP = 0.4;   // seconds allowed between leaving GAS and pressing FOCUS without losing speed or Pedal to the Metal
@@ -5475,40 +5647,32 @@ function nearMissScore(o, isStatic) {
     const rel = player.speed + o.v, mph = Math.round(rel * 2.1);
     const chicken = o.minTTC !== undefined && o.minTTC < 1.5 ? 1 + (1.5 - o.minTTC) * 1.5 : 1;
     // CHICKEN!: you were still in its lane under CHICKEN_TTC seconds before impact (about 55 m at a typical closing speed)
-    award((o.minTTC < CHICKEN_TTC ? 'CHICKEN! ' : '') + 'ONCOMING VELOCITY ' + mph + ' MPH', rel * rel * 1.1 * (1 + tight) * chicken, 'ov');
+    give('ONCOMING VELOCITY', rel * rel * (1 + tight) * chicken, (o.minTTC < CHICKEN_TTC ? 'CHICKEN! ' : '') + 'ONCOMING VELOCITY ' + mph + ' MPH');
     Sound.whoosh(pan, 1.3);
-    if (Math.random() < 0.7) Sound.honk(pan, 1, Math.random() < 0.5);
+    if (rnd() < 0.7) Sound.honk(pan, 1, rnd() < 0.5);
     Game.shake = Math.max(Game.shake, 0.4);
     return;
   }
   if (o.type === 'xcar') {
     // scored by crossPass(): in front (the car was still coming at you) is worth more than behind
     const front = o.crossFront, t = o.crossTight;
-    award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? CUT_FRONT_PTS : BEHIND_PTS) * sf * (1 + t * 2), 'nm');
+    give(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', sf * (1 + t * 2));
     // two different crossing cars passed back to back (in front of both, behind both, or one of each): you threaded between them
     const last = SC.lastCross;
     if (last && last.e !== o && Game.time - last.t < THREAD_WINDOW) {
-      award('THREAD THE NEEDLE!', THREAD_PTS * sf * (1 + t + last.tight), 'good');
+      give('THREAD THE NEEDLE!', sf * (1 + t + last.tight));
       Game.shake = Math.max(Game.shake, 0.5); buzz([30, 40, 80]); SC.lastCross = null;
     } else SC.lastCross = { t: Game.time, e: o, front, tight: t };
-  } else if (o.kind === 'carriage') { award('HORSE PLAY!', 300 * sf * (1 + tight), 'good'); Sound.neigh(pan, 1); }
-  else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
-  else if (o.type === 'bike' && o.kind === 'skate') award('SKATE DODGE!', 150 * sf * (1 + tight), 'nm');
-  else if (o.type === 'bike') award('BIKE DODGE!', 120 * sf * (1 + tight), 'nm');
-  else if (o.type === 'sign') award('SIGN DODGE!', 250 * sf * (1 + tight), 'good');
-  else if (o.type === 'ped' && o.kind === 'hotdog') { award('RELISH THE MOMENT!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(HOTDOG_BUBBLES)); }
-  else if (o.type === 'ped' && o.kind === 'pigeonman') { award('COO COO!', 350 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(PIGEONMAN_BUBBLES)); Sound.coo(pan, 1); }
-  else if (o.type === 'ped' && o.kind === 'robot') { award('ROBO DODGE!', ROBOT_PTS * sf * (1 + tight), 'good'); pedBubble(o, nextLine(ROBOT_BUBBLES)); }
-  else if (o.type === 'ped' && o.kind === 'rat') { award('PIZZA RAT!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(RAT_BUBBLES)); }
-  else if (o.type === 'ped' && o.kind === 'preacher') { award('HALLELUJAH!', 300 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(PREACHER_LINES)); }
-  else if (o.type === 'ped' && o.kind === 'liberty') { award('LADY LIBERTY!', 400 * sf * (1 + tight), 'good'); pedBubble(o, nextLine(LIBERTY_BUBBLES)); }
-  else if (o.type === 'ped') { award('EXCUSE ME!', 150 * sf * (1 + tight), 'nm'); pedBubble(o, nextLine(PED_BUBBLES)); }
-  else if (o.kind === 'closed' || o.kind === 'building') award('TIGHT TURN!', 150 * sf, 'nm');
-  else if (alarmed) award('CAR ALARM!', CAR_ALARM_PTS * sf * (1 + tight), 'nm');
-  else award('CLOSE SHAVE!', 60 * sf * (1 + tight), 'nm');
+  } else if (alarmed) give('CAR ALARM!', sf * (1 + tight));
+  else {   // what passing close to it scores, and what it says (see KINDS)
+    const K = KINDS[o.kind] || {};
+    give(K.near || NEAR_BY_TYPE[o.type] || 'CLOSE SHAVE!', sf * (K.flat ? 1 : 1 + tight));
+    if (o.type === 'ped' && K.bubbles) pedBubble(o, nextLine(K.bubbles));
+    if (K.nearSound) K.nearSound(pan);
+  }
   Sound.whoosh(pan, isVehicle(o) ? 1 : 0.6);
   if (o.type === 'ped' && o.kind !== 'robot' && screamCd <= 0) { Sound.scream(pan, 0.55, rand(0.9, 1.4)); screamCd = 0.7; }
-  if (isVehicle(o) && o.kind !== 'carriage' && Math.random() < 0.6) Sound.honk(pan, 0.8, Math.random() < 0.5);
+  if (isVehicle(o) && o.kind !== 'carriage' && rnd() < 0.6) Sound.honk(pan, 0.8, rnd() < 0.5);
   Game.shake = Math.max(Game.shake, isVehicle(o) ? 0.25 : 0.1);
 }
 function testHit(o) {
@@ -5543,9 +5707,9 @@ function updateWarnings() {
 }
 // SNAP!: a photo taken of the rider. Shutter sound now, points a moment later (snaps within 0.6 s add up into one popup).
 // Counts as a trick: keeps the chain alive but doesn't add to it, so a busload of tourists can't farm a x5 chain.
-const SNAP_PTS = 40, SNAP = { n: 0, t: 0 };
+const SNAP = { n: 0, t: 0 };
 // PHOTOBOMB: ride between a tourist's camera and the friend they're photographing on the sidewalk
-const PHOTOBOMB_PTS = 500, PB = { run: null, z: 0 };
+const PB = { run: null, z: 0 };
 function checkPhotobombs(R) {
   if (PB.run === R && R.photoOps) for (const op of R.photoOps) {
     if (op.done || (PB.z - op.z) * (player.z - op.z) > 0) continue;   // only the frame you cross their line
@@ -5553,7 +5717,7 @@ function checkPhotobombs(R) {
       op.done = true;
       const c = op.cam; if (c.flash) { c.flash.visible = true; c.flashT = 0; }
       Sound.shutter(clamp((c.x - player.x) / 6, -1, 1), 0.9);
-      award('PHOTOBOMB!', PHOTOBOMB_PTS * (player.speed / player.base), 'good');
+      give('PHOTOBOMB!', (player.speed / player.base));
     }
   }
   PB.run = R; PB.z = player.z;
@@ -5566,11 +5730,10 @@ function updateSnaps(dt) {
   if (!SNAP.n) return;
   if (Game.state !== 'play') { SNAP.n = 0; return; }
   SNAP.t -= dt;
-  if (SNAP.t <= 0) { award('SNAP!' + (SNAP.n > 1 ? ' x' + SNAP.n : ''), SNAP_PTS * SNAP.n * (player.speed / player.base), 'trick', false); SNAP.n = 0; }
+  if (SNAP.t <= 0) { give('SNAP!', SNAP.n * (player.speed / player.base), 'SNAP!' + (SNAP.n > 1 ? ' x' + SNAP.n : '')); SNAP.n = 0; }
 }
 // car alarm: hazard lights and headlights blink for ~3 s while the alarm whoops
 const ALARMS = [];
-const CAR_ALARM_PTS = 300;   // base points for setting one off (scaled by speed and how close you passed)
 function carAlarm(o) {   // true if this pass set an alarm off (false while that car's alarm is already going or cooling down)
   if (!o.mesh || !o.veh || (o.alarmUntil || 0) > Game.time) return false;
   o.alarmUntil = Game.time + 6;
@@ -5637,44 +5800,10 @@ function checkCollisions(dt) {
   updateSqueeze(dt);
 }
 
+/* =====================================================================
+   CRASHING & CLEARING A LEVEL
+   ===================================================================== */
 /* ---------- death ---------- */
-const DEATH = {
-  taxi: ['T-boned by a taxi.', 'Hailed a cab. With your face.', 'The meter is still running.'],
-  sedan: ['Became a hood ornament.', 'Merged. Badly.'],
-  suv: ['Out-sized by an SUV.', 'Crumple zone: you.'],
-  bus: ['Thrown under the bus. Literally.', 'Missed your stop. The bus did not.'],
-  truck: ['Signed for a package. With your body.', 'Delivered: one rider, slightly damaged.'],
-  police: ['You have the right to remain splattered.'],
-  ped: ["Bowled over a pedestrian. They're fine. You are not.", 'Sidewalk etiquette: failed.'],
-  tourist: ['Photobombed a tourist. Fatally.', "Now you're in their vacation slideshow."],
-  business: ["Collided with a hedge fund manager. He's billing you."],
-  bike: ['Lost a joust to a cyclist.'],
-  delivery: ['Your order has arrived: regret.', 'Delivery guy: 1. You: 0.'],
-  lamp: ['Hugged a lamp post at full speed.'],
-  light: ['Ran a red light. Straight into the pole.'],
-  hydrant: ['Fire hydrant: still undefeated.'],
-  trash: ['Took out the trash. And yourself.'],
-  tree: ['Became one with nature.'],
-  cart: ['You are now the hot dog.'],
-  news: ['Made the front page.'],
-  subway: ['Took the subway. Head first.'],
-  barrier: ['Construction zone. Now under reconstruction: you.'],
-  parked: ['Discovered parked cars are, in fact, solid.'],
-  closed: ['Ignored the ROAD CLOSED sign.', 'The detour was RIGHT THERE.', 'Road closed. So is your casket.'],
-  building: ['Tried to ride through a building. The building won.'],
-  crates: ['Wiped out on a stack of bodega crates.', 'Crate expectations: crushed.', 'The cat saw everything.'],
-  pigeonman: ['Flattened a man dressed as a pigeon. The pigeons will remember.', 'Coo coo... crunch.'],
-  sign: ['Took a SALE sign to the face.', 'Everything must go. Including you.', 'Spun out by a sign spinner.'],
-  skate: ['Got kickflipped.', 'Skater: 1. Wheel: 0.', 'Grinded. By a skater.'],
-  towtruck: ['Rode into the tow truck. Now you need one.', 'Towed. Permanently.'],
-  towbed: ['Hit the side of the ramp. Wrong way on.', 'The ramp is at the BACK.'],
-  midspin: ['Landed mid-spin. The street was not impressed.', 'Over-rotated. Under-survived.'],
-  pillar: ['Hugged an El column. The El hugged back.', 'Met the elevated train. From below.'],
-  gate: ['Rode into the Chinatown gate. Bad luck for a year.', 'The gate was decorative. You were not.'],
-  robot: ['Tripped over a delivery robot. Your food is late.', 'The robot has filed an incident report.', 'Defeated by a cooler on wheels.'],
-  preacher: ['The end was near. Very near.', 'Knocked the preacher off his crate. Repent.'],
-  carriage: ['Trampled by a horse. In Midtown.', 'Horsepower: 1. Wheel power: 0.', 'Neigh.']
-};
 const COMIC = ['SPLAT!', 'SPLORCH!', 'KA-SPLAT!', 'SQUELCH!', 'BLAMMO!', 'WHAT DO?!'];
 const flying = [];
 function die(kind, ent) {
@@ -5806,21 +5935,22 @@ function die(kind, ent) {
     'Fatal error: skill not found',
     'The replay button is looking tempting',
   ];
-  setTimeout(() => Voice.say(nextLine(sayings), 6, 'joke'), 1100);
+  const line = nextLine(sayings); setTimeout(() => Voice.say(line, 6, 'joke'), 1100);
   recordFrame();                       // final pose for the instant replay
   VID.reset(); LB.run = null; LB.fetchBoards(false);
   Game.state = 'dying'; Game.deathT = 0; Game.overReady = false; player.alive = false;
   if (SC.chainN > 1) popup('CHAIN LOST!', 'red');
   resetScoring(); $('chainBox').classList.add('hidden'); $('tricks').innerHTML = '';
-  Game.cause = nextLine(DEATH[kind] || ['Splattered across the avenue.']);
+  Game.cause = nextLine((KINDS[kind] && KINDS[kind].death) || ['Splattered across the avenue.']);
   if (player.jumped && player.hy > 0.2 && kind !== 'midspin') Game.cause = nextLine(LANDING_DEATHS);   // came down on something
   if (ent && ent.kind === 'liberty') Game.cause = nextLine(['Knocked over Lady Liberty. Unpatriotic.', 'Liberty and justice for none.', 'The torch has been dropped.']);
   if (ent && ent.kind === 'hotdog') Game.cause = nextLine(['Took out a hot dog. Hold the mustard.', 'Ran over the wiener.', 'Bun voyage.']);
   track('crash/' + (kind || 'unknown'), 'Crashed: ' + (kind || 'unknown') + ' (level ' + Game.level + ')');
   track('died-on-level/' + Game.level, 'Died on level ' + Game.level);
   Sound.splat(); Sound.scream(0, 1.1, 1.05);
-  setTimeout(() => Sound.scream(rand(-0.8, 0.8), 0.6, rand(1.2, 1.5)), 260);
-  setTimeout(() => Sound.scream(rand(-0.8, 0.8), 0.5, rand(0.8, 1.0)), 520);
+  const s1 = [rand(-0.8, 0.8), rand(1.2, 1.5)], s2 = [rand(-0.8, 0.8), rand(0.8, 1.0)];
+  setTimeout(() => Sound.scream(s1[0], 0.6, s1[1]), 260);
+  setTimeout(() => Sound.scream(s2[0], 0.5, s2[1]), 520);
   buzz([90, 50, 260]);
   let ix = 0, iz = 0;
   const vehicle = !!(ent && isVehicle(ent));
@@ -5889,8 +6019,8 @@ function startCrashPhotos(wx, wz) {
   }
   const r = player.run; toLocal(r, wx, wz, _t);
   for (let i = n; i < 3; i++) {
-    const sx = Math.random() < 0.5 ? -1 : 1;
-    const e = spawnPed(r, 'tourist', sx * rand(12.9, 15.5), _t.z + (Math.random() < 0.5 ? -1 : 1) * rand(9, 22), 'photo');
+    const sx = rnd() < 0.5 ? -1 : 1;
+    const e = spawnPed(r, 'tourist', sx * rand(12.9, 15.5), _t.z + (rnd() < 0.5 ? -1 : 1) * rand(9, 22), 'photo');
     setPhoto(e, _t.x, _t.z);
   }
 }
@@ -5927,12 +6057,12 @@ function updateFlying(dt) {
     if (m.position.y < gy) {
       m.position.y = gy; u.v.y *= -0.32; u.v.x *= 0.62; u.v.z *= 0.62; u.av.multiplyScalar(0.6);
       if (Math.abs(u.v.y) < 0.8) u.v.y = 0;
-      if (u.bleed > 0 && Math.random() < 0.5) emit(m.position.x, gy, m.position.z, 0, -1, 0, bloodColor(), rand(0.25, 0.5));
+      if (u.bleed > 0 && fxRnd() < 0.5) emit(m.position.x, gy, m.position.z, 0, -1, 0, bloodColor(), frand(0.25, 0.5));
     }
     if (u.bleed > 0) {
       u.bleed -= dt;
-      const n = Math.random() < 0.85 ? 2 : 1;
-      for (let k = 0; k < n; k++) emit(m.position.x, m.position.y, m.position.z, u.v.x * 0.3 + rand(-1.5, 1.5), rand(2, 6.5), u.v.z * 0.3 + rand(-1.5, 1.5), bloodColor(), rand(0.05, 0.14));
+      const n = fxRnd() < 0.85 ? 2 : 1;
+      for (let k = 0; k < n; k++) emit(m.position.x, m.position.y, m.position.z, u.v.x * 0.3 + frand(-1.5, 1.5), frand(2, 6.5), u.v.z * 0.3 + frand(-1.5, 1.5), bloodColor(), frand(0.05, 0.14));
     }
   }
 }
@@ -5962,7 +6092,7 @@ function winLevel() {
   Game.state = 'winning'; Game.deathT = 0; Game.overReady = false;
   track('level-clear/' + Game.level, 'Cleared level ' + Game.level);
   cashInAll();
-  const bonus = 1000 * Game.level; Game.bonus = bonus; Game.score += bonus;
+  const bonus = AWARDS['LEVEL CLEAR'].pts * Game.level; Game.bonus = bonus; Game.score += bonus;
   const sc = Math.floor(Game.score); if (sc > Game.best) { Game.best = sc; store.set('whatdo_best', sc); }
   setTimeout(() => Voice.say(clearLine(), 5, 'joke'), 1100);
 
@@ -5987,7 +6117,7 @@ function showWin() {
 }
 
 /* =====================================================================
-   MAIN UPDATE
+   RIDING — steering, turning at road closures, ramps, landing
    ===================================================================== */
 const _look = new THREE.Vector3();
 // turning at a road closure is a real arc steered by the player (see updatePlay)
@@ -6032,43 +6162,40 @@ function movePlayer(dt, steer, yawCtl) {
     player.y = gy + player.hy;
   } else player.y = damp(player.y, gy, 18, dt);
 }
+
+/* =====================================================================
+   TRICKS & ROOFS — hops, spins, jumps, roof riding
+   ===================================================================== */
 /* ---------- tricks: BUNNY HOP (E / J, gamepad B) and SPIN 360 (Q / K, gamepad Y): keyboard and controller only ----------
-   A hop clears low things (HOP_CLEAR: how high you need to be, by kind); a spin is a quick full turn of the rider, worth more in the air */
+   A hop clears low things (KINDS[kind].hop: how high you need to be); a spin is a quick full turn of the rider, worth more in the air */
 const HOP_V = 4.0, HOP_G = 23;   // take-off speed and gravity (m/s, m/s²): about 1.2 m up and 0.65 s in the air
-const HOP_CLEAR = { hydrant: 0.7, trash: 1.0, crates: 0.8, rat: 0.25, robot: 0.7, barrier: 0.95, towtruck: 2.5, cart: 3.0, news: 3.0, subway: 1.5, rival: 2.4 };
-// (bus 2.9 and trucks 0.25 under their roofs: you ride the roof, and rolling off its end is a clean drop)
-const VEH_H = { sedan: 1.45, taxi: 1.6, suv: 1.8, police: 1.65, truck: 3.1, bus: 2.9, tourbus: 3.7, carriage: 2.6 };   // (a bus's roof is 3.1 m: you can land on it)
 // how high you have to be to pass over something in the air (Infinity: lamps, trees, buildings... never)
 function clearH(o) {
-  if (HOP_CLEAR[o.kind] !== undefined) return HOP_CLEAR[o.kind];
+  const K = KINDS[o.kind];
+  if (K && K.hop !== undefined) return K.hop;
   if (o === player.roof) return (player.roofH || 3) - 0.25;   // the roof you're riding: whichever part of it you're on
   const rr = (o.type === 'car' || o.kind === 'parked' || o.kind === 'truck') && roofOf(o, PL.z);
   if (rr) return rr.h - 0.25;   // anything with a roof: its height where you are (a little margin: rolling off an end is a drop, not a crash)
-  if (o.type === 'car' || o.type === 'xcar') return VEH_H[o.kind] || 1.8;
-  if (o.kind === 'parked' || o.kind === 'truck') return o.veh ? VEH_H[o.veh.kind] || 1.8 : 3.1;   // (a parked box truck: its roof is 3.17 m)
+  if (o.type === 'car' || o.type === 'xcar') return (K && K.h) || 1.8;
+  if (o.kind === 'parked' || o.kind === 'truck') { const V = o.veh && KINDS[o.veh.kind]; return o.veh ? (V && V.h) || 1.8 : 3.1; }   // (a parked box truck: its roof is 3.17 m)
   if (o.type === 'ped' || o.type === 'bike') return 2.0;
   return Infinity;
 }
 const airH = () => Math.max(player.hy || 0, player.onRamp ? player.rampH || 0 : 0);   // how high the rider is off the road (in the air, or up the ramp)
-const BIG_AIR_PTS = 600, CAR_JUMP_PTS = 700, LANDING_PTS = 400;
 const LANDING_DEATHS = ['Landed on a taxi. The taxi did not agree.', 'Stuck the landing. In a windshield.', 'Air mail: return to sender.', 'Flew too close to the traffic.'];
-// a plain hop or spin can be mashed, so it's worth almost nothing and doesn't touch the chain; spins off a ramp (or a roof drop) are the real AIR 360s
-const HOP_PTS = 5, HOP_OVER_PTS = 300, SPIN_PTS = 5, HOP_SPIN_PTS = 15, AIR_SPIN_PTS = 450, SPIN_TIME = 0.55;
+const SPIN_TIME = 0.55;   // how long a spin takes (s)
 /* ---------- roof riding: come down from a ramp jump onto a city bus or a box truck (moving, or parked in the bike lane)
    and you ride its roof, then drop off the end or a side (or hop off) ---------- */
-const ROOF_PTS = 2700, BUS_SURF_PTS = 500;   // landing on a roof (x speed, x2 in the scoring guide's top end); riding it, per second
-const CAR_ROOF = { sedan: [1.04, 1.76, 2.2, 0.25], taxi: [1.04, 1.76, 2.3, 0.25], police: [1.04, 1.76, 2.2, 0.25], suv: [1.22, 2.04, 2.9, 0.4] };   // body top, cabin roof, cabin length, cabin offset toward the back
 function roofOf(o, pz = player.z) {   // the rideable top: { x, z, hw, hd, h } in the run's coordinates (or null); pz: where the rider is along it
-  if (o.kind === 'bus') return { x: o.x, z: o.z, hw: 1.25, hd: o.hd - 0.1, h: 3.12 };
-  const ck = o.kind === 'parked' ? o.veh && o.veh.kind : o.kind, c = CAR_ROOF[ck];
-  if (c && (o.type === 'car' || o.kind === 'parked')) {   // a car: its cabin roof, or the hood / trunk around it, whichever you're over
-    const back = o.kind === 'parked' || o.dir > 0 ? -1 : 1, cab = { x: o.x, z: o.z + back * c[3], hw: 1.0, hd: c[2] / 2 + 0.05, h: c[1] };   // (parked cars face the other way)
-    return Math.abs(pz - cab.z) <= cab.hd ? cab : { x: o.x, z: o.z, hw: 1.05, hd: o.hd + 0.6, h: c[0] };
+  if (o.kind === 'bus') { const b = KINDS.bus.roof; return { x: o.x, z: o.z, hw: b.hw, hd: o.hd - 0.1, h: b.h }; }
+  const ck = o.kind === 'parked' ? o.veh && o.veh.kind : o.kind, c = KINDS[ck] && KINDS[ck].roof;
+  if (c && c.cabin && (o.type === 'car' || o.kind === 'parked')) {   // a car: its cabin roof, or the hood / trunk around it, whichever you're over
+    const back = o.kind === 'parked' || o.dir > 0 ? -1 : 1, cab = { x: o.x, z: o.z + back * c.back, hw: 1.0, hd: c.len / 2 + 0.05, h: c.cabin };   // (parked cars face the other way)
+    return Math.abs(pz - cab.z) <= cab.hd ? cab : { x: o.x, z: o.z, hw: 1.05, hd: o.hd + 0.6, h: c.body };
   }
-  if (o.kind === 'truck') {   // the cargo box (3.17 m), or the cab in front of it (2.19 m): whichever you're over
-    // (the two overlap, and reach the truck's full outline at both ends, so stepping down and rolling off are seamless)
-    const back = o.type === 'car' && o.dir > 0 ? -1 : 1, box = { x: o.x, z: o.z + back * 1.25, hw: 1.15, hd: 2.8, h: 3.17 };
-    return Math.abs(pz - box.z) <= box.hd ? box : { x: o.x, z: o.z - back * 2.75, hw: 1.1, hd: 1.35, h: 2.19 };
+  if (o.kind === 'truck') {   // the cargo box, or the cab in front of it: whichever you're over
+    const T = KINDS.truck.roof, back = o.type === 'car' && o.dir > 0 ? -1 : 1, box = { x: o.x, z: o.z + back * T.box.off, hw: T.box.hw, hd: T.box.hd, h: T.box.h };
+    return Math.abs(pz - box.z) <= box.hd ? box : { x: o.x, z: o.z - back * T.cab.off, hw: T.cab.hw, hd: T.cab.hd, h: T.cab.h };
   }
   return null;
 }
@@ -6082,9 +6209,9 @@ function roofUnder() {
   return null;
 }
 function scoreJump(sf) {   // the air you got on the way: shared by landing on the road and on a roof
-  award('BIG AIR! ' + player.airT.toFixed(1) + 's', BIG_AIR_PTS * player.airT * player.airT * sf, 'good');
-  if (player.carsOver > 0) award('CAR JUMP!' + (player.carsOver > 1 ? ' x' + player.carsOver : ''), CAR_JUMP_PTS * player.carsOver * sf, 'good');
-  if (player.hopOver > 1) award('CLEARED x' + player.hopOver, HOP_OVER_PTS * player.hopOver * sf, 'good');   // (the tow truck's cab is always one)
+  give('BIG AIR!', player.airT * player.airT * sf, 'BIG AIR! ' + player.airT.toFixed(1) + 's');
+  if (player.carsOver > 0) give('CAR JUMP!', player.carsOver * sf, 'CAR JUMP!' + (player.carsOver > 1 ? ' x' + player.carsOver : ''));
+  if (player.hopOver > 1) give('CLEARED', player.hopOver * sf, 'CLEARED x' + player.hopOver);   // (the tow truck's cab is always one)
   player.carsOver = 0; player.hopOver = 0; player.airSpins = 0;
 }
 function landOnRoof(b, h) {
@@ -6095,7 +6222,7 @@ function landOnRoof(b, h) {
   if (b.hopped) { b.hopped = false; if (b.type) player.carsOver = Math.max(0, player.carsOver - 1); else player.hopOver = Math.max(0, player.hopOver - 1); }   // what you landed on wasn't jumped over
   if (player.jumped) scoreJump(sf);
   player.jumped = false; player.roof = b; player.roofT = 0;
-  award('ROOF LANDING!', ROOF_PTS * sf, 'good');
+  give('ROOF LANDING!', sf);
   Sound.blip(70, 0.14, 'sine', 0.4); Sound.crunch(); Game.shake = Math.max(Game.shake, 0.35);   // a metal thump
   if (b.type === 'car') setTimeout(() => Sound.honk(clamp((b.x - player.x) / 6, -1, 1), 1, true), 250);   // and the driver lays on the horn
   else if (b.kind === 'parked') carAlarm(b);   // a parked car: off goes its alarm
@@ -6103,7 +6230,7 @@ function landOnRoof(b, h) {
 function leaveRoof(vy) {   // off the end or a side (vy 0), or hopped off (vy up): a drop to the road that scores like a small jump
   const t = player.roofT || 0, b = player.roof;
   player.roof = null; player.hy = player.roofH || 3; player.vy = vy; player.jumped = true; player.airT = 0; player.carsOver = 0; player.hopOver = 0;
-  if (Game.state === 'play') award((b && b.kind === 'bus' ? 'BUS' : b && b.kind === 'truck' ? 'TRUCK' : 'CAR') + ' SURFING ' + t.toFixed(1) + 's', BUS_SURF_PTS * Math.max(0.5, t) * (player.speed / player.base), 'good');
+  if (Game.state === 'play') give('SURFING', Math.max(0.5, t) * (player.speed / player.base), (b && b.kind === 'bus' ? 'BUS' : b && b.kind === 'truck' ? 'TRUCK' : 'CAR') + ' SURFING ' + t.toFixed(1) + 's');
 }
 function hop() {
   if (player.roof && Game.state === 'play') { leaveRoof(HOP_V + 2); Sound.blip(260, 0.05, 'square', 0.07); return; }   // hop off the roof
@@ -6119,11 +6246,11 @@ function landHop() {
     if (player.spinT >= 0) { die('midspin', null); return; }   // still spinning when you land: wipe out
     const sf = player.speed / player.base;
     scoreJump(sf);
-    if (Math.abs(player.vx) < 5) award('STUCK THE LANDING!', LANDING_PTS * sf, 'good');
+    if (Math.abs(player.vx) < 5) give('STUCK THE LANDING!', sf);
     return;
   }
-  if (player.hopOver > 0) award('HOP OVER!' + (player.hopOver > 1 ? ' x' + player.hopOver : ''), HOP_OVER_PTS * player.hopOver * (player.speed / player.base), 'good');
-  else award('BUNNY HOP', HOP_PTS, 'trick', null);
+  if (player.hopOver > 0) give('HOP OVER!', player.hopOver * (player.speed / player.base), 'HOP OVER!' + (player.hopOver > 1 ? ' x' + player.hopOver : ''));
+  else give('BUNNY HOP');
 }
 function spin360() {
   if (Game.state !== 'play' || player.spinT >= 0) return;
@@ -6138,11 +6265,15 @@ function updateTricks(dt) {
   if (k >= 1) {
     const air = player.spinAir || player.hy > 0.15;
     player.spinT = -1; player.spinA = 0;
-    if (air && player.jumped) { player.airSpins = (player.airSpins || 0) + 1; const n = player.airSpins; award('AIR ' + n * 360 + '!', AIR_SPIN_PTS * n * (player.speed / player.base), 'good'); }   // off a ramp / roof: AIR 360, 720, 1080...
-    else if (air) award('HOP 360', HOP_SPIN_PTS, 'trick', null);   // during a plain bunny hop
-    else award('SPIN 360!', SPIN_PTS, 'trick', null);
+    if (air && player.jumped) { player.airSpins = (player.airSpins || 0) + 1; const n = player.airSpins; give('AIR 360!', n * (player.speed / player.base), 'AIR ' + n * 360 + '!'); }   // off a ramp / roof: AIR 360, 720, 1080...
+    else if (air) give('HOP 360');   // during a plain bunny hop
+    else give('SPIN 360!');
   }
 }
+
+/* =====================================================================
+   MAIN UPDATE — one frame of play, and the camera
+   ===================================================================== */
 function updatePlay(dt) {
   Game.time += dt; Game.elapsed += dt; Game.runT += dt;
   updateGas(dt); checkItems(); updateExtras(dt); updateTricks(dt);
@@ -6278,7 +6409,7 @@ function updateCamera(dt) {
     camera.rotateZ(camRoll);
   } else camRoll = 0;
   const shake = Game.shake + (Game.state === 'play' && player.boost ? 0.05 * sf : 0);
-  if (shake > 0.001) { camera.position.x += rand(-1, 1) * shake * 0.25; camera.position.y += rand(-1, 1) * shake * 0.25; camera.rotateZ(rand(-1, 1) * shake * 0.02); }
+  if (shake > 0.001) { camera.position.x += frand(-1, 1) * shake * 0.25; camera.position.y += frand(-1, 1) * shake * 0.25; camera.rotateZ(frand(-1, 1) * shake * 0.02); }
   Game.shake = Math.max(0, Game.shake - dt * 2.2);
   }
   const vis = Game.state === 'play' ? clamp((player.speed - player.base + 2) / (player.max - player.base), 0, 1) : 0;
@@ -6370,7 +6501,7 @@ function startReplay(auto) {
   $('replayUI').classList.remove('hidden');
   clearFlying(); splatMesh.visible = false; buildRig();   // the live crash's blood stays, just hidden until the replay's impact
   // film from the road side so parked cars and buildings don't block the shot
-  RP.side = info.lx > 1 ? -1 : info.lx < -1 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+  RP.side = info.lx > 1 ? -1 : info.lx < -1 ? 1 : (rnd() < 0.5 ? -1 : 1);
   rotXZ(RP.side * 5.5, -9, info.ang, _o); RP.ax = info.x + _o.x; RP.az = info.z + _o.z;
   RP.orbit = Math.atan2(RP.ax - info.x, RP.az - info.z);
   applyAt(RP.t);
@@ -6613,6 +6744,9 @@ $('vidBtn').addEventListener('pointerup', (e) => {
 window.addEventListener('pointerdown', () => { if (Game.state === 'replay') endReplay(); });
 vidBtnState('wait');
 
+/* =====================================================================
+   DEBUG FLY
+   ===================================================================== */
 /* ---------- DEBUG FLY: '`' freezes the game and lets you fly the camera around the city ----------
    W / S (or Up / Down): forward / back where you're looking · A / D (or Left / Right): strafe · mouse: look (the mouse is grabbed;
    click to grab it again after Esc, or drag with a button held) · Shift: up · Ctrl: down · '`' again: back to the game where you left it */
@@ -6652,10 +6786,20 @@ function updateFly(dt) {
   camera.position.y = Math.max(0.5, camera.position.y + sp * fwd * d + up * FLY_CLIMB * dt);
   camera.rotation.set(FLY.pitch, FLY.yaw, 0);
 }
+
+/* =====================================================================
+   FRAME LOOP — every frame: update what this state needs, then draw
+   ===================================================================== */
+// debug sessions: frames per second in the DEBUG tag (counted over each half second of real time)
+function countFps() {
+  FPS.n++; const t = performance.now();
+  if (t - FPS.t0 >= 500) { FPS.el.textContent = 'DEBUG · ' + Math.round(FPS.n * 1000 / (t - FPS.t0)) + ' FPS · SCORES NOT SAVED'; FPS.n = 0; FPS.t0 = t; }
+}
 let lastT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   pollPad();
+  if (FPS.el) countFps();
   let dt = (now - lastT) / 1000; lastT = now;
   if (!(dt > 0)) dt = 0.016; dt = Math.min(dt, 0.05);
   animT += dt;
@@ -6663,58 +6807,83 @@ function frame(now) {
   const st = Game.state;
   if (st !== 'play' && (FOCUS.on || FOCUS.k)) updateFocus(dt);   // any other state drops out of slow-mo
   if (st === 'paused') { renderer.render(scene, camera); return; }
+  simulate(st, dt);
+  present(st, dt);
+  renderer.render(scene, camera);
+}
+let deathDt = 0;   // the world's time step while you're crashing (slowed right down at first)
+// the rules: what happens this frame. The world moves on, things score, timers run out, the state changes.
+// (st: the state the frame started in; Game.state may change along the way)
+function simulate(st, dt) {
   if (st === 'menu') {
-    updatePW(); manageRuns(false); spawnTraffic(player.run, dt, false); updateEntities(dt); updateRig(dt, animT);
+    updatePW(); manageRuns(false); spawnTraffic(player.run, dt, false); updateEntities(dt);
   } else if (st === 'countdown') {
-    Game.cd -= dt;
-    const n = Math.ceil(Game.cd - 0.2);
-    if (n !== Game.lastCd) {
-      Game.lastCd = n; const el = $('countdown');
-      el.style.display = 'block'; el.classList.remove('tick', 'go'); void el.offsetWidth;
-      if (n > 0) { el.textContent = n; Sound.blip(440, 0.18, 'square', 0.14); buzz(12); }
-      else { el.textContent = 'GO!'; el.classList.add('go'); Voice.say('Go!', 2, 'score'); Sound.blip(880, 0.4, 'square', 0.16); buzz(45); }
-      el.classList.add('tick');
-    }
-    player.speed = 0;
-    updateRig(dt, animT);
-    if (Game.cd <= -0.4) {
-      Game.state = 'play'; $('countdown').style.display = 'none'; player.speed = player.base * 0.6;
-    }
+    Game.cd -= dt; player.speed = 0;
+    if (Game.cd <= -0.4) { Game.state = 'play'; player.speed = player.base * 0.6; }
   } else if (st === 'play') {
     updatePlay(dt * updateFocus(dt));
-    if (Game.state === 'play') { updateRig(dt, animT); recordFrame(); }
   } else if (st === 'dying' || st === 'over') {
     Game.deathT += dt;
     const ts = st === 'over' ? 1 : (Game.deathT < 0.9 ? 0.28 : Math.min(1, 0.28 + (Game.deathT - 0.9) * 0.9));
-    const sdt = dt * ts;
-    Game.time += sdt;
-    updateEntities(sdt); updateFlying(sdt); updateParticles(sdt);
+    deathDt = dt * ts; Game.time += deathDt;
+    updateEntities(deathDt);
     if (st === 'dying' && Game.deathT > 2.8) startReplay(true);
-  } else if (st === 'replay') {
-    updateReplay(dt);
   } else if (st === 'winning' || st === 'win') {
     Game.deathT += dt; Game.time += dt;
     player.speed = Math.max(0, player.speed - 22 * dt); player.vx = damp(player.vx, 0, 4, dt);
     movePlayer(dt, 0);
-    updatePW(); updateEntities(dt); updateRig(dt, animT);
-    rig.lean.rotation.z = Math.sin(animT * 6) * 0.15 * Math.min(1, Game.deathT);
-    rig.armL.rotation.z = -2.6 + Math.sin(animT * 10) * 0.3; rig.armR.rotation.z = 2.6 - Math.sin(animT * 10) * 0.3;
-    if (Math.random() < dt * 20) emit(PW.x + rand(-6, 6), rand(7, 11), PW.z + rand(-6, 6), rand(-2, 2), 0, rand(-2, 2), pick([0xff3b3b, 0xffd23f, 0x3ddc84, 0x3dafff, 0xff6fae]), 0.14, 5, 20);
+    updatePW(); updateEntities(dt);
     deathPos.set(PW.x, 1.2, PW.z);
     if (st === 'winning' && Game.deathT > 1.8) showWin();
+  }
+  if (st !== 'replay') { updateDrone(dt); updateEagle(dt); updateUfo(dt); }   // (in the replay the recording moves them)
+  if (st === 'play') updateShouts(dt);   // (the preacher picks what to shout)
+  checkStreetSpots(dt);
+  updateSnaps(dt);
+}
+// the drawing (and the sound): how this frame looks. Nothing here changes what happens in the game.
+function present(st, dt) {
+  if (st === 'menu') updateRig(dt, animT);
+  else if (st === 'countdown') {
+    const el = $('countdown');
+    if (Game.state !== 'countdown') el.style.display = 'none';   // GO! is over
+    else {
+      const n = Math.ceil(Game.cd - 0.2);
+      if (n !== Game.lastCd) {
+        Game.lastCd = n;
+        el.style.display = 'block'; el.classList.remove('tick', 'go'); void el.offsetWidth;
+        if (n > 0) { el.textContent = n; Sound.blip(440, 0.18, 'square', 0.14); buzz(12); }
+        else { el.textContent = 'GO!'; el.classList.add('go'); Voice.say('Go!', 2, 'score'); Sound.blip(880, 0.4, 'square', 0.16); buzz(45); }
+        el.classList.add('tick');
+      }
+    }
+    updateRig(dt, animT);
+  } else if (st === 'play') {
+    if (Game.state === 'play') { updateRig(dt, animT); recordFrame(); }
+  } else if (st === 'dying' || st === 'over') {
+    updateFlying(deathDt); updateParticles(deathDt);
+  } else if (st === 'replay') {
+    updateReplay(dt);
+  } else if (st === 'winning' || st === 'win') {
+    updateRig(dt, animT);
+    rig.lean.rotation.z = Math.sin(animT * 6) * 0.15 * Math.min(1, Game.deathT);
+    rig.armL.rotation.z = -2.6 + Math.sin(animT * 10) * 0.3; rig.armR.rotation.z = 2.6 - Math.sin(animT * 10) * 0.3;
+    if (fxRnd() < dt * 20) emit(PW.x + frand(-6, 6), frand(7, 11), PW.z + frand(-6, 6), frand(-2, 2), 0, frand(-2, 2), fpick([0xff3b3b, 0xffd23f, 0x3ddc84, 0x3dafff, 0xff6fae]), 0.14, 5, 20);   // confetti
   }
   if (st !== 'dying' && st !== 'over' && st !== 'replay') updateParticles(dt);
   updateCamera(dt);
   if (st === 'play' || st === 'countdown') updateHud(false);
   Sound.setEngine(player.speed, st === 'play', player.boost);
-  if (st === 'play') { updateSiren(); updateBuskers(); updateShouts(dt); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
+  if (st === 'play') { updateSiren(); updateBuskers(); } else { Sound.setSiren(0, 0); Sound.setBusker(null, 0, 0); }
   if (st !== 'replay') updateRivalDebris(dt);   // in the replay the pieces follow the recording (then tumble on after the impact)
   updateDecor(dt); updateItems(dt);
-  if (st !== 'replay') { updateDrone(dt); updateEagle(dt); updateUfo(dt); }   // (in the replay the recording moves them) updateBubbles(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); updateSnaps(dt); Sky.update(dt);
+  updateBubbles(dt); updateCitySound(); updateSteam(dt); updateLeaves(dt); updateAlarms(dt); Sky.update(dt);
   if (Game.state === 'replay' && VID.cap) VID.capture();   // the tall video frame first: the normal frame then covers it
-  renderer.render(scene, camera);
 }
 
+/* =====================================================================
+   LEADERBOARD
+   ===================================================================== */
 /* ---------- online leaderboard (Cloudflare Worker + D1; Worker source lives in C:\code\whatdo-leaderboard) ----------
    GET /top?board=day|all → [{ name, score, level }] (top 10) · POST /submit { name, score, level, secs } → { ok, rank }
    The Worker only answers pages on https://restoneuc.com, so from localhost or file:// the board stays hidden. */
@@ -6872,6 +7041,9 @@ $('lbName').addEventListener('input', () => {
 window.addEventListener('online', () => { lbFlush().then(() => LB.fetchBoards(true)); });
 lbFlush().then(() => LB.fetchBoards(false));
 
+/* =====================================================================
+   ANALYTICS
+   ===================================================================== */
 /* ---------- analytics (GoatCounter custom events) ---------- */
 const trackQueue = [];
 // Telegram's script has loaded (see TG near the top)
@@ -6980,6 +7152,9 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   });
 }
 
+/* =====================================================================
+   BOOT
+   ===================================================================== */
 /* ---------- boot ---------- */
 $('startBest').textContent = 'BEST: ' + Game.best.toLocaleString();
 $('splash').textContent = nextLine([
