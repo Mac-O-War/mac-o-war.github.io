@@ -4662,7 +4662,19 @@ function updateEagle(dt) {
     EAGLE.cried = true;
     const rx = m.position.x - camera.position.x, rz = m.position.z - camera.position.z, cy = Math.cos(camYaw), sy = Math.sin(camYaw);
     Sound.screech(clamp((rx * cy - rz * sy) / 25, -1, 1), clamp(1.2 - Math.hypot(rx, rz) / 80, 0.35, 1));
-    if (!Game.mericaJoke && Game.state === 'play') { Game.mericaJoke = true; setTimeout(() => Voice.say('America!', 2, 'joke'), 700); }  // after the screech
+    if (!Game.mericaJoke && Game.state === 'play') 
+    { 
+      const EAGLE_LINES = [
+        'America',
+        'HOME OF THE WHEEL',
+        'FREEDOM INTENSIFIES',
+        'THAT BIRD PAYS ZERO TAXES.',
+        'AIR SUPERIORITY ACHIEVED.',        
+        'WINGS ARE TUBELESS',
+      ];
+      Game.mericaJoke = true; 
+      setTimeout(() => Voice.say(nextLine(EAGLE_LINES), 2, 'joke'), 800);
+    }  // after the screech
   }
 }
 function resetWorld() {
@@ -5029,7 +5041,9 @@ function popup(text, cls) {
    ===================================================================== */
 const P_HW = 0.3, P_HD = 0.5, NEAR = 1.25, SQ_GAP = 1.5, CHAIN_WIN = 3.0;
 const CHICKEN_TTC = 1.8;   // seconds from impact you can still be in an oncoming car's lane and get CHICKEN! (about 55 m)
-const CROSS_NEAR = 8;   // passing within this many metres of a crossing car's bumper scores
+const CROSS_NEAR = 8;
+const CUT_FRONT_PTS = 2400, BEHIND_PTS = 1500;
+const THREAD_PTS = 10000, THREAD_WINDOW = 1.0;   // between two crossing cars (behind one + in front of the other within THREAD_WINDOW s): the best move in the game   // base points for crossing just in front of / just behind cross traffic (x3 for the tightest pass)   // passing within this many metres of a crossing car's bumper scores
 const SC = { chainN: 0, chainT: 0, chainPts: 0, tricks: {}, sq: { t: 0, tight: 0, spd: 0, off: 0 }, gL: Infinity, gR: Infinity };
 const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE', rope: 'TIGHTROPE' };
 const BIKELANE_PTS = 400;   // a block (80 m) in the bike lane; each further block in a row pays 1.5x more
@@ -5049,7 +5063,7 @@ function bumpScore() { const el = $('score'); el.classList.remove('bump'); void 
 function award(label, base, cls, hit) {
   announce(label);
   if (BT.on) { base *= 1.5; if (!BT.shown) { BT.shown = true; popup('BULLET TIME \u00d71.5', 'bt'); } }
-  if (hit !== false) chainHit(); else SC.chainT = Math.max(SC.chainT, 1.0);
+  if (hit === null) { /* spammable tricks: no effect on the chain at all */ } else if (hit !== false) chainHit(); else SC.chainT = Math.max(SC.chainT, 1.0);
   const m = totalMult(), pts = Math.max(1, Math.round(base * m));
   Game.score += pts; SC.chainPts += pts;
   buzz(({ ov: 40, sq: [30, 40, 60], red: [20, 30, 20], good: 25, trick: 15 })[cls] || 12);
@@ -5219,7 +5233,7 @@ const Voice = (() => {
 })();
 // award popup -> what the announcer says, and how important it is (higher interrupts lower; hazard warnings use 4)
 const ANNOUNCE = [
-  [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
+  [/^THREAD THE NEEDLE/, 'Thread the needle!', 4], [/^CHICKEN/, 'Chicken!', 3], [/^SQUEEZE PLAY/, 'Squeeze play!', 3], [/^HIGH FIVE/, 'High five!', 3],
   [/^ONCOMING VELOCITY/, 'Oncoming!', 2], [/^CUT IN FRONT/, 'Cut in front!', 2], [/^RAN THE RED/, 'Ran the red!', 2],
   [/^CAR ALARM/, 'Car alarm!', 2], [/^BIKE LANE HERO/, 'Bike lane hero!', 2], [/^TIGHTROPE/, 'Tightrope!', 1], [/^PHOTOBOMB/, 'Photobomb!', 2], [/^BEHIND THE BUMPER/, 'Close one!', 1], [/^DETOUR/, 'Detour!', 1],
   [/^PIZZA RAT/, 'Respect the rat!', 2], [/^ROBO DODGE/, 'Robo dodge!', 2], [/^PET THE CAT/, 'Pet the cat!', 2], [/^HALLELUJAH/, 'Hallelujah!', 2], [/^HORSE PLAY/, 'Horse play!', 2], [/^SPIDEY SENSE/, 'Spidey sense!', 2],
@@ -5316,8 +5330,9 @@ function buildScoring() {
       ['ONCOMING VELOCITY', 'Pass an oncoming car. Faster and later = more ("CHICKEN!")', fmtPts(ov, ov * 2 * 3.25)],
       ['SQUEEZE PLAY', 'Thread between two things. Tighter and longer = more', fmtPts(600, 600 * 4 * 3)],
       ['HIGH FIVE!', 'Slap the hand of someone at the curb (don’t hit them)', fmtPts(HIFIVE_PTS, HIFIVE_PTS * 2)],
-      ['CUT IN FRONT!', 'Cross just in front of crossing traffic', fmtPts(800, 2400)],
-      ['BEHIND THE BUMPER!', 'Cross just behind crossing traffic', fmtPts(500, 1500)],
+      ['THREAD THE NEEDLE!', 'Shoot between two crossing cars: behind one and in front of the other, back to back (on top of both)', fmtPts(THREAD_PTS, THREAD_PTS * 3)],
+      ['CUT IN FRONT!', 'Cross just in front of crossing traffic', fmtPts(CUT_FRONT_PTS, CUT_FRONT_PTS * 3)],
+      ['BEHIND THE BUMPER!', 'Cross just behind crossing traffic', fmtPts(BEHIND_PTS, BEHIND_PTS * 3)],
       ['RAN THE RED!', 'Ride through a red light (more with traffic)', fmtPts(600, 1080)]]],
     ['MOVES', '', [
       ['CAR ALARM!', 'Pass close enough to a parked car to set it off', fmtPts(CAR_ALARM_PTS, CAR_ALARM_PTS * 2)],
@@ -5330,7 +5345,7 @@ function buildScoring() {
       ['CAR / BUS / TRUCK SURFING', 'Ride the roof, then drop off the end (or hop off)', fmtPts(BUS_SURF_PTS) + ' / SEC'],
       ['STUCK THE LANDING!', 'Land a ramp jump riding straight (and not mid-spin: that wipes you out)', fmtPts(LANDING_PTS, LANDING_PTS * 2)],
       ['HOP OVER!', 'Bunny hop over something low: a hydrant, trash can, crates, a delivery robot, barriers…', fmtPts(HOP_OVER_PTS, HOP_OVER_PTS * 2) + ' EACH'],
-      ['AIR 360!', 'Spin 360 in the middle of a bunny hop', fmtPts(AIR_SPIN_PTS, AIR_SPIN_PTS * 2)],
+      ['AIR 360!', 'Spin 360 in the air off a ramp (or a roof drop); 720, 1080… for more spins', fmtPts(AIR_SPIN_PTS, AIR_SPIN_PTS * 2)],
       ['PET THE CAT!', 'Ride past close to the bodega cat on the crates (on the sidewalk)', fmtPts(CAT_PTS)],
       ['COO COO!', 'Brush past the mascot in the pigeon costume', fmtPts(350, 700)],
       ['SIGN DODGE!', 'Slip past the spinning arrow sign at the curb', fmtPts(250, 500)],
@@ -5354,8 +5369,8 @@ function buildScoring() {
       ['FULL THROTTLE', 'Stay at top speed', '45 / SEC'],
       ['TIGHTROPE', 'Ride the double yellow line for 2+ seconds (double with oncoming cars close)', '60–400 / SEC'],
       ['SNAP!', 'Every photo a tourist takes of you', fmtPts(SNAP_PTS) + ' EACH'],
-      ['BUNNY HOP', 'Hop (E / J, or gamepad B)', fmtPts(HOP_PTS)],
-      ['SPIN 360!', 'A full spin on the ground (Q / K, or gamepad Y)', fmtPts(SPIN_PTS)],
+      ['BUNNY HOP', 'Hop (E / J, or gamepad B). Just for fun: barely scores, doesn’t keep the chain', fmtPts(HOP_PTS)],
+      ['SPIN 360!', 'A full spin (Q / K, or gamepad Y). Just for fun unless you’re off a ramp', fmtPts(SPIN_PTS)],
       ['CLOSE ENCOUNTER!', 'Squash Pizza Rat and a UFO comes for a pigeon: ride through its tractor beam', fmtPts(UFO_PTS, UFO_PTS * 2)],
       ['STEAM BATH!', 'Ride through a steaming manhole', fmtPts(STEAM_PTS)],
       ['PIGEON SCATTER!', 'Ride through a flock of pigeons', fmtPts(PIGEON_PTS)],
@@ -5458,7 +5473,13 @@ function nearMissScore(o, isStatic) {
   if (o.type === 'xcar') {
     // scored by crossPass(): in front (the car was still coming at you) is worth more than behind
     const front = o.crossFront, t = o.crossTight;
-    award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? 800 : 500) * sf * (1 + t * 2), 'nm');
+    award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? CUT_FRONT_PTS : BEHIND_PTS) * sf * (1 + t * 2), 'nm');
+    // behind one crossing car and in front of another (either order), back to back: you threaded between them
+    const last = SC.lastCross;
+    if (last && last.e !== o && last.front !== front && Game.time - last.t < THREAD_WINDOW) {
+      award('THREAD THE NEEDLE!', THREAD_PTS * sf * (1 + t + last.tight), 'good');
+      Game.shake = Math.max(Game.shake, 0.5); buzz([30, 40, 80]); SC.lastCross = null;
+    } else SC.lastCross = { t: Game.time, e: o, front, tight: t };
   } else if (o.kind === 'carriage') { award('HORSE PLAY!', 300 * sf * (1 + tight), 'good'); Sound.neigh(pan, 1); }
   else if (o.type === 'car') award('NEAR MISS!', 100 * sf * (1 + tight), 'nm');
   else if (o.type === 'bike' && o.kind === 'skate') award('SKATE DODGE!', 150 * sf * (1 + tight), 'nm');
@@ -5648,6 +5669,7 @@ const flying = [];
 function die(kind, ent) {
   if (Game.state !== 'play' || Game.debug.god) return;
   var sayings = [
+    'You wheelie messed that up',
     'Absolute cinema',
     'What do?',
     'Delete this run', 
@@ -6019,10 +6041,11 @@ function clearH(o) {
 const airH = () => Math.max(player.hy || 0, player.onRamp ? player.rampH || 0 : 0);   // how high the rider is off the road (in the air, or up the ramp)
 const BIG_AIR_PTS = 600, CAR_JUMP_PTS = 700, LANDING_PTS = 400;
 const LANDING_DEATHS = ['Landed on a taxi. The taxi did not agree.', 'Stuck the landing. In a windshield.', 'Air mail: return to sender.', 'Flew too close to the traffic.'];
-const HOP_PTS = 80, HOP_OVER_PTS = 300, SPIN_PTS = 150, AIR_SPIN_PTS = 450, SPIN_TIME = 0.55;
+// a plain hop or spin can be mashed, so it's worth almost nothing and doesn't touch the chain; spins off a ramp (or a roof drop) are the real AIR 360s
+const HOP_PTS = 5, HOP_OVER_PTS = 300, SPIN_PTS = 5, HOP_SPIN_PTS = 15, AIR_SPIN_PTS = 450, SPIN_TIME = 0.55;
 /* ---------- roof riding: come down from a ramp jump onto a city bus or a box truck (moving, or parked in the bike lane)
    and you ride its roof, then drop off the end or a side (or hop off) ---------- */
-const ROOF_PTS = 900, BUS_SURF_PTS = 500;
+const ROOF_PTS = 2700, BUS_SURF_PTS = 500;   // landing on a roof (x speed, x2 in the scoring guide's top end); riding it, per second
 const CAR_ROOF = { sedan: [1.04, 1.76, 2.2, 0.25], taxi: [1.04, 1.76, 2.3, 0.25], police: [1.04, 1.76, 2.2, 0.25], suv: [1.22, 2.04, 2.9, 0.4] };   // body top, cabin roof, cabin length, cabin offset toward the back
 function roofOf(o, pz = player.z) {   // the rideable top: { x, z, hw, hd, h } in the run's coordinates (or null); pz: where the rider is along it
   if (o.kind === 'bus') return { x: o.x, z: o.z, hw: 1.25, hd: o.hd - 0.1, h: 3.12 };
@@ -6089,7 +6112,7 @@ function landHop() {
     return;
   }
   if (player.hopOver > 0) award('HOP OVER!' + (player.hopOver > 1 ? ' x' + player.hopOver : ''), HOP_OVER_PTS * player.hopOver * (player.speed / player.base), 'good');
-  else award('BUNNY HOP', HOP_PTS, 'trick', false);
+  else award('BUNNY HOP', HOP_PTS, 'trick', null);
 }
 function spin360() {
   if (Game.state !== 'play' || player.spinT >= 0) return;
@@ -6104,8 +6127,9 @@ function updateTricks(dt) {
   if (k >= 1) {
     const air = player.spinAir || player.hy > 0.15;
     player.spinT = -1; player.spinA = 0;
-    if (air) { player.airSpins = (player.airSpins || 0) + 1; const n = player.airSpins; award('AIR ' + n * 360 + '!', AIR_SPIN_PTS * n * (player.speed / player.base), 'good'); }   // AIR 360, 720, 1080...
-    else award('SPIN 360!', SPIN_PTS, 'trick', false);
+    if (air && player.jumped) { player.airSpins = (player.airSpins || 0) + 1; const n = player.airSpins; award('AIR ' + n * 360 + '!', AIR_SPIN_PTS * n * (player.speed / player.base), 'good'); }   // off a ramp / roof: AIR 360, 720, 1080...
+    else if (air) award('HOP 360', HOP_SPIN_PTS, 'trick', null);   // during a plain bunny hop
+    else award('SPIN 360!', SPIN_PTS, 'trick', null);
   }
 }
 function updatePlay(dt) {
