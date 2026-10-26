@@ -271,6 +271,13 @@ export default (test) => {
     await g.expect('!UFO.mesh.visible && !UFO.beam.visible', 'no UFO left behind');
   }, { quiet: true, speed: 19 });
 
+  test('in the replay the news drone’s rotors still spin', async (g) => {
+    await g.js("startDrone(); __step(3); die('taxi', null)");
+    await g.until("Game.state === 'replay' && DRONE.mesh.visible", 6);
+    const a = await g.js('DRONE.rotors[0].rotation.y'); await g.step(0.3);
+    g.ok(await g.js('DRONE.rotors[0].rotation.y') !== a, 'spinning');
+  }, { quiet: true, speed: 19 });
+
   test('surviving the level clears it', async (g) => {
     await g.js('Game.elapsed = Game.levelTime - 0.1');
     await g.until("Game.state === 'winning' || Game.state === 'win'", 1);
@@ -369,6 +376,28 @@ export default (test) => {
     await g.expectAlive();
     await g.js('PRED.auto = false');
   }, { quiet: true, speed: 19, x: 2.25 });
+
+  test('auto drive: boosts whenever there is charge', async (g) => {
+    await g.js("PRED.auto = true; GASC.got = Math.max(1, GASC.got); GASC.t = GAS_MAX; __step(2)");
+    await g.expect('player.boost && player.speed > player.base + 5', 'boosting');
+    await g.js('GASC.t = 0; __step(3); PRED.auto = false');
+    await g.expect('!player.boost && player.speed < player.base + 1', 'back to cruising once the charge is gone');
+  }, { quiet: true, god: true, speed: 19 });
+
+  test('auto drive: goes on to the next level by itself', async (g) => {
+    await g.js("PRED.auto = true; Game.elapsed = Game.levelTime - 0.1");
+    await g.until("Game.state === 'win'", 3);
+    await g.until("Game.level === 2 && Game.state === 'play'", 8);
+    await g.js('PRED.auto = false');
+  }, { quiet: true, god: true, speed: 19 });
+
+  test('auto drive: after a crash and its replay, carries on (CONTINUE) by itself', async (g) => {
+    await g.js("Game.level = 3; beginLevel(); Game.cd = -1; __step(0.1); __step(2); PRED.auto = true; die('taxi', null)");
+    await g.until("Game.state === 'over'", 25);
+    await g.until("Game.state === 'play'", 10);
+    g.eq(await g.js('Game.level'), 3, 'same level');
+    await g.js('PRED.auto = false');
+  }, { quiet: true, speed: 19 });
 
   test('auto drive: 20 s of real traffic on a fixed seed', async (g) => {
     await g.js('PRED.auto = true; __step(20); PRED.auto = false');
