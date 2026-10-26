@@ -460,7 +460,7 @@ body:not(.touch) .card.tch{display:none}
 <section id="debugScreen" class="screen hidden">
   <h2 class="big g">DEBUG</h2>
   <div id="dbgList">
-    <button class="btn sm dbgBtn" data-act="ufo">UFO</button>
+    <button class="btn sm dbgBtn" data-act="ufo" data-nav-first="1">UFO</button>
     <button class="btn sm dbgBtn" data-act="eagle">EAGLE</button>
     <button class="btn sm dbgBtn" data-act="rival">RIVAL</button>
     <button class="btn sm dbgBtn" data-act="gang">RIVAL GANG</button>
@@ -4244,7 +4244,7 @@ function navSet(el) {
   NAV.el = el || null;
   if (el) { el.classList.add('padFocus'); try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { /* old browsers */ } }
 }
-const navDefault = (items) => items.find((el) => el.classList.contains('alt')) || items[0] || null;   // the green (main) button first
+const navDefault = (items) => items.find((el) => el.dataset.navFirst) || items.find((el) => el.classList.contains('alt')) || items[0] || null;   // a screen's chosen first button, else the green (main) one
 function navMove(dx, dy) {
   const scr = navScreen(); if (!scr) return;
   const items = navItems(scr); if (!items.length) return;
@@ -4264,6 +4264,16 @@ function navMove(dx, dy) {
     if (along <= 4) continue;   // not in that direction
     const score = along + across * 2.5;
     if (score < bestScore) { bestScore = score; best = el; }
+  }
+  if (!best) {   // nothing further that way: wrap round to the far side (the item furthest the other way, nearest in line)
+    for (const el of items) {
+      if (el === NAV.el) continue;
+      const r = el.getBoundingClientRect(), x = r.left + r.width / 2 - ax, y = r.top + r.height / 2 - ay;
+      const along = dx ? x * dx : y * dy, across = dx ? Math.abs(y) : Math.abs(x);
+      if (along >= -4) continue;
+      const score = along + across * 0.5;   // most negative = furthest back
+      if (score < bestScore) { bestScore = score; best = el; }
+    }
   }
   if (best) navSet(best);
 }
@@ -4594,14 +4604,15 @@ const UFO = { state: 'off', t: 0, cd: 0, pending: false, mesh: null, beam: null,
 })();
 function startUfo() {   // pick (or put) a pigeon on the ground ahead, timed so you arrive while the beam is on
   const r = player.run; setPL(r);
-  const want = PL.z - (player.speed * 3.6 + 25);
+  const want = PL.z - (player.speed * 4.8 + 35);   // far enough ahead that the whole show (1.8 s in, 3.2 s of beam) happens in front of you
   let pg = null, best = Infinity;
-  for (const e of r.ents) if (e.type === 'pigeon' && !e.fly && !e.perch && !e.leader && Math.abs(e.z - want) < best && e.z < PL.z - 40) { best = Math.abs(e.z - want); pg = e; }
-  if (!pg || best > 40) { if (want < r.endZc + 20) return false; pg = spawnPigeon(r, (Math.random() < 0.5 ? -1 : 1) * rand(2, 13), want); }
+  for (const e of r.ents) if (e.type === 'pigeon' && !e.fly && !e.perch && !e.leader && Math.abs(e.x) < 9 && Math.abs(e.z - want) < best && e.z < PL.z - 60) { best = Math.abs(e.z - want); pg = e; }   // one in the road, where you'll see it
+  if (!pg || best > 40) { if (want < r.endZc + 20) return false; pg = spawnPigeon(r, (Math.random() < 0.5 ? -1 : 1) * rand(1.5, 7.5), want); }
   pg.abducted = 'wait'; UFO.pg = pg; UFO.run = r; UFO.state = 'in'; UFO.t = 0; UFO.met = false;
   toWorld(r, pg.x, pg.z, _t); UFO.at.set(_t.x, 15, _t.z);
-  const side = Math.random() < 0.5 ? -1 : 1; toWorld(r, pg.x + side * 70, pg.z - 30, _t); UFO.from.set(_t.x, 45, _t.z);
-  toWorld(r, pg.x - side * 90, pg.z - 60, _t); UFO.to.set(_t.x, 70, _t.z);
+  // it drops in from high overhead and leaves straight up, drifting only a little along the street (never through a building)
+  const side = Math.random() < 0.5 ? -1 : 1; toWorld(r, clamp(pg.x + side * 3, -6, 6), pg.z - 12, _t); UFO.from.set(_t.x, 110, _t.z);
+  toWorld(r, clamp(pg.x - side * 3, -6, 6), pg.z - 18, _t); UFO.to.set(_t.x, 160, _t.z);
   UFO.mesh.position.copy(UFO.from); UFO.mesh.visible = true;
   const rx = UFO.at.x - camera.position.x, rz = UFO.at.z - camera.position.z, cy = Math.cos(camYaw), sy = Math.sin(camYaw);
   Sound.ufo(clamp((rx * cy - rz * sy) / 30, -1, 1)); Voice.say(nextLine(UFO_LINES), 3, 'joke');
