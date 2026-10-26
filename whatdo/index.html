@@ -5043,7 +5043,7 @@ const P_HW = 0.3, P_HD = 0.5, NEAR = 1.25, SQ_GAP = 1.5, CHAIN_WIN = 3.0;
 const CHICKEN_TTC = 1.8;   // seconds from impact you can still be in an oncoming car's lane and get CHICKEN! (about 55 m)
 const CROSS_NEAR = 8;
 const CUT_FRONT_PTS = 2400, BEHIND_PTS = 1500;
-const THREAD_PTS = 10000, THREAD_WINDOW = 1.0;   // between two crossing cars (behind one + in front of the other within THREAD_WINDOW s): the best move in the game   // base points for crossing just in front of / just behind cross traffic (x3 for the tightest pass)   // passing within this many metres of a crossing car's bumper scores
+const THREAD_PTS = 10000, THREAD_WINDOW = 1.0;   // between two crossing cars (any two passed within THREAD_WINDOW s): the best move in the game   // base points for crossing just in front of / just behind cross traffic (x3 for the tightest pass)   // passing within this many metres of a crossing car's bumper scores
 const SC = { chainN: 0, chainT: 0, chainPts: 0, tricks: {}, sq: { t: 0, tight: 0, spd: 0, off: 0 }, gL: Infinity, gR: Infinity };
 const TRICK_NAMES = { wrong: 'WRONG WAY', side: 'SIDEWALK SURFING', speed: 'FULL THROTTLE', rope: 'TIGHTROPE' };
 const BIKELANE_PTS = 400;   // a block (80 m) in the bike lane; each further block in a row pays 1.5x more
@@ -5330,7 +5330,7 @@ function buildScoring() {
       ['ONCOMING VELOCITY', 'Pass an oncoming car. Faster and later = more ("CHICKEN!")', fmtPts(ov, ov * 2 * 3.25)],
       ['SQUEEZE PLAY', 'Thread between two things. Tighter and longer = more', fmtPts(600, 600 * 4 * 3)],
       ['HIGH FIVE!', 'Slap the hand of someone at the curb (don’t hit them)', fmtPts(HIFIVE_PTS, HIFIVE_PTS * 2)],
-      ['THREAD THE NEEDLE!', 'Shoot between two crossing cars: behind one and in front of the other, back to back (on top of both)', fmtPts(THREAD_PTS, THREAD_PTS * 3)],
+      ['THREAD THE NEEDLE!', 'Shoot between two crossing cars, passing both within a second (on top of both passes)', fmtPts(THREAD_PTS, THREAD_PTS * 3)],
       ['CUT IN FRONT!', 'Cross just in front of crossing traffic', fmtPts(CUT_FRONT_PTS, CUT_FRONT_PTS * 3)],
       ['BEHIND THE BUMPER!', 'Cross just behind crossing traffic', fmtPts(BEHIND_PTS, BEHIND_PTS * 3)],
       ['RAN THE RED!', 'Ride through a red light (more with traffic)', fmtPts(600, 1080)]]],
@@ -5474,9 +5474,9 @@ function nearMissScore(o, isStatic) {
     // scored by crossPass(): in front (the car was still coming at you) is worth more than behind
     const front = o.crossFront, t = o.crossTight;
     award(front ? 'CUT IN FRONT!' : 'BEHIND THE BUMPER!', (front ? CUT_FRONT_PTS : BEHIND_PTS) * sf * (1 + t * 2), 'nm');
-    // behind one crossing car and in front of another (either order), back to back: you threaded between them
+    // two different crossing cars passed back to back (in front of both, behind both, or one of each): you threaded between them
     const last = SC.lastCross;
-    if (last && last.e !== o && last.front !== front && Game.time - last.t < THREAD_WINDOW) {
+    if (last && last.e !== o && Game.time - last.t < THREAD_WINDOW) {
       award('THREAD THE NEEDLE!', THREAD_PTS * sf * (1 + t + last.tight), 'good');
       Game.shake = Math.max(Game.shake, 0.5); buzz([30, 40, 80]); SC.lastCross = null;
     } else SC.lastCross = { t: Game.time, e: o, front, tight: t };
