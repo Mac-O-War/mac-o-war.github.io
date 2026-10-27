@@ -324,6 +324,12 @@ export default (test) => {
     await g.expectAlive();
     await g.expectAward(/^CONE BOWLING!/);
   }, { quiet: true, speed: 19 });
+  test('road works: no cone stands where its barricades would stop you (hitting a cone is never a crash)', async (g) => {
+    const z0 = await g.js(WORKS);
+    await g.expect(`(() => { const ch = player.run.chunks.find((c) => c.z0 === ${z0}), bad = [];
+      for (const c of ch.cones) for (const o of ch.statics) if (Math.abs(c.x - o.x) < o.hw + P_HW && Math.abs(ch.z0 + c.z - o.z) < o.hd + P_HD + 1) bad.push(c);   // (a rider through its middle)
+      return ch.cones.length >= 16 && !bad.length; })()`, 'riding through any cone touches nothing solid');
+  }, { quiet: true, speed: 19 });
   test('road works: its barricade still stops you', async (g) => {
     await g.js(WORKS); await g.js('__pin(LANES[2])');
     await g.step(5);
@@ -347,7 +353,7 @@ export default (test) => {
     await g.js("debugAction('pred'); __step(0.3)");
     await g.expect('PRED.on && PRED.mesh.visible', 'drawn');
     const open = await g.js('PRED.paths');
-    g.ok(open > 50 && open <= 5 + 25 + 125, 'most ways are open on an empty road (the hardest swerves reach the sidewalk lamps): ' + open);
+    g.ok(open > 50 && open <= 7 + 35 + 175, 'most ways are open on an empty road (the hardest swerves reach the sidewalk lamps): ' + open);
     await g.js("spawnCar(player.run, 2, player.z - 25, 'bus'); Object.assign(player.run.ents[player.run.ents.length - 1], { v: 0, vBase: 0 }); PRED.t = 0; __step(0.05)");
     const fewer = await g.js('PRED.paths');
     g.ok(fewer < open, 'a stopped bus in the lane closes some: ' + fewer);
@@ -377,12 +383,22 @@ export default (test) => {
     await g.js('PRED.auto = false');
   }, { quiet: true, speed: 19, x: 2.25 });
 
-  test('auto drive: boosts whenever there is charge', async (g) => {
-    await g.js("PRED.auto = true; GASC.got = Math.max(1, GASC.got); GASC.t = GAS_MAX; __step(2)");
-    await g.expect('player.boost && player.speed > player.base + 5', 'boosting');
-    await g.js('GASC.t = 0; __step(3); PRED.auto = false');
-    await g.expect('!player.boost && player.speed < player.base + 1', 'back to cruising once the charge is gone');
+  test('auto drive: boosts down to its reserve, and keeps the reserve for crossing traffic', async (g) => {
+    await g.js("PRED.auto = true; GASC.got = Math.max(1, GASC.got); GASC.t = GAS_RESERVE + 1; __step(0.5)");
+    await g.expect('player.boost', 'boosting while above the reserve');
+    await g.step(3);
+    await g.expect('!player.boost && GASC.t > GAS_RESERVE - 0.2', 'stops at the reserve: ' + await g.js('GASC.t.toFixed(2)'));
+    await g.js("spawnCross(player.run, { zc: player.z - 30 - 4.5 }, 0, 1, 20, -40); __step(0.2)");
+    await g.expect('player.boost', 'uses the reserve with crossing traffic ahead');
+    await g.js('PRED.auto = false');
   }, { quiet: true, god: true, speed: 19 });
+
+  test('auto drive: goes out of its way for a battery', async (g) => {
+    await g.js(`(() => { __pin(null); PRED.auto = true; GASC.got = Math.max(1, GASC.got); GASC.t = 0; const r = player.run, z = player.z - 40, ch = r.chunks.find((c) => z <= c.z0 && z > c.z0 - CH); addItem(ch, 'battery', 6.75, z); })()`);
+    await g.step(3);
+    await g.expect('GASC.t > 0', 'picked it up');
+    await g.js('PRED.auto = false');
+  }, { quiet: true, god: true, speed: 19, x: -2.25 });
 
   test('auto drive: goes on to the next level by itself', async (g) => {
     await g.js("PRED.auto = true; Game.elapsed = Game.levelTime - 0.1");
@@ -399,15 +415,23 @@ export default (test) => {
     await g.js('PRED.auto = false');
   }, { quiet: true, speed: 19 });
 
+  test('auto drive: takes a tow-truck ramp for the jump', async (g) => {
+    await g.js(RAMP(60)); await g.js('__pin(null); PRED.auto = true');
+    await g.until('player.onRamp', 5);
+    await g.until(LANDED + ' && !player.onRamp', 4);
+    await g.expectAlive();
+    await g.expectAward(/^BIG AIR!/);
+    await g.js('PRED.auto = false');
+  }, { quiet: true, god: true, speed: 19, x: 0 });
+
   test('auto drive: 20 s of real traffic on a fixed seed', async (g) => {
     await g.js('PRED.auto = true; __step(20); PRED.auto = false');
     await g.expectAlive();
   }, { seed: 1 });
 
-  test('the top speed is the same on every level (only cruising speeds up)', async (g) => {
-    const top = await g.js("[1, 4, 9].map((l) => { Game.level = l; beginLevel(); return player.max + ' ' + player.base; })");
-    g.eq(top.map((x) => x.split(' ')[0]), ['34', '34', '34'], 'top speed by level');
-    g.ok(+top[2].split(' ')[1] > +top[0].split(' ')[1], 'cruising still speeds up: ' + top.join(' / '));
+  test('cruising and top speed are the same on every level', async (g) => {
+    const sp = await g.js("[1, 4, 9].map((l) => { Game.level = l; beginLevel(); return player.base + '/' + player.max; })");
+    g.eq(sp, ['19/34', '19/34', '19/34'], 'cruise/top by level');
   });
 
   test('debug: infinite boost never runs out', async (g) => {
